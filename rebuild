@@ -1,0 +1,3 @@
+#!/bin/bash
+cd build || exit 1
+make -j8 "$@" || exit 1
