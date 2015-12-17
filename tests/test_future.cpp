@@ -2,6 +2,8 @@
 
 #include "future.hpp"
 
+using namespace taskloaf; 
+
 TEST_CASE("Ready") {
     auto f = ready(1);
 }
@@ -33,16 +35,16 @@ TEST_CASE("Async") {
     f.then([] (int x) { return x * 2; });
 }
 
-Future<int> fib(int index) {
-    if (index < 3) {
-        return ready(1);
-    } else {
-        auto af = fib(index - 1);
-        auto bf = fib(index - 2);
-        return when_all(af, bf).then([] (int a, int b) { return a + b; });
-    }
-}
+// Future<int> fib(int index) {
+//     if (index < 3) {
+//         return ready(1);
+//     } else {
+//         auto af = fib(index - 1);
+//         auto bf = fib(index - 2);
+//         return when_all(af, bf).then([] (int a, int b) { return a + b; });
+//     }
+// }
 
-TEST_CASE("Fib") {
-    auto c = fib(21);
-}
+// TEST_CASE("Fib") {
+//     auto c = fib(21);
+// }

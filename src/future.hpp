@@ -1,73 +1,76 @@
 #pragma once
 
 #include <memory>
-#include <type_traits>
+#include <cassert>
 
-struct SameProcess {
-    
-};
+#include "fnc.hpp"
+#include "data.hpp"
+
+namespace taskloaf {
 
 template <typename... Ts>
 struct Future;
 
-template <typename... Ts>
 struct FutureData {};
 
-template <typename F, typename... Ts>
-struct Then: public FutureData<std::result_of_t<F(Ts...)>> {
-    Then(std::shared_ptr<FutureData<Ts...>> fut, F fnc):
+struct Then: public FutureData {
+    template <typename F>
+    Then(std::shared_ptr<FutureData> fut, F fnc):
         fut(fut),
-        fnc(std::move(fnc))
+        fnc_name(get_fnc_name(fnc))
     {}
 
-    std::shared_ptr<FutureData<Ts...>> fut;
-    F fnc;
+    std::shared_ptr<FutureData> fut;
+    std::string fnc_name;
 };
 
-template <typename T>
-struct Unwrap: public FutureData<T> {
-    Unwrap(std::shared_ptr<FutureData<Future<T>>> fut):
+struct Unwrap: public FutureData {
+    Unwrap(std::shared_ptr<FutureData> fut):
         fut(fut)
     {}
 
-    std::shared_ptr<FutureData<Future<T>>> fut;
+    std::shared_ptr<FutureData> fut;
 };
 
-template <typename F>
-struct Async: public FutureData<std::result_of_t<F()>> {
+struct Async: public FutureData {
+    template <typename F>
     Async(F fnc):
-        fnc(std::move(fnc))
+        fnc_name(get_fnc_name(fnc))
     {}
 
-    F fnc;
+    std::string fnc_name;
 };
 
-template <typename T>
-struct Ready: public FutureData<T> {
+struct Ready: public FutureData {
+    template <typename T>
     Ready(T val):
-        val(val)
+        data(make_safe_void_ptr(val))
     {}
 
-    T val;
+    SafeVoidPtr data;
 };
 
-template <typename... Ts>
-struct WhenAll: public FutureData<Ts...> {
-    WhenAll(std::shared_ptr<FutureData<Ts>>... args):
-        data(args...)
+struct WhenAll: public FutureData {
+    WhenAll(std::vector<std::shared_ptr<FutureData>> args):
+        data(args)
     {}
 
-    std::tuple<std::shared_ptr<FutureData<Ts>>...> data;
+    std::vector<std::shared_ptr<FutureData>> data;
 };
 
 template <typename... Ts>
 struct Future {
-    std::shared_ptr<FutureData<Ts...>> data;
+    std::shared_ptr<FutureData> data;
 
     template <typename F>
     auto then(F fnc) {
+        (void)fnc;
+        auto task = [] (std::vector<Data*>& in) {
+            CallFunctorByType<F> f;
+            return apply_args<decltype(f),F>(in, f); 
+        };
         return Future<std::result_of_t<F(Ts...)>>{
-           std::make_shared<Then<F,Ts...>>(data, fnc)
+           std::make_shared<Then>(data, task)
         };
     }
 };
@@ -76,47 +79,51 @@ template <typename T>
 struct Future<T> {
     using type = T;
 
-    std::shared_ptr<FutureData<T>> data;
+    std::shared_ptr<FutureData> data;
 
     template <typename F>
     auto then(F fnc) {
+        (void)fnc;
+        auto task = [] (std::vector<Data*>& in) {
+            CallFunctorByType<F> f;
+            return apply_args<decltype(f),F>(in, f); 
+        };
         return Future<std::result_of_t<F(T)>>{
-            std::make_shared<Then<F,T>>(data, fnc)
+            std::make_shared<Then>(data, task)
         };
     }
     
     auto unwrap() {
         return Future<typename T::type>{
-            std::make_shared<Unwrap<typename T::type>>(data)
+            std::make_shared<Unwrap>(data)
         };
     }
 };
 
 template <typename T>
 auto ready(T val) {
-    return Future<T>{std::make_unique<Ready<T>>(val)};
+    return Future<T>{std::make_shared<Ready>(val)};
 }
 
 template <typename F>
 auto async(F fnc) {
+    (void)fnc;
+    auto task = [] (std::vector<Data*>& in) {
+        (void)in;
+        CallFunctorByType<F> f;
+        return f();
+    };
     return Future<std::result_of_t<F()>>{
-        std::make_unique<Async<F>>(std::move(fnc))
+        std::make_shared<Async>(task)
     };
 }
 
 template <typename... Ts>
 auto when_all(Future<Ts>... args) {
+    std::vector<std::shared_ptr<FutureData>> data{args.data...};
     return Future<Ts...>{
-        std::make_shared<WhenAll<Ts...>>(args.data...)
+        std::make_shared<WhenAll>(data)
     };
 }
 
-// template <typename T>
-// struct Run {};
-// 
-// template <typename T>
-// struct Run<Ready<T>> {
-//     T go(Ready<T> r) {
-//         return 
-//     }
-// };
+} //end namespace taskloaf
