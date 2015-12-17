@@ -120,4 +120,18 @@ auto get_fnc_name(F f) {
     return RegisteredType<F>::get_name(); 
 }
 
+template <typename Signature>
+struct MakeFunctor;
+
+template <typename Ret, typename... Args>
+struct MakeFunctor<Ret(Args...)> {
+    template <Ret (*F)(Args...)>
+    struct from {
+        Ret operator()(Args&&... args) const
+        {
+            return F(std::forward<Args>(args)...);
+        }
+    };
+};
+
 } //end namespace taskloaf

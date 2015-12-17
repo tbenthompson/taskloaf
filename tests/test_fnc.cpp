@@ -20,8 +20,10 @@ TEST_CASE("Check registered") {
 TEST_CASE("Apply args") {
     std::vector<Data*> args;
     auto in = 1.012;
-    Data data{make_safe_void_ptr(in)};
+    Data data{make_safe_void_ptr(1.012)};
+    Data data2{make_safe_void_ptr(2)};
     args.push_back(&data);
-    auto out = apply_args(args, [] (double x) { return x * 2; });
-    REQUIRE(out == in * 2);
+    args.push_back(&data2);
+    auto out = apply_args(args, [] (double x, int y) { return x * y; });
+    REQUIRE(out == 2.024);
 }
