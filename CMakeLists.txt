@@ -74,6 +74,8 @@ target_link_libraries(taskloaf ${CAF_LIBRARIES})
 
 add_executable(run_tests 
     tests/test_main.cpp
+    tests/test_future.cpp
+    tests/test_fnc.cpp
     )
 target_include_directories(run_tests PRIVATE
     ${CATCH_INCLUDE_DIRS}
