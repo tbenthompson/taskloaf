@@ -77,6 +77,7 @@ add_executable(run_tests
     tests/test_future.cpp
     tests/test_fnc.cpp
     tests/test_data.cpp
+    tests/test_print.cpp
     )
 target_include_directories(run_tests PRIVATE
     ${CATCH_INCLUDE_DIRS}

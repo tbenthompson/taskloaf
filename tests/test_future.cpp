@@ -1,6 +1,7 @@
 #include "catch.hpp"
 
 #include "future.hpp"
+#include "fib.hpp"
 
 using namespace taskloaf; 
 
@@ -38,16 +39,6 @@ TEST_CASE("Async") {
 std::string bark() { return "arf"; }
 TEST_CASE("Async fnc") {
     auto f = async(TASKLOAF_FUNCTOR(bark));
-}
-
-Future<int> fib(int index) {
-    if (index < 3) {
-        return ready(1);
-    } else {
-        auto af = fib(index - 1);
-        auto bf = fib(index - 2);
-        return when_all(af, bf).then([] (int a, int b) { return a + b; });
-    }
 }
 
 TEST_CASE("Fib") {

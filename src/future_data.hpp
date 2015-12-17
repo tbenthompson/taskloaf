@@ -4,15 +4,25 @@
 
 #include "fnc.hpp"
 #include "data.hpp"
+#include "future_visitor.hpp"
 
 namespace taskloaf {
 
 template <typename... Ts>
 struct Future;
 
-struct FutureData {};
+struct FutureData {
+    virtual void accept(FutureVisitor* visitor) = 0;
+};
 
-struct Then: public FutureData {
+template <typename Derived>
+struct VisitableFutureData: public FutureData {
+    void accept(FutureVisitor* visitor) {
+        visitor->visit(static_cast<Derived*>(this));
+    }
+};
+
+struct Then: public VisitableFutureData<Then> {
     template <typename F>
     Then(std::shared_ptr<FutureData> fut, F fnc):
         fut(fut),
@@ -23,7 +33,7 @@ struct Then: public FutureData {
     std::string fnc_name;
 };
 
-struct Unwrap: public FutureData {
+struct Unwrap: public VisitableFutureData<Unwrap> {
     Unwrap(std::shared_ptr<FutureData> fut):
         fut(fut)
     {}
@@ -31,7 +41,7 @@ struct Unwrap: public FutureData {
     std::shared_ptr<FutureData> fut;
 };
 
-struct Async: public FutureData {
+struct Async: public VisitableFutureData<Async> {
     template <typename F>
     Async(F fnc):
         fnc_name(get_fnc_name(fnc))
@@ -40,7 +50,7 @@ struct Async: public FutureData {
     std::string fnc_name;
 };
 
-struct Ready: public FutureData {
+struct Ready: public VisitableFutureData<Ready> {
     template <typename T>
     Ready(T val):
         data(make_safe_void_ptr(val))
@@ -49,7 +59,7 @@ struct Ready: public FutureData {
     SafeVoidPtr data;
 };
 
-struct WhenAll: public FutureData {
+struct WhenAll: public VisitableFutureData<WhenAll> {
     WhenAll(std::vector<std::shared_ptr<FutureData>> args):
         data(args)
     {}
