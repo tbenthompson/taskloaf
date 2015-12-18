@@ -3,9 +3,13 @@
 #include "print_tree.hpp"
 #include "fib.hpp"
 
+#include <iostream>
+
 using namespace taskloaf;
 
 TEST_CASE("Fib print") {
-    auto f = fib(5);
-    print(f);
+    std::ostringstream stream;
+    auto f = fib(3);
+    print(f, stream);
+    REQUIRE(stream.str() == "Then\n  WhenAll\n    Ready\n    Ready\n");
 }

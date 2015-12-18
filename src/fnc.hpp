@@ -6,13 +6,6 @@
 
 namespace taskloaf {
 
-template <size_t index>
-std::tuple<> build_input(std::vector<Data*>& args) 
-{
-    (void)args;
-    return std::tuple<>();
-}
-
 template <size_t index = 0, typename T>
 std::tuple<T> build_input(std::vector<Data*>& args) 
 {
@@ -92,16 +85,16 @@ struct CallFunctorByType
 
 static std::map<std::string,void(*)(std::vector<Data*>&)> fnc_registry;
 
-template<typename T>
+template <typename F>
 struct RegisteredType
 {
     static RegisteredType instance;
     std::string name;
     RegisteredType():
-        name(typeid(T).name())
+        name(typeid(F).name())
     {
         auto caller = [] (std::vector<Data*>& in) {
-            CallFunctorByType<T> caller;
+            CallFunctorByType<F> caller;
             caller(in);
         };
         fnc_registry[name] = caller;
@@ -111,8 +104,8 @@ struct RegisteredType
     }
 };
 
-template<typename T>
-RegisteredType<T> RegisteredType<T>::instance;
+template<typename F>
+RegisteredType<F> RegisteredType<F>::instance;
 
 template <typename F>
 auto get_fnc_name(F f) {

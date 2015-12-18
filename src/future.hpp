@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <iostream>
 
 #include "future_data.hpp"
 
@@ -17,7 +18,9 @@ struct Future {
         (void)fnc;
         auto task = [] (std::vector<Data*>& in) {
             CallFunctorByType<F> f;
-            return apply_args<decltype(f),F>(in, f); 
+            in.back()->unserialized_data = make_safe_void_ptr(
+                apply_args<decltype(f),F>(in, f)
+            );
         };
         return Future<std::result_of_t<F(Ts...)>>{
            std::make_shared<Then>(data, task)
@@ -36,7 +39,9 @@ struct Future<T> {
         (void)fnc;
         auto task = [] (std::vector<Data*>& in) {
             CallFunctorByType<F> f;
-            return apply_args<decltype(f),F>(in, f); 
+            in.back()->unserialized_data = make_safe_void_ptr(
+                apply_args<decltype(f),F>(in, f)
+            );
         };
         return Future<std::result_of_t<F(T)>>{
             std::make_shared<Then>(data, task)
@@ -59,9 +64,8 @@ template <typename F>
 auto async(F fnc) {
     (void)fnc;
     auto task = [] (std::vector<Data*>& in) {
-        (void)in;
         CallFunctorByType<F> f;
-        return f();
+        in.back()->unserialized_data = make_safe_void_ptr(f());
     };
     return Future<std::result_of_t<F()>>{
         std::make_shared<Async>(task)

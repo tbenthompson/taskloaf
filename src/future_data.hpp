@@ -4,7 +4,6 @@
 
 #include "fnc.hpp"
 #include "data.hpp"
-#include "future_visitor.hpp"
 
 namespace taskloaf {
 
@@ -12,36 +11,30 @@ template <typename... Ts>
 struct Future;
 
 struct FutureData {
-    virtual void accept(FutureVisitor* visitor) = 0;
+    //Force polymorphism through a single virtual function.
+    virtual void nullfnc() {};
 };
 
-template <typename Derived>
-struct VisitableFutureData: public FutureData {
-    void accept(FutureVisitor* visitor) {
-        visitor->visit(static_cast<Derived*>(this));
-    }
-};
-
-struct Then: public VisitableFutureData<Then> {
+struct Then: public FutureData {
     template <typename F>
     Then(std::shared_ptr<FutureData> fut, F fnc):
-        fut(fut),
+        child(fut),
         fnc_name(get_fnc_name(fnc))
     {}
 
-    std::shared_ptr<FutureData> fut;
+    std::shared_ptr<FutureData> child;
     std::string fnc_name;
 };
 
-struct Unwrap: public VisitableFutureData<Unwrap> {
+struct Unwrap: public FutureData {
     Unwrap(std::shared_ptr<FutureData> fut):
-        fut(fut)
+        child(fut)
     {}
 
-    std::shared_ptr<FutureData> fut;
+    std::shared_ptr<FutureData> child;
 };
 
-struct Async: public VisitableFutureData<Async> {
+struct Async: public FutureData {
     template <typename F>
     Async(F fnc):
         fnc_name(get_fnc_name(fnc))
@@ -50,7 +43,7 @@ struct Async: public VisitableFutureData<Async> {
     std::string fnc_name;
 };
 
-struct Ready: public VisitableFutureData<Ready> {
+struct Ready: public FutureData {
     template <typename T>
     Ready(T val):
         data(make_safe_void_ptr(val))
@@ -59,12 +52,12 @@ struct Ready: public VisitableFutureData<Ready> {
     SafeVoidPtr data;
 };
 
-struct WhenAll: public VisitableFutureData<WhenAll> {
+struct WhenAll: public FutureData {
     WhenAll(std::vector<std::shared_ptr<FutureData>> args):
-        data(args)
+        children(args)
     {}
 
-    std::vector<std::shared_ptr<FutureData>> data;
+    std::vector<std::shared_ptr<FutureData>> children;
 };
 
 } //end namespace taskloaf

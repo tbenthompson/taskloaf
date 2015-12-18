@@ -1,54 +1,32 @@
 #pragma once
-#include "future_visitor.hpp"
 #include "future.hpp"
 
-#include <iostream>
+#include <ostream>
 
 namespace taskloaf {
 
-struct PrintFuture: public FutureVisitor {
-    int offset = 0;
-
-    virtual void visit(Then* t) override {
-        std::cout << "Then " << t->fnc_name << std::endl;
-        offset += 1;
-        t->fut->accept(this);
-        offset -= 1;
-    }
-
-    virtual void visit(Unwrap* t) override {
-        (void)t;
-        std::cout << "Unwrap" << std::endl;
-        offset += 1;
-        t->fut->accept(this);
-        offset -= 1
-    }
-
-    virtual void visit(Async* t) override {
-        (void)t;
-        std::cout << "Async" << std::endl;
-    }
-
-    virtual void visit(Ready* t) override {
-        (void)t;
-        std::cout << "Ready" << std::endl;
-    }
-
-    virtual void visit(WhenAll* t) override {
-        (void)t;
-        std::cout << "WhenAll" << std::endl;
-        for (auto& d: t->data) {
-            offset += 1;
-            d->accept(this);
-            offset -= 1;
+inline void print_helper(FutureData* data, std::string prefix, std::ostream& out) {
+    if (Then* then = dynamic_cast<Then*>(data)) {
+        out << prefix << "Then" << std::endl;
+        print_helper(then->child.get(), prefix + "  ", out);
+    } else if (Unwrap* unwrap = dynamic_cast<Unwrap*>(data)) {
+        out << prefix << "Unwrap" << std::endl;
+        print_helper(unwrap->child.get(), prefix + "  ", out);
+    } else if (Async* async = dynamic_cast<Async*>(data)) {
+        out << prefix << "Async" << std::endl;
+    } else if (Ready* ready = dynamic_cast<Ready*>(data)) {
+        out << prefix << "Ready" << std::endl;
+    } else if (WhenAll* whenall = dynamic_cast<WhenAll*>(data)) {
+        out << prefix << "WhenAll" << std::endl;
+        for (auto& c: whenall->children) {
+            print_helper(c.get(), prefix + "  ", out);
         }
     }
-};
+}
 
 template <typename T>
-void print(Future<T> f) {
-    PrintFuture printer; 
-    f.data->accept(&printer);
+void print(Future<T> f, std::ostream& out) {
+    print_helper(f.data.get(), "", out);
 }
 
 }
