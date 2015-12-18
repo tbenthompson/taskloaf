@@ -97,7 +97,7 @@ TEST_CASE("Run unwrap") {
 auto runner() {
     Scheduler s;
     TIC 
-    auto task = fib(27).then([] (int x) { 
+    auto task = fib(31).then([] (int x) { 
         // REQUIRE(x == 28657);
         std::cout << x << std::endl;
         return 0;

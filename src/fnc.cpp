@@ -2,6 +2,6 @@
 
 namespace taskloaf {
 
-std::map<std::string,void(*)(const std::vector<Data*>&)> fnc_registry;
+std::map<std::type_index,void(*)(const std::vector<Data*>&)> fnc_registry;
 
 } //end namespace taskloaf

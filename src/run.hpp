@@ -18,7 +18,7 @@ struct Scheduler {
 };
 
 struct STFData {
-    std::unique_ptr<std::vector<Data>> val;
+    std::vector<Data> vals;
     std::vector<std::function<void(std::vector<Data>& val)>> fulfill_triggers;
 };
 

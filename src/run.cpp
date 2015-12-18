@@ -15,19 +15,20 @@ STF::STF():
     data(std::make_shared<STFData>()) 
 {}
 
-void STF::fulfill(std::vector<Data> val) 
+void STF::fulfill(std::vector<Data> vals) 
 {
-    assert(data->val == nullptr);
-    data->val.reset(new std::vector<Data>(std::move(val)));
+    assert(data->vals.size() == 0);
+    assert(vals.size() > 0);
+    data->vals = std::move(vals);
     for (auto& t: data->fulfill_triggers) {
-        t(*data->val);
+        t(data->vals);
     }
 }
 
 void STF::add_trigger(std::function<void(std::vector<Data>& val)> trigger)
 {
-    if (data->val != nullptr) {
-        trigger(*data->val);
+    if (data->vals.size() > 0) {
+        trigger(data->vals);
     } else {
         data->fulfill_triggers.push_back(trigger);
     }
@@ -97,7 +98,7 @@ STF run_whenall(const WhenAll* whenall, Scheduler* s) {
                 data_accum->push_back(v);
             }
             if (data_accum->size() == whenall->children.size()) {
-                result.fulfill(*data_accum); 
+                result.fulfill(std::move(*data_accum)); 
             }
         });
     }
@@ -105,18 +106,25 @@ STF run_whenall(const WhenAll* whenall, Scheduler* s) {
 }
 
 STF run_helper(const FutureData& data, Scheduler* s) {
-    if (const Then* then = dynamic_cast<const Then*>(&data)) {
-        return run_then(then, s);
-    } else if (const Unwrap* unwrap = dynamic_cast<const Unwrap*>(&data)) {
-        return run_unwrap(unwrap, s);
-    } else if (const Async* async = dynamic_cast<const Async*>(&data)) {
-        return run_async(async, s);
-    } else if (const Ready* ready = dynamic_cast<const Ready*>(&data)) {
-        return run_ready(ready, s);
-    } else if (const WhenAll* whenall = dynamic_cast<const WhenAll*>(&data)) {
-        return run_whenall(whenall, s);
-    }
-    throw std::runtime_error("Unknown FutureData type");
+    switch (data.type) {
+        case ThenType:
+            return run_then(reinterpret_cast<const Then*>(&data), s);
+
+        case UnwrapType:
+            return run_unwrap(reinterpret_cast<const Unwrap*>(&data), s);
+
+        case AsyncType:
+            return run_async(reinterpret_cast<const Async*>(&data), s);
+
+        case ReadyType:
+            return run_ready(reinterpret_cast<const Ready*>(&data), s);
+
+        case WhenAllType:
+            return run_whenall(reinterpret_cast<const WhenAll*>(&data), s);
+
+        default: 
+            throw std::runtime_error("Unknown FutureData type");
+    };
 }
 
 

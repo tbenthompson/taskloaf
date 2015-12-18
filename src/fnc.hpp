@@ -2,6 +2,7 @@
 #include <map>
 #include <cassert>
 #include <vector>
+#include <typeindex>
 
 #include "data.hpp"
 
@@ -84,15 +85,15 @@ struct CallFunctorByType
     }
 };
 
-extern std::map<std::string,void(*)(const std::vector<Data*>&)> fnc_registry;
+extern std::map<std::type_index,void(*)(const std::vector<Data*>&)> fnc_registry;
 
 template <typename F>
 struct RegisteredType
 {
     static RegisteredType instance;
-    std::string name;
+    std::type_index name;
     RegisteredType():
-        name(typeid(F).name())
+        name(std::type_index(typeid(F)))
     {
         auto caller = [] (const std::vector<Data*>& in) {
             CallFunctorByType<F> caller;
@@ -100,7 +101,7 @@ struct RegisteredType
         };
         fnc_registry[name] = caller;
     }
-    static std::string get_name() {
+    static std::type_index get_name() {
         return instance.name; 
     }
 };

@@ -78,7 +78,7 @@ auto async(F fnc) {
 }
 
 template <typename... Ts>
-auto when_all(Future<Ts>... args) {
+auto when_all(const Future<Ts>&... args) {
     std::vector<std::shared_ptr<FutureData>> data{args.data...};
     return Future<Ts...>{
         std::make_shared<WhenAll>(std::move(data))
