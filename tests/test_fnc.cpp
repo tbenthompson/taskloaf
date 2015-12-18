@@ -11,9 +11,8 @@ TEST_CASE("Functor by type") {
 }
 
 TEST_CASE("Check registered") {
-    REQUIRE(fnc_registry.size() == 2);
-    auto name = get_fnc_name([] (std::vector<Data*>&) { return 10; });
-    get_fnc_name([] (std::vector<Data*>&) { return 11; });
+    auto name = get_fnc_name([] (const std::vector<Data*>&) { return 10; });
+    get_fnc_name([] (const std::vector<Data*>&) { return 11; });
     REQUIRE(fnc_registry.count(name) == 1);
 }
 

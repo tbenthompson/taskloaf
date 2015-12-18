@@ -11,8 +11,7 @@ template <typename... Ts>
 struct Future;
 
 struct FutureData {
-    //Force polymorphism through a single virtual function.
-    virtual void nullfnc() {};
+    virtual ~FutureData() {}
 };
 
 struct Then: public FutureData {
@@ -27,11 +26,14 @@ struct Then: public FutureData {
 };
 
 struct Unwrap: public FutureData {
-    Unwrap(std::shared_ptr<FutureData> fut):
-        child(fut)
+    template <typename F>
+    Unwrap(std::shared_ptr<FutureData> fut, F fnc):
+        child(fut),
+        fnc_name(get_fnc_name(fnc))
     {}
 
     std::shared_ptr<FutureData> child;
+    std::string fnc_name;
 };
 
 struct Async: public FutureData {

@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 include(ExternalProject)
 
 set(TASKLOAF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -58,6 +58,8 @@ ExternalProject_Add(
 
 add_library(taskloaf SHARED
         src/start.cpp
+        src/fnc.cpp
+        src/run.cpp
     )
 
 target_include_directories(taskloaf PRIVATE

@@ -16,7 +16,7 @@ struct Future {
     template <typename F>
     auto then(F fnc) {
         (void)fnc;
-        auto task = [] (std::vector<Data*>& in) {
+        auto task = [] (const std::vector<Data*>& in) {
             CallFunctorByType<F> f;
             in.back()->unserialized_data = make_safe_void_ptr(
                 apply_args<decltype(f),F>(in, f)
@@ -37,7 +37,7 @@ struct Future<T> {
     template <typename F>
     auto then(F fnc) {
         (void)fnc;
-        auto task = [] (std::vector<Data*>& in) {
+        auto task = [] (const std::vector<Data*>& in) {
             CallFunctorByType<F> f;
             in.back()->unserialized_data = make_safe_void_ptr(
                 apply_args<decltype(f),F>(in, f)
@@ -49,8 +49,13 @@ struct Future<T> {
     }
     
     auto unwrap() {
+        auto unwrapper = [] (const std::vector<Data*>& in) {
+            in.back()->unserialized_data = make_safe_void_ptr(
+                in[0]->get_as<T>().data
+            );
+        };
         return Future<typename T::type>{
-            std::make_shared<Unwrap>(data)
+            std::make_shared<Unwrap>(data, unwrapper)
         };
     }
 };
@@ -63,7 +68,7 @@ auto ready(T val) {
 template <typename F>
 auto async(F fnc) {
     (void)fnc;
-    auto task = [] (std::vector<Data*>& in) {
+    auto task = [] (const std::vector<Data*>& in) {
         CallFunctorByType<F> f;
         in.back()->unserialized_data = make_safe_void_ptr(f());
     };
