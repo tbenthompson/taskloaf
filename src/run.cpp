@@ -25,7 +25,7 @@ void STF::fulfill(std::vector<Data> vals)
     }
 }
 
-void STF::add_trigger(std::function<void(std::vector<Data>& val)> trigger)
+void STF::add_trigger(Function<void(std::vector<Data>& val)> trigger)
 {
     if (data->vals.size() > 0) {
         trigger(data->vals);
@@ -78,19 +78,24 @@ STF run_ready(const Ready& ready, Scheduler* s) {
     return out;
 }
 
+void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler* s,
+    std::vector<Data> accumulator, STF result) 
+{
+    auto child_run = run_helper(*children.back().get(), s);
+    children.pop_back();
+    child_run.add_trigger([=] (std::vector<Data>& vals) mutable {
+        accumulator.push_back(vals[0]);
+        if (children.size() == 0) {
+            result.fulfill(std::move(accumulator));
+        } else {
+            whenall_child(children, s, accumulator, result);
+        }
+    });
+}
+
 STF run_whenall(const WhenAll& whenall, Scheduler* s) {
     STF result;
-    auto data_accum = std::make_shared<std::vector<Data>>();
-    auto n_children = whenall.children.size();
-    for (auto& c: whenall.children) {
-        auto child_run = run_helper(*c.get(), s);
-        child_run.add_trigger([=] (std::vector<Data>& vals) mutable {
-            data_accum->push_back(vals[0]);
-            if (data_accum->size() == n_children) {
-                result.fulfill(std::move(*data_accum)); 
-            }
-        });
-    }
+    whenall_child(whenall.children, s, {}, result);
     return result;
 }
 

@@ -6,7 +6,7 @@
 namespace taskloaf {
 
 struct Scheduler {
-    std::stack<std::function<void()>> tasks;
+    std::stack<Function<void()>> tasks;
 
     void run();
 
@@ -19,7 +19,7 @@ struct Scheduler {
 
 struct STFData {
     std::vector<Data> vals;
-    std::vector<std::function<void(std::vector<Data>& val)>> fulfill_triggers;
+    std::vector<Function<void(std::vector<Data>& val)>> fulfill_triggers;
 };
 
 struct STF {
@@ -27,7 +27,7 @@ struct STF {
 
     STF();
     void fulfill(std::vector<Data> val); 
-    void add_trigger(std::function<void(std::vector<Data>& val)> trigger);
+    void add_trigger(Function<void(std::vector<Data>& val)> trigger);
 };
 
 STF run_helper(const FutureNode& data, Scheduler* s);
