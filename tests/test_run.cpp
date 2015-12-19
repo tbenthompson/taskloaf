@@ -8,26 +8,40 @@ using namespace taskloaf;
 TEST_CASE("ST Scheduler") {
     int x = 0;
     Scheduler s;
-    s.add_task([&] () { x = 1; });
+    s.add_task([&] (Scheduler* s) { (void)s; x = 1; });
     s.run();
     REQUIRE(x == 1);
 }
 
-TEST_CASE("ST Future") {
-    STF stf;
+TEST_CASE("New IVar") {
+    Scheduler s;
+    auto id = s.new_ivar();
+    REQUIRE(s.ivars.count(id) > 0);
+}
+
+TEST_CASE("IVar") {
+    Scheduler s;
+    IVar ivar;
     int x = 0;
-    stf.add_trigger([&] (std::vector<Data>& val) { x = val[0].get_as<int>(); });
+    ivar.add_trigger(&s, [&] (Scheduler* s, std::vector<Data>& val) {
+        (void)s;
+        x = val[0].get_as<int>(); 
+    });
     Data d{make_safe_void_ptr(10)};
-    stf.fulfill({d});
+    ivar.fulfill(&s, {d});
     REQUIRE(x == 10);
 }
 
-TEST_CASE("ST Future add trigger after fulfill") {
-    STF stf;
+TEST_CASE("IVar add trigger after fulfill") {
+    Scheduler s;
+    IVar ivar;
     int x = 0;
     Data d{make_safe_void_ptr(10)};
-    stf.fulfill({d});
-    stf.add_trigger([&] (std::vector<Data>& val) { x = val[0].get_as<int>(); });
+    ivar.fulfill(&s, {d});
+    ivar.add_trigger(&s, [&] (Scheduler* s, std::vector<Data>& val) {
+        (void)s;
+        x = val[0].get_as<int>(); 
+    });
     REQUIRE(x == 10);
 }
 

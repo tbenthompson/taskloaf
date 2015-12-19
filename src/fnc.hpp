@@ -78,6 +78,7 @@ auto apply_args(std::vector<Data>& args, const CallableType& f)
 
 
 //Modified from https://github.com/darabos/pinty/blob/master/pinty.h
+//TODO: I think this memory leaks? Use unique_ptr.
 struct Closure {
     template <typename Func>
     Closure(Func f) :
