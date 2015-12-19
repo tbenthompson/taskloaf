@@ -38,11 +38,17 @@ STF run_then(const Then& then, Scheduler* s) {
     auto inside = run_helper(*then.child.get(), s);
     auto fnc = then.fnc;
     STF outside;
-    inside.add_trigger([=] (std::vector<Data>& vals) mutable {
-        s->add_task([=] () mutable {
-            outside.fulfill({fnc(vals)});
-        });
-    });
+    inside.add_trigger(
+        [s, outside, fnc = std::move(fnc)] 
+        (std::vector<Data>& vals) mutable {
+            s->add_task(
+                [outside, vals, fnc = std::move(fnc)]
+                () mutable {
+                    outside.fulfill({fnc(vals)});
+                }
+            );
+        }
+    );
     return outside;
 }
 
@@ -83,14 +89,34 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler*
 {
     auto child_run = run_helper(*children.back().get(), s);
     children.pop_back();
-    child_run.add_trigger([=] (std::vector<Data>& vals) mutable {
-        accumulator.push_back(vals[0]);
-        if (children.size() == 0) {
-            result.fulfill(std::move(accumulator));
-        } else {
-            whenall_child(children, s, accumulator, result);
-        }
-    });
+    if (children.size() == 0) {
+        child_run.add_trigger(
+            [
+                result = std::move(result),
+                accumulator = std::move(accumulator)
+            ]
+            (std::vector<Data>& vals) mutable {
+                accumulator.push_back(vals[0]);
+                result.fulfill(std::move(accumulator));
+            }
+        );
+    } else {
+        child_run.add_trigger(
+            [
+                children = std::move(children),
+                result = std::move(result),
+                accumulator = std::move(accumulator),
+                s
+            ]
+            (std::vector<Data>& vals) mutable {
+                accumulator.push_back(vals[0]);
+                whenall_child(
+                    std::move(children), s, 
+                    std::move(accumulator), std::move(result)
+                );
+            }
+        );
+    }
 }
 
 STF run_whenall(const WhenAll& whenall, Scheduler* s) {
