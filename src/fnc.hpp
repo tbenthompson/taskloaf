@@ -9,17 +9,17 @@
 namespace taskloaf {
 
 template <size_t index = 0, typename T>
-std::tuple<T> build_input(const std::vector<Data*>& args) 
+std::tuple<T> build_input(std::vector<Data>& args) 
 {
     typedef typename std::remove_reference<T>::type TDeref;
     typedef typename std::remove_cv<TDeref>::type TDerefDeCV;
     assert(index < args.size());
-    return std::tuple<T>(args[index]->get_as<TDerefDeCV>());
+    return std::tuple<T>(args[index].get_as<TDerefDeCV>());
 }
 
 template <size_t index = 0, typename T, typename... Args,
           typename std::enable_if<sizeof...(Args) != 0,int>::type = 0>
-std::tuple<T, Args...> build_input(const std::vector<Data*>& args) 
+std::tuple<T, Args...> build_input(std::vector<Data>& args) 
 {
     return std::tuple_cat(
         build_input<index,T>(args),
@@ -56,7 +56,7 @@ template <typename ClassType, typename ReturnType, typename... Args>
 struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...) const>
 {
     template <typename F>
-    static ReturnType run(const std::vector<Data*>& args, F f) 
+    static ReturnType run(std::vector<Data>& args, F f) 
     {
         auto input = build_input<0,Args...>(args);
         typedef decltype(input) Tuple;
@@ -70,7 +70,7 @@ struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...) const>
 };
 
 template <typename CallableType, typename ArgDeductionType = CallableType>
-auto apply_args(const std::vector<Data*>& args, const CallableType& f)
+auto apply_args(std::vector<Data>& args, const CallableType& f)
 {
     return ApplyArgsHelper<decltype(&ArgDeductionType::operator())>::run(args, f);
 }
@@ -85,7 +85,7 @@ struct CallFunctorByType
     }
 };
 
-extern std::map<std::type_index,void(*)(const std::vector<Data*>&)> fnc_registry;
+extern std::map<std::type_index,Data(*)(std::vector<Data>&)> fnc_registry;
 
 template <typename F>
 struct RegisteredType
@@ -95,9 +95,9 @@ struct RegisteredType
     RegisteredType():
         name(std::type_index(typeid(F)))
     {
-        auto caller = [] (const std::vector<Data*>& in) {
+        auto caller = [] (std::vector<Data>& in) {
             CallFunctorByType<F> caller;
-            caller(in);
+            return caller(in);
         };
         fnc_registry[name] = caller;
     }

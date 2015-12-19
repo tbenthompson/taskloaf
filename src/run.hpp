@@ -30,7 +30,7 @@ struct STF {
     void add_trigger(std::function<void(std::vector<Data>& val)> trigger);
 };
 
-STF run_helper(const FutureData& data, Scheduler* s);
+STF run_helper(const FutureNode& data, Scheduler* s);
 
 template <typename T>
 void run(const Future<T>& fut, Scheduler& s) {

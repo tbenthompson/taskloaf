@@ -5,7 +5,7 @@
 
 namespace taskloaf {
 
-inline void print_helper(FutureData* data, std::string prefix, std::ostream& out) {
+inline void print_helper(FutureNode* data, std::string prefix, std::ostream& out) {
     if (Then* then = dynamic_cast<Then*>(data)) {
         out << prefix << "Then" << std::endl;
         print_helper(then->child.get(), prefix + "  ", out);
