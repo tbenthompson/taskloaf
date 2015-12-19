@@ -11,40 +11,71 @@ void Scheduler::run()
     }
 }
 
-IVar::IVar(): 
-    data(std::make_shared<IVarData>()) 
+IVarRef::IVarRef(int owner, size_t id, Scheduler* s):
+    owner(owner), id(id), s(s)
+{
+    s->ivars[id].ref_count++;
+}
+
+IVarRef::~IVarRef() {
+    auto& ref_count = s->ivars[id].ref_count;
+    ref_count--;
+    static int erase_count = 0;
+    if (ref_count == 0) {
+        s->ivars.erase(id);
+        erase_count++;
+        if (erase_count % 10000 == 0) {
+            std::cout << erase_count << std::endl;
+        }
+    }
+}
+
+IVarRef::IVarRef(const IVarRef& ref):
+    IVarRef(ref.owner, ref.id, ref.s)
 {}
 
-void IVar::fulfill(Scheduler* s, std::vector<Data> vals) 
+IVarRef& IVarRef::operator=(const IVarRef& ref) {
+    owner = ref.owner; 
+    id = ref.id; 
+    s = ref.s;
+    s->ivars[id].ref_count++;
+    return *this;
+}
+
+void IVarRef::fulfill(std::vector<Data> vals) 
 {
-    assert(data->vals.size() == 0);
     assert(vals.size() > 0);
-    data->vals = std::move(vals);
-    for (auto& t: data->fulfill_triggers) {
-        t(s, data->vals);
+
+    auto& ivar_data = s->ivars[id];
+    assert(ivar_data.vals.size() == 0);
+
+    ivar_data.vals = std::move(vals);
+    for (auto& t: ivar_data.fulfill_triggers) {
+        t(s, ivar_data.vals);
     }
 }
 
-void IVar::add_trigger(Scheduler* s, TriggerT trigger)
+void IVarRef::add_trigger(TriggerT trigger)
 {
-    if (data->vals.size() > 0) {
-        trigger(s, data->vals);
+    auto& ivar_data = s->ivars[id];
+    if (ivar_data.vals.size() > 0) {
+        trigger(s, ivar_data.vals);
     } else {
-        data->fulfill_triggers.push_back(trigger);
+        ivar_data.fulfill_triggers.push_back(trigger);
     }
 }
 
-IVar run_then(const Then& then, Scheduler* s) {
+IVarRef run_then(const Then& then, Scheduler* s) {
     auto inside = run_helper(*then.child.get(), s);
-    auto fnc = then.fnc;
-    IVar outside;
-    inside.add_trigger(s,
-        [outside, fnc = std::move(fnc)] 
+    auto outside = s->new_ivar();
+    inside.add_trigger(
+        [outside, fnc = then.fnc] 
         (Scheduler* s, std::vector<Data>& vals) mutable {
             s->add_task(
                 [outside, vals, fnc = std::move(fnc)]
                 (Scheduler* s) mutable {
-                    outside.fulfill(s, {fnc(vals)});
+                    (void)s;
+                    outside.fulfill({fnc(vals)});
                 }
             );
         }
@@ -52,18 +83,20 @@ IVar run_then(const Then& then, Scheduler* s) {
     return outside;
 }
 
-IVar run_unwrap(const Unwrap& unwrap, Scheduler* s) {
+IVarRef run_unwrap(const Unwrap& unwrap, Scheduler* s) {
     auto inside = run_helper(*unwrap.child.get(), s);
     auto fnc = unwrap.fnc;
-    IVar out_future;
-    inside.add_trigger(s, [fnc, out_future]
+    auto out_future = s->new_ivar();
+    inside.add_trigger(
+        [fnc = std::move(fnc), out_future]
         (Scheduler* s, std::vector<Data>& vals) mutable {
             auto out = fnc(vals);
             auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
             auto result = run_helper(*future_data, s);
-            result.add_trigger(s, [out_future]
+            result.add_trigger([out_future]
                 (Scheduler* s, std::vector<Data>& vals) mutable {
-                    out_future.fulfill(s, vals); 
+                    (void)s;
+                    out_future.fulfill(vals); 
                 }
             );
         }
@@ -71,40 +104,45 @@ IVar run_unwrap(const Unwrap& unwrap, Scheduler* s) {
     return out_future;
 }
 
-IVar run_async(const Async& async, Scheduler* s) {
-    IVar out_future;
+IVarRef run_async(const Async& async, Scheduler* s) {
+    auto out_future = s->new_ivar();
     auto fnc = async.fnc;
-    s->add_task([out_future, fnc] (Scheduler* s) mutable {
-        std::vector<Data> empty;
-        out_future.fulfill(s, {fnc(empty)});
-    });
+    s->add_task(
+        [out_future, fnc = std::move(fnc)]
+        (Scheduler* s) mutable {
+            (void)s;
+            std::vector<Data> empty;
+            out_future.fulfill({fnc(empty)});
+        }
+    );
     return out_future;
 }
 
-IVar run_ready(const Ready& ready, Scheduler* s) {
-    IVar out;
-    out.fulfill(s, {Data{ready.data}});
+IVarRef run_ready(const Ready& ready, Scheduler* s) {
+    auto out = s->new_ivar();
+    out.fulfill({Data{ready.data}});
     return out;
 }
 
 void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler* s,
-    std::vector<Data> accumulator, IVar result) 
+    std::vector<Data> accumulator, IVarRef result) 
 {
     auto child_run = run_helper(*children.back().get(), s);
     children.pop_back();
     if (children.size() == 0) {
-        child_run.add_trigger(s,
+        child_run.add_trigger(
             [
                 result = std::move(result),
                 accumulator = std::move(accumulator)
             ]
             (Scheduler* s, std::vector<Data>& vals) mutable {
+                (void)s;
                 accumulator.push_back(vals[0]);
-                result.fulfill(s, std::move(accumulator));
+                result.fulfill(std::move(accumulator));
             }
         );
     } else {
-        child_run.add_trigger(s,
+        child_run.add_trigger(
             [
                 children = std::move(children),
                 result = std::move(result),
@@ -121,13 +159,13 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler*
     }
 }
 
-IVar run_whenall(const WhenAll& whenall, Scheduler* s) {
-    IVar result;
+IVarRef run_whenall(const WhenAll& whenall, Scheduler* s) {
+    auto result = s->new_ivar();
     whenall_child(whenall.children, s, {}, result);
     return result;
 }
 
-IVar run_helper(const FutureNode& data, Scheduler* s) {
+IVarRef run_helper(const FutureNode& data, Scheduler* s) {
     switch (data.type) {
         case ThenType:
             return run_then(reinterpret_cast<const Then&>(data), s);

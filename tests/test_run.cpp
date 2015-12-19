@@ -13,32 +13,26 @@ TEST_CASE("ST Scheduler") {
     REQUIRE(x == 1);
 }
 
-TEST_CASE("New IVar") {
-    Scheduler s;
-    auto id = s.new_ivar();
-    REQUIRE(s.ivars.count(id) > 0);
-}
-
 TEST_CASE("IVar") {
     Scheduler s;
-    IVar ivar;
+    auto ivar = s.new_ivar();
     int x = 0;
-    ivar.add_trigger(&s, [&] (Scheduler* s, std::vector<Data>& val) {
+    ivar.add_trigger( [&] (Scheduler* s, std::vector<Data>& val) {
         (void)s;
         x = val[0].get_as<int>(); 
     });
     Data d{make_safe_void_ptr(10)};
-    ivar.fulfill(&s, {d});
+    ivar.fulfill( {d});
     REQUIRE(x == 10);
 }
 
 TEST_CASE("IVar add trigger after fulfill") {
     Scheduler s;
-    IVar ivar;
+    auto ivar = s.new_ivar();
     int x = 0;
     Data d{make_safe_void_ptr(10)};
-    ivar.fulfill(&s, {d});
-    ivar.add_trigger(&s, [&] (Scheduler* s, std::vector<Data>& val) {
+    ivar.fulfill( {d});
+    ivar.add_trigger([&] (Scheduler* s, std::vector<Data>& val) {
         (void)s;
         x = val[0].get_as<int>(); 
     });
@@ -122,6 +116,7 @@ auto runner() {
     TOC("plan");
     TIC2
     s.run();
+    std::cout << s.ivars.size() << std::endl;
     TOC("run");
     TIC2
     return start;

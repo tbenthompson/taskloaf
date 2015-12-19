@@ -79,6 +79,7 @@ auto apply_args(std::vector<Data>& args, const CallableType& f)
 
 //Modified from https://github.com/darabos/pinty/blob/master/pinty.h
 //TODO: I think this memory leaks? Use unique_ptr.
+//TODO: This also has a crappy copy construction...
 struct Closure {
     template <typename Func>
     Closure(Func f) :
@@ -91,15 +92,19 @@ struct Closure {
         size(size) 
     {}
 
+    // Closure(Closure&& other) = default;
+    // Closure(const Closure& other) = delete;
+
     const char* data;
     size_t size;
 };
 
 template <typename Return, typename Func, typename... Args>
 struct Caller {
-    static Return Call(const Closure& c, Args... args) {
-        auto callable = *reinterpret_cast<const Func*>(c.data);
-        return callable(std::forward<Args>(args)...);
+    static Return Call(Closure& c, Args... args) {
+        return (const_cast<Func*>(reinterpret_cast<const Func*>(c.data)))->operator()(
+            std::forward<Args>(args)...
+        );
     }
 };
 
@@ -117,17 +122,17 @@ struct Function<Return (Class::*)(Args...) const>
 template <typename Return, typename... Args>
 struct Function<Return(Args...)> {
     typedef Return ret;
-    typedef Return (*Call)(const Closure&, Args...);
+    typedef Return (*Call)(Closure&, Args...);
 
     template <typename F>
     Function(F f):
         call(&Caller<Return,F,Args...>::Call),
-        closure(f)
+        closure(std::move(f))
     {}
 
     Function(Call call, Closure closure):
         call(call),
-        closure(closure) 
+        closure(std::move(closure)) 
     {}
 
     Return operator()(Args... args) {

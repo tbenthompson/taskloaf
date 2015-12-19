@@ -13,37 +13,48 @@ typedef Function<void(Scheduler* s, std::vector<Data>& val)> TriggerT;
 struct IVarData {
     std::vector<Data> vals;
     std::vector<TriggerT> fulfill_triggers;
+    size_t ref_count = 0;
 };
 
-struct IVar {
-    std::shared_ptr<IVarData> data;
+struct IVarRef {
+    int owner;
+    size_t id;
+    Scheduler* s;
 
-    IVar();
-    void fulfill(Scheduler* s, std::vector<Data> val); 
-    void add_trigger(Scheduler* s, TriggerT trigger);
+    
+    IVarRef(int owner, size_t id, Scheduler* s);
+    IVarRef(IVarRef&&) = default;
+    IVarRef& operator=(IVarRef&&) = default;
+    IVarRef(const IVarRef&);
+    IVarRef& operator=(const IVarRef&);
+    ~IVarRef();
+
+    void fulfill(std::vector<Data> val); 
+    void add_trigger(TriggerT trigger);
 };
 
 typedef Function<void(Scheduler*)> TaskT;
 struct Scheduler {
     std::stack<TaskT> tasks;
-    std::unordered_map<ID,IVarData> ivars;
+    std::unordered_map<size_t,IVarData> ivars;
+    size_t next_ivar_id = 0;
 
     void run();
 
-    ID new_ivar() {
-        auto id = new_id();
-        ivars.insert({id, {}});
-        return id;
+    IVarRef new_ivar() {
+        auto id = next_ivar_id;
+        next_ivar_id++;
+        return IVarRef(0, id, this);
     }
 
     template <typename F>
     void add_task(F f) 
     {
-        tasks.push(f);
+        tasks.push(std::move(f));
     }
 };
 
-IVar run_helper(const FutureNode& data, Scheduler* s);
+IVarRef run_helper(const FutureNode& data, Scheduler* s);
 
 template <typename T>
 void run(const Future<T>& fut, Scheduler& s) {
