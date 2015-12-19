@@ -57,9 +57,9 @@ ExternalProject_Add(
 ################################################################################
 
 add_library(taskloaf SHARED
-        src/start.cpp
-        src/fnc.cpp
-        src/run.cpp
+    src/start.cpp
+    src/fnc.cpp
+    src/run.cpp
     )
 
 target_include_directories(taskloaf PRIVATE

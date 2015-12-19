@@ -10,6 +10,8 @@ namespace taskloaf {
 template <typename... Ts>
 struct Future;
 
+typedef Function<Data(std::vector<Data>&)> TaskT;
+
 enum FutureNodeType {
     ThenType, UnwrapType, AsyncType, ReadyType, WhenAllType
 };
@@ -24,31 +26,31 @@ struct Then: public FutureNode {
     template <typename F>
     Then(std::shared_ptr<FutureNode> fut, F fnc):
         child(fut),
-        fnc_name(get_fnc_name(fnc))
+        fnc(fnc)
     { type = ThenType; }
 
-    std::shared_ptr<FutureNode> child;
-    std::type_index fnc_name;
+    const std::shared_ptr<FutureNode> child;
+    const TaskT fnc;
 };
 
 struct Unwrap: public FutureNode {
     template <typename F>
     Unwrap(std::shared_ptr<FutureNode> fut, F fnc):
         child(fut),
-        fnc_name(get_fnc_name(fnc))
+        fnc(fnc)
     { type = UnwrapType; }
 
-    std::shared_ptr<FutureNode> child;
-    std::type_index fnc_name;
+    const std::shared_ptr<FutureNode> child;
+    const TaskT fnc;
 };
 
 struct Async: public FutureNode {
     template <typename F>
     Async(F fnc):
-        fnc_name(get_fnc_name(fnc))
+        fnc(fnc)
     { type = AsyncType; }
 
-    std::type_index fnc_name;
+    const TaskT fnc;
 };
 
 struct Ready: public FutureNode {
@@ -57,7 +59,7 @@ struct Ready: public FutureNode {
         data(make_safe_void_ptr(val))
     { type = ReadyType; }
 
-    SafeVoidPtr data;
+    const SafeVoidPtr data;
 };
 
 struct WhenAll: public FutureNode {
@@ -65,7 +67,7 @@ struct WhenAll: public FutureNode {
         children(args)
     { type = WhenAllType; }
 
-    std::vector<std::shared_ptr<FutureNode>> children;
+    const std::vector<std::shared_ptr<FutureNode>> children;
 };
 
 } //end namespace taskloaf

@@ -15,13 +15,11 @@ struct Future {
 
     template <typename F>
     auto then(F fnc) {
-        (void)fnc;
-        auto task = [] (std::vector<Data>& in) {
-            CallFunctorByType<F> f;
-            return Data{make_safe_void_ptr(apply_args<decltype(f),F>(in, f))};
+        auto task = [fnc] (std::vector<Data>& in) {
+            return Data{make_safe_void_ptr(apply_args(in, fnc))};
         };
         return Future<std::result_of_t<F(Ts...)>>{
-           std::make_shared<Then>(data, task)
+            std::make_shared<Then>(data, task)
         };
     }
 };
@@ -34,10 +32,8 @@ struct Future<T> {
 
     template <typename F>
     auto then(F fnc) {
-        (void)fnc;
-        auto task = [] (std::vector<Data>& in) {
-            CallFunctorByType<F> f;
-            return Data{make_safe_void_ptr(apply_args<decltype(f),F>(in, f))};
+        auto task = [fnc] (std::vector<Data>& in) {
+            return Data{make_safe_void_ptr(apply_args(in, fnc))};
         };
         return Future<std::result_of_t<F(T)>>{
             std::make_shared<Then>(data, task)
@@ -61,29 +57,20 @@ auto ready(T val) {
 
 template <typename F>
 auto async(F fnc) {
-    (void)fnc;
-    auto task = [] (std::vector<Data>& in) {
+    auto task = [fnc] (std::vector<Data>& in) {
         (void)in;
-        CallFunctorByType<F> f;
-        return Data{make_safe_void_ptr(f())};
+        return Data{make_safe_void_ptr(fnc())};
     };
     return Future<std::result_of_t<F()>>{
         std::make_shared<Async>(task)
     };
 }
 
-// template <typename T>
-// auto when_all(const Future<T>& arg1) {
-//     return arg1;
-// }
-
-template <typename T, typename... Ts>
-auto when_all(const Future<T>& arg1, const Future<Ts>&... args) {
-    // arg1.then([=] (T val) { 
-    //     return when_all(args);
-    // }).unwrap();
-    std::vector<std::shared_ptr<FutureNode>> data{arg1.data, args.data...};
-    return Future<T, Ts...>{
+//TODO: Try implementing when_all in terms of then and unwrap
+template <typename... Ts>
+auto when_all(const Future<Ts>&... args) {
+    std::vector<std::shared_ptr<FutureNode>> data{args.data...};
+    return Future<Ts...>{
         std::make_shared<WhenAll>(std::move(data))
     };
 }

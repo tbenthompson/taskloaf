@@ -75,58 +75,68 @@ auto apply_args(std::vector<Data>& args, const CallableType& f)
     return ApplyArgsHelper<decltype(&ArgDeductionType::operator())>::run(args, f);
 }
 
-template <typename F>
-struct CallFunctorByType
-{
-    template <typename... Args>
-    auto operator()(Args&&... xs) const
-    {
-        return reinterpret_cast<const F&>(*this)(std::forward<Args>(xs)...);
+
+
+//Modified from https://github.com/darabos/pinty/blob/master/pinty.h
+struct Closure {
+    template <typename Func>
+    Closure(Func f) :
+        data(reinterpret_cast<const char*>(new Func(std::move(f)))),
+        size(sizeof(f))
+    {}
+
+    Closure(const char* data, size_t size):
+        data(data),
+        size(size) 
+    {}
+
+    const char* data;
+    size_t size;
+};
+
+template <typename Return, typename Func, typename... Args>
+struct Caller {
+    static Return Call(const Closure& c, Args... args) {
+        auto callable = *reinterpret_cast<const Func*>(c.data);
+        return callable(
+            std::forward<Args>(args)...
+        );
     }
 };
 
-extern std::map<std::type_index,Data(*)(std::vector<Data>&)> fnc_registry;
-
-template <typename F>
-struct RegisteredType
-{
-    static RegisteredType instance;
-    std::type_index name;
-    RegisteredType():
-        name(std::type_index(typeid(F)))
-    {
-        auto caller = [] (std::vector<Data>& in) {
-            CallFunctorByType<F> caller;
-            return caller(in);
-        };
-        fnc_registry[name] = caller;
-    }
-    static std::type_index get_name() {
-        return instance.name; 
-    }
+template <typename Signature> 
+struct Function {
+    typedef typename Function<decltype(&Signature::operator())>::ret ret;
 };
 
-template<typename F>
-RegisteredType<F> RegisteredType<F>::instance;
+template <typename Return, typename Class, typename... Args>
+struct Function<Return (Class::*)(Args...) const>
+{
+    typedef Return ret;
+};
 
-template <typename F>
-auto get_fnc_name(F f) {
-    (void)f;
-    return RegisteredType<F>::get_name(); 
-}
+template <typename Return, typename... Args>
+struct Function<Return(Args...)> {
+    typedef Return ret;
+    typedef Return (*Call)(const Closure&, Args...);
 
-template <typename Signature>
-struct MakeFunctor;
+    template <typename F>
+    Function(F f):
+        call(&Caller<Return,F,Args...>::Call),
+        closure(f)
+    {}
 
-template <typename Ret, typename... Args>
-struct MakeFunctor<Ret(Args...)> {
-    template <Ret (*F)(Args...)>
-    struct from {
-        Ret operator()(Args&&... args) const
-        {
-            return F(std::forward<Args>(args)...);
-        }
-    };
+    Function(Call call, Closure closure):
+        call(call),
+        closure(closure) 
+    {}
+
+    Return operator()(Args... args) {
+        return call(closure, std::forward<Args>(args)...);
+    }
+
+    Call call;
+    Closure closure;
 };
 
 } //end namespace taskloaf

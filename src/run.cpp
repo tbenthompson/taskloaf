@@ -36,11 +36,11 @@ void STF::add_trigger(std::function<void(std::vector<Data>& val)> trigger)
 
 STF run_then(const Then& then, Scheduler* s) {
     auto inside = run_helper(*then.child.get(), s);
-    auto fnc_name = then.fnc_name;
+    auto fnc = then.fnc;
     STF outside;
     inside.add_trigger([=] (std::vector<Data>& vals) mutable {
         s->add_task([=] () mutable {
-            outside.fulfill({fnc_registry[fnc_name](vals)});
+            outside.fulfill({fnc(vals)});
         });
     });
     return outside;
@@ -48,10 +48,10 @@ STF run_then(const Then& then, Scheduler* s) {
 
 STF run_unwrap(const Unwrap& unwrap, Scheduler* s) {
     auto inside = run_helper(*unwrap.child.get(), s);
-    auto fnc_name = unwrap.fnc_name;
+    auto fnc = unwrap.fnc;
     STF out_future;
     inside.add_trigger([=] (std::vector<Data>& vals) mutable {
-        auto out = fnc_registry[fnc_name](vals);
+        auto out = fnc(vals);
         auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
         auto result = run_helper(*future_data, s);
         result.add_trigger([=] (std::vector<Data>& vals) mutable {
@@ -63,10 +63,10 @@ STF run_unwrap(const Unwrap& unwrap, Scheduler* s) {
 
 STF run_async(const Async& async, Scheduler* s) {
     STF out_future;
-    auto fnc_name = async.fnc_name;
+    auto fnc = async.fnc;
     s->add_task([=] () mutable {
         std::vector<Data> empty;
-        out_future.fulfill({fnc_registry[fnc_name](empty)});
+        out_future.fulfill({fnc(empty)});
     });
     return out_future;
 }

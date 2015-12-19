@@ -38,9 +38,9 @@ TEST_CASE("Async") {
 
 std::string bark() { return "arf"; }
 TEST_CASE("Async fnc") {
-    auto f = async(TASKLOAF_FUNCTOR(bark));
+    auto f = async(bark);
 }
 
 TEST_CASE("Fib") {
-    auto c = fib(21);
+    auto c = fib(10);
 }
