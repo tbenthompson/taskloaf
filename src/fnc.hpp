@@ -98,9 +98,7 @@ template <typename Return, typename Func, typename... Args>
 struct Caller {
     static Return Call(const Closure& c, Args... args) {
         auto callable = *reinterpret_cast<const Func*>(c.data);
-        return callable(
-            std::forward<Args>(args)...
-        );
+        return callable(std::forward<Args>(args)...);
     }
 };
 

@@ -77,8 +77,7 @@ STF run_async(const Async& async, Scheduler* s) {
     return out_future;
 }
 
-STF run_ready(const Ready& ready, Scheduler* s) {
-    (void)s;
+STF run_ready(const Ready& ready) {
     STF out;
     out.fulfill({Data{ready.data}});
     return out;
@@ -137,7 +136,7 @@ STF run_helper(const FutureNode& data, Scheduler* s) {
             return run_async(reinterpret_cast<const Async&>(data), s);
 
         case ReadyType:
-            return run_ready(reinterpret_cast<const Ready&>(data), s);
+            return run_ready(reinterpret_cast<const Ready&>(data));
 
         case WhenAllType:
             return run_whenall(reinterpret_cast<const WhenAll&>(data), s);

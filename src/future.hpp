@@ -7,8 +7,6 @@
 
 namespace taskloaf {
 
-#define TASKLOAF_FUNCTOR(f) MakeFunctor<decltype(f)>::from<f>{}
-
 template <typename... Ts>
 struct Future {
     std::shared_ptr<FutureNode> data;
@@ -66,7 +64,6 @@ auto async(F fnc) {
     };
 }
 
-//TODO: Try implementing when_all in terms of then and unwrap
 template <typename... Ts>
 auto when_all(const Future<Ts>&... args) {
     std::vector<std::shared_ptr<FutureNode>> data{args.data...};
