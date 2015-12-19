@@ -1,5 +1,6 @@
 #pragma once
 #include "future.hpp"
+#include "fnc.hpp"
 #include "id.hpp"
 
 #include <stack>
@@ -10,6 +11,9 @@ namespace taskloaf {
 struct Scheduler;
 
 typedef Function<void(Scheduler* s, std::vector<Data>& val)> TriggerT;
+typedef Function<Data(std::vector<Data>&)> PureTaskT;
+typedef Function<void(Scheduler*)> TaskT;
+
 struct IVarData {
     std::vector<Data> vals;
     std::vector<TriggerT> fulfill_triggers;
@@ -21,19 +25,17 @@ struct IVarRef {
     size_t id;
     Scheduler* s;
 
-    
     IVarRef(int owner, size_t id, Scheduler* s);
-    IVarRef(IVarRef&&) = default;
-    IVarRef& operator=(IVarRef&&) = default;
+    IVarRef(IVarRef&&);
     IVarRef(const IVarRef&);
-    IVarRef& operator=(const IVarRef&);
+    IVarRef& operator=(IVarRef&&) = delete;
+    IVarRef& operator=(const IVarRef&) = delete;
     ~IVarRef();
 
     void fulfill(std::vector<Data> val); 
     void add_trigger(TriggerT trigger);
 };
 
-typedef Function<void(Scheduler*)> TaskT;
 struct Scheduler {
     std::stack<TaskT> tasks;
     std::unordered_map<size_t,IVarData> ivars;
@@ -44,6 +46,7 @@ struct Scheduler {
     IVarRef new_ivar() {
         auto id = next_ivar_id;
         next_ivar_id++;
+        ivars.insert({id, {}});
         return IVarRef(0, id, this);
     }
 

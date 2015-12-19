@@ -14,33 +14,26 @@ void Scheduler::run()
 IVarRef::IVarRef(int owner, size_t id, Scheduler* s):
     owner(owner), id(id), s(s)
 {
+    assert(s->ivars.count(id) > 0);
     s->ivars[id].ref_count++;
 }
 
 IVarRef::~IVarRef() {
+    assert(s->ivars.count(id) > 0);
     auto& ref_count = s->ivars[id].ref_count;
     ref_count--;
-    static int erase_count = 0;
     if (ref_count == 0) {
         s->ivars.erase(id);
-        erase_count++;
-        if (erase_count % 10000 == 0) {
-            std::cout << erase_count << std::endl;
-        }
     }
 }
+
+IVarRef::IVarRef(IVarRef&& ref):
+    IVarRef(std::move(ref.owner), std::move(ref.id), std::move(ref.s))
+{}
 
 IVarRef::IVarRef(const IVarRef& ref):
     IVarRef(ref.owner, ref.id, ref.s)
 {}
-
-IVarRef& IVarRef::operator=(const IVarRef& ref) {
-    owner = ref.owner; 
-    id = ref.id; 
-    s = ref.s;
-    s->ivars[id].ref_count++;
-    return *this;
-}
 
 void IVarRef::fulfill(std::vector<Data> vals) 
 {
@@ -61,7 +54,7 @@ void IVarRef::add_trigger(TriggerT trigger)
     if (ivar_data.vals.size() > 0) {
         trigger(s, ivar_data.vals);
     } else {
-        ivar_data.fulfill_triggers.push_back(trigger);
+        ivar_data.fulfill_triggers.push_back(std::move(trigger));
     }
 }
 
@@ -69,7 +62,7 @@ IVarRef run_then(const Then& then, Scheduler* s) {
     auto inside = run_helper(*then.child.get(), s);
     auto outside = s->new_ivar();
     inside.add_trigger(
-        [outside, fnc = then.fnc] 
+        [outside, fnc = PureTaskT(then.fnc)] 
         (Scheduler* s, std::vector<Data>& vals) mutable {
             s->add_task(
                 [outside, vals, fnc = std::move(fnc)]
@@ -85,10 +78,9 @@ IVarRef run_then(const Then& then, Scheduler* s) {
 
 IVarRef run_unwrap(const Unwrap& unwrap, Scheduler* s) {
     auto inside = run_helper(*unwrap.child.get(), s);
-    auto fnc = unwrap.fnc;
     auto out_future = s->new_ivar();
     inside.add_trigger(
-        [fnc = std::move(fnc), out_future]
+        [out_future, fnc = PureTaskT(unwrap.fnc)]
         (Scheduler* s, std::vector<Data>& vals) mutable {
             auto out = fnc(vals);
             auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
@@ -106,9 +98,8 @@ IVarRef run_unwrap(const Unwrap& unwrap, Scheduler* s) {
 
 IVarRef run_async(const Async& async, Scheduler* s) {
     auto out_future = s->new_ivar();
-    auto fnc = async.fnc;
     s->add_task(
-        [out_future, fnc = std::move(fnc)]
+        [out_future, fnc = PureTaskT(async.fnc)]
         (Scheduler* s) mutable {
             (void)s;
             std::vector<Data> empty;

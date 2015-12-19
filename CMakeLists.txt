@@ -58,7 +58,6 @@ ExternalProject_Add(
 
 add_library(taskloaf SHARED
     src/start.cpp
-    src/fnc.cpp
     src/run.cpp
     src/id.cpp
     )

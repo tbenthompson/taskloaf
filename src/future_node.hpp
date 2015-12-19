@@ -1,8 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
-#include "fnc.hpp"
 #include "data.hpp"
 
 namespace taskloaf {
@@ -10,7 +10,7 @@ namespace taskloaf {
 template <typename... Ts>
 struct Future;
 
-typedef Function<Data(std::vector<Data>&)> PureTaskT;
+typedef std::function<Data(std::vector<Data>&)> InputTaskT;
 
 enum FutureNodeType {
     ThenType, UnwrapType, AsyncType, ReadyType, WhenAllType
@@ -30,7 +30,7 @@ struct Then: public FutureNode {
     { type = ThenType; }
 
     const std::shared_ptr<FutureNode> child;
-    const PureTaskT fnc;
+    const InputTaskT fnc;
 };
 
 struct Unwrap: public FutureNode {
@@ -41,7 +41,7 @@ struct Unwrap: public FutureNode {
     { type = UnwrapType; }
 
     const std::shared_ptr<FutureNode> child;
-    const PureTaskT fnc;
+    const InputTaskT fnc;
 };
 
 struct Async: public FutureNode {
@@ -50,7 +50,7 @@ struct Async: public FutureNode {
         fnc(fnc)
     { type = AsyncType; }
 
-    const PureTaskT fnc;
+    const InputTaskT fnc;
 };
 
 struct Ready: public FutureNode {

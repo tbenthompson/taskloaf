@@ -3,6 +3,7 @@
 #include <cassert>
 #include <iostream>
 
+#include "fnc.hpp"
 #include "future_node.hpp"
 
 namespace taskloaf {

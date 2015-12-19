@@ -2,7 +2,6 @@
 #include <map>
 #include <cassert>
 #include <vector>
-#include <typeindex>
 
 #include "data.hpp"
 
@@ -78,61 +77,25 @@ auto apply_args(std::vector<Data>& args, const CallableType& f)
 
 
 //Modified from https://github.com/darabos/pinty/blob/master/pinty.h
-//TODO: I think this memory leaks? Use unique_ptr.
-//TODO: This also has a crappy copy construction...
-struct Closure {
-    template <typename Func>
-    Closure(Func f) :
-        data(reinterpret_cast<const char*>(new Func(std::move(f)))),
-        size(sizeof(f))
-    {}
-
-    Closure(const char* data, size_t size):
-        data(data),
-        size(size) 
-    {}
-
-    // Closure(Closure&& other) = default;
-    // Closure(const Closure& other) = delete;
-
-    const char* data;
-    size_t size;
-};
-
 template <typename Return, typename Func, typename... Args>
 struct Caller {
-    static Return Call(Closure& c, Args... args) {
-        return (const_cast<Func*>(reinterpret_cast<const Func*>(c.data)))->operator()(
-            std::forward<Args>(args)...
-        );
+    static Return Call(Data& data, Args... args) {
+        return data.get_as<Func>()(std::forward<Args>(args)...);
     }
 };
 
-template <typename Signature> 
-struct Function {
-    typedef typename Function<decltype(&Signature::operator())>::ret ret;
-};
-
-template <typename Return, typename Class, typename... Args>
-struct Function<Return (Class::*)(Args...) const>
-{
-    typedef Return ret;
-};
+template <typename T> 
+struct Function {};
 
 template <typename Return, typename... Args>
 struct Function<Return(Args...)> {
     typedef Return ret;
-    typedef Return (*Call)(Closure&, Args...);
+    typedef Return (*Call)(Data&, Args...);
 
     template <typename F>
     Function(F f):
         call(&Caller<Return,F,Args...>::Call),
-        closure(std::move(f))
-    {}
-
-    Function(Call call, Closure closure):
-        call(call),
-        closure(std::move(closure)) 
+        closure({make_safe_void_ptr(std::move(f))})
     {}
 
     Return operator()(Args... args) {
@@ -140,7 +103,7 @@ struct Function<Return(Args...)> {
     }
 
     Call call;
-    Closure closure;
+    Data closure;
 };
 
 } //end namespace taskloaf

@@ -116,7 +116,6 @@ auto runner() {
     TOC("plan");
     TIC2
     s.run();
-    std::cout << s.ivars.size() << std::endl;
     TOC("run");
     TIC2
     return start;
