@@ -2,72 +2,91 @@
 
 namespace taskloaf {
 
-void Scheduler::run()
+IVarRef Worker::new_ivar() {
+    auto id = next_ivar_id;
+    next_ivar_id++;
+    ivars.insert({id, {}});
+    return IVarRef(0, id);
+}
+
+void Worker::add_task(TaskT f) 
+{
+    tasks.push(std::move(f));
+}
+
+void Worker::run()
 {
     while (!tasks.empty()) {
         auto t = std::move(tasks.top());
         tasks.pop();
-        t(this);
+        t();
     }
 }
 
-IVarRef::IVarRef(int owner, size_t id, Scheduler* s):
-    owner(owner), id(id), s(s)
+IVarRef::IVarRef(int owner, size_t id):
+    owner(owner), id(id)
 {
-    assert(s->ivars.count(id) > 0);
-    s->ivars[id].ref_count++;
+    assert(cur_worker->ivars.count(id) > 0);
+    inc_ref();
 }
 
 IVarRef::~IVarRef() {
-    assert(s->ivars.count(id) > 0);
-    auto& ref_count = s->ivars[id].ref_count;
-    ref_count--;
-    if (ref_count == 0) {
-        s->ivars.erase(id);
-    }
+    assert(cur_worker->ivars.count(id) > 0);
+    dec_ref();
 }
 
 IVarRef::IVarRef(IVarRef&& ref):
-    IVarRef(std::move(ref.owner), std::move(ref.id), std::move(ref.s))
+    IVarRef(std::move(ref.owner), std::move(ref.id))
 {}
 
 IVarRef::IVarRef(const IVarRef& ref):
-    IVarRef(ref.owner, ref.id, ref.s)
+    IVarRef(ref.owner, ref.id)
 {}
 
-void IVarRef::fulfill(std::vector<Data> vals) 
-{
+void IVarRef::inc_ref() {
+    cur_worker->ivars[id].ref_count++;
+}
+
+void IVarRef::dec_ref() {
+    auto& ref_count = cur_worker->ivars[id].ref_count;
+    ref_count--;
+    if (ref_count == 0) {
+        cur_worker->ivars.erase(id);
+    }
+}
+
+
+void IVarRef::fulfill(std::vector<Data> vals) {
     assert(vals.size() > 0);
 
-    auto& ivar_data = s->ivars[id];
+    auto& ivar_data = cur_worker->ivars[id];
     assert(ivar_data.vals.size() == 0);
 
     ivar_data.vals = std::move(vals);
     for (auto& t: ivar_data.fulfill_triggers) {
-        t(s, ivar_data.vals);
+        t(ivar_data.vals);
     }
 }
 
 void IVarRef::add_trigger(TriggerT trigger)
 {
-    auto& ivar_data = s->ivars[id];
+    auto& ivar_data = cur_worker->ivars[id];
     if (ivar_data.vals.size() > 0) {
-        trigger(s, ivar_data.vals);
+        trigger(ivar_data.vals);
     } else {
         ivar_data.fulfill_triggers.push_back(std::move(trigger));
     }
 }
 
-IVarRef run_then(const Then& then, Scheduler* s) {
-    auto inside = run_helper(*then.child.get(), s);
-    auto outside = s->new_ivar();
+IVarRef run_then(const Then& then) {
+    auto inside = run_helper(*then.child.get());
+    auto outside = cur_worker->new_ivar();
     inside.add_trigger(
         [outside, fnc = PureTaskT(then.fnc)] 
-        (Scheduler* s, std::vector<Data>& vals) mutable {
-            s->add_task(
+        (std::vector<Data>& vals) mutable {
+            cur_worker->add_task(
                 [outside, vals, fnc = std::move(fnc)]
-                (Scheduler* s) mutable {
-                    (void)s;
+                () mutable {
                     outside.fulfill({fnc(vals)});
                 }
             );
@@ -76,18 +95,17 @@ IVarRef run_then(const Then& then, Scheduler* s) {
     return outside;
 }
 
-IVarRef run_unwrap(const Unwrap& unwrap, Scheduler* s) {
-    auto inside = run_helper(*unwrap.child.get(), s);
-    auto out_future = s->new_ivar();
+IVarRef run_unwrap(const Unwrap& unwrap) {
+    auto inside = run_helper(*unwrap.child.get());
+    auto out_future = cur_worker->new_ivar();
     inside.add_trigger(
         [out_future, fnc = PureTaskT(unwrap.fnc)]
-        (Scheduler* s, std::vector<Data>& vals) mutable {
+        (std::vector<Data>& vals) mutable {
             auto out = fnc(vals);
             auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
-            auto result = run_helper(*future_data, s);
+            auto result = run_helper(*future_data);
             result.add_trigger([out_future]
-                (Scheduler* s, std::vector<Data>& vals) mutable {
-                    (void)s;
+                (std::vector<Data>& vals) mutable {
                     out_future.fulfill(vals); 
                 }
             );
@@ -96,12 +114,11 @@ IVarRef run_unwrap(const Unwrap& unwrap, Scheduler* s) {
     return out_future;
 }
 
-IVarRef run_async(const Async& async, Scheduler* s) {
-    auto out_future = s->new_ivar();
-    s->add_task(
+IVarRef run_async(const Async& async) {
+    auto out_future = cur_worker->new_ivar();
+    cur_worker->add_task(
         [out_future, fnc = PureTaskT(async.fnc)]
-        (Scheduler* s) mutable {
-            (void)s;
+        () mutable {
             std::vector<Data> empty;
             out_future.fulfill({fnc(empty)});
         }
@@ -109,16 +126,16 @@ IVarRef run_async(const Async& async, Scheduler* s) {
     return out_future;
 }
 
-IVarRef run_ready(const Ready& ready, Scheduler* s) {
-    auto out = s->new_ivar();
+IVarRef run_ready(const Ready& ready) {
+    auto out = cur_worker->new_ivar();
     out.fulfill({Data{ready.data}});
     return out;
 }
 
-void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler* s,
+void whenall_child(std::vector<std::shared_ptr<FutureNode>> children,
     std::vector<Data> accumulator, IVarRef result) 
 {
-    auto child_run = run_helper(*children.back().get(), s);
+    auto child_run = run_helper(*children.back().get());
     children.pop_back();
     if (children.size() == 0) {
         child_run.add_trigger(
@@ -126,8 +143,7 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler*
                 result = std::move(result),
                 accumulator = std::move(accumulator)
             ]
-            (Scheduler* s, std::vector<Data>& vals) mutable {
-                (void)s;
+            (std::vector<Data>& vals) mutable {
                 accumulator.push_back(vals[0]);
                 result.fulfill(std::move(accumulator));
             }
@@ -139,10 +155,9 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler*
                 result = std::move(result),
                 accumulator = std::move(accumulator)
             ]
-            (Scheduler* s, std::vector<Data>& vals) mutable {
+            (std::vector<Data>& vals) mutable {
                 accumulator.push_back(vals[0]);
-                whenall_child(
-                    std::move(children), s, 
+                whenall_child(std::move(children), 
                     std::move(accumulator), std::move(result)
                 );
             }
@@ -150,28 +165,28 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children, Scheduler*
     }
 }
 
-IVarRef run_whenall(const WhenAll& whenall, Scheduler* s) {
-    auto result = s->new_ivar();
-    whenall_child(whenall.children, s, {}, result);
+IVarRef run_whenall(const WhenAll& whenall) {
+    auto result = cur_worker->new_ivar();
+    whenall_child(whenall.children, {}, result);
     return result;
 }
 
-IVarRef run_helper(const FutureNode& data, Scheduler* s) {
+IVarRef run_helper(const FutureNode& data) {
     switch (data.type) {
         case ThenType:
-            return run_then(reinterpret_cast<const Then&>(data), s);
+            return run_then(reinterpret_cast<const Then&>(data));
 
         case UnwrapType:
-            return run_unwrap(reinterpret_cast<const Unwrap&>(data), s);
+            return run_unwrap(reinterpret_cast<const Unwrap&>(data));
 
         case AsyncType:
-            return run_async(reinterpret_cast<const Async&>(data), s);
+            return run_async(reinterpret_cast<const Async&>(data));
 
         case ReadyType:
-            return run_ready(reinterpret_cast<const Ready&>(data), s);
+            return run_ready(reinterpret_cast<const Ready&>(data));
 
         case WhenAllType:
-            return run_whenall(reinterpret_cast<const WhenAll&>(data), s);
+            return run_whenall(reinterpret_cast<const WhenAll&>(data));
 
         default: 
             throw std::runtime_error("Unknown FutureNode type");

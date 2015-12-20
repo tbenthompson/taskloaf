@@ -7,9 +7,6 @@
 
 namespace taskloaf {
 
-template <typename... Ts>
-struct Future;
-
 typedef std::function<Data(std::vector<Data>&)> InputTaskT;
 
 enum FutureNodeType {
@@ -23,8 +20,7 @@ struct FutureNode {
 };
 
 struct Then: public FutureNode {
-    template <typename F>
-    Then(std::shared_ptr<FutureNode> fut, F fnc):
+    Then(std::shared_ptr<FutureNode> fut, InputTaskT fnc):
         child(fut),
         fnc(fnc)
     { type = ThenType; }
@@ -34,8 +30,7 @@ struct Then: public FutureNode {
 };
 
 struct Unwrap: public FutureNode {
-    template <typename F>
-    Unwrap(std::shared_ptr<FutureNode> fut, F fnc):
+    Unwrap(std::shared_ptr<FutureNode> fut, InputTaskT fnc):
         child(fut),
         fnc(fnc)
     { type = UnwrapType; }
@@ -45,8 +40,7 @@ struct Unwrap: public FutureNode {
 };
 
 struct Async: public FutureNode {
-    template <typename F>
-    Async(F fnc):
+    Async(InputTaskT fnc):
         fnc(fnc)
     { type = AsyncType; }
 

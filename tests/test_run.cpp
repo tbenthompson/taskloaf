@@ -5,20 +5,21 @@
 
 using namespace taskloaf;
 
-TEST_CASE("ST Scheduler") {
+TEST_CASE("ST Worker") {
+    Worker w;
+    cur_worker = &w;
     int x = 0;
-    Scheduler s;
-    s.add_task([&] (Scheduler* s) { (void)s; x = 1; });
-    s.run();
+    w.add_task([&] () { x = 1; });
+    w.run();
     REQUIRE(x == 1);
 }
 
 TEST_CASE("IVar") {
-    Scheduler s;
-    auto ivar = s.new_ivar();
+    Worker w;
+    cur_worker = &w;
+    auto ivar = w.new_ivar();
     int x = 0;
-    ivar.add_trigger( [&] (Scheduler* s, std::vector<Data>& val) {
-        (void)s;
+    ivar.add_trigger([&] (std::vector<Data>& val) {
         x = val[0].get_as<int>(); 
     });
     Data d{make_safe_void_ptr(10)};
@@ -27,20 +28,20 @@ TEST_CASE("IVar") {
 }
 
 TEST_CASE("IVar add trigger after fulfill") {
-    Scheduler s;
-    auto ivar = s.new_ivar();
+    Worker w;
+    cur_worker = &w;
+    auto ivar = w.new_ivar();
     int x = 0;
     Data d{make_safe_void_ptr(10)};
     ivar.fulfill( {d});
-    ivar.add_trigger([&] (Scheduler* s, std::vector<Data>& val) {
-        (void)s;
+    ivar.add_trigger([&] (std::vector<Data>& val) {
         x = val[0].get_as<int>(); 
     });
     REQUIRE(x == 10);
 }
 
 TEST_CASE("Run ready then") {
-    Scheduler s;
+    Worker s;
     auto out = ready(10).then([] (int x) {
         REQUIRE(x == 10);
         return 0;
@@ -49,7 +50,7 @@ TEST_CASE("Run ready then") {
 }
 
 TEST_CASE("Run async") {
-    Scheduler s;
+    Worker s;
     auto out = async([] () {
         return 20;
     }).then([] (int x) {
@@ -60,7 +61,7 @@ TEST_CASE("Run async") {
 }
 
 TEST_CASE("Run when all") {
-    Scheduler s;
+    Worker s;
     auto out = when_all(
         ready(10), ready(20)
     ).then([] (int x, int y) {
@@ -73,7 +74,7 @@ TEST_CASE("Run when all") {
 }
 
 TEST_CASE("Run unwrap") {
-    Scheduler s;
+    Worker s;
     auto out = ready(10).then([] (int x) {
         if (x < 20) {
             return ready(5);
@@ -103,7 +104,7 @@ TEST_CASE("Run unwrap") {
               << "ms.\n";
 
 auto runner() {
-    Scheduler s;
+    Worker s;
     TIC 
     auto task = fib(31).then([] (int x) { 
         // REQUIRE(x == 28657);
@@ -112,7 +113,8 @@ auto runner() {
     });
     TOC("make task");
     TIC2
-    run_helper(*task.data.get(), &s);
+    cur_worker = &s;
+    run_helper(*task.data.get());
     TOC("plan");
     TIC2
     s.run();

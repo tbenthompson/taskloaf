@@ -8,11 +8,11 @@
 
 namespace taskloaf {
 
-struct Scheduler;
+struct Worker;
 
-typedef Function<void(Scheduler* s, std::vector<Data>& val)> TriggerT;
+typedef Function<void(std::vector<Data>& val)> TriggerT;
 typedef Function<Data(std::vector<Data>&)> PureTaskT;
-typedef Function<void(Scheduler*)> TaskT;
+typedef Function<void()> TaskT;
 
 struct IVarData {
     std::vector<Data> vals;
@@ -23,46 +23,41 @@ struct IVarData {
 struct IVarRef {
     int owner;
     size_t id;
-    Scheduler* s;
 
-    IVarRef(int owner, size_t id, Scheduler* s);
+    IVarRef(int owner, size_t id);
     IVarRef(IVarRef&&);
     IVarRef(const IVarRef&);
     IVarRef& operator=(IVarRef&&) = delete;
     IVarRef& operator=(const IVarRef&) = delete;
     ~IVarRef();
 
+    void inc_ref();
+    void dec_ref();
     void fulfill(std::vector<Data> val); 
     void add_trigger(TriggerT trigger);
 };
 
-struct Scheduler {
+struct Worker {
     std::stack<TaskT> tasks;
     std::unordered_map<size_t,IVarData> ivars;
     size_t next_ivar_id = 0;
 
+    IVarRef new_ivar(); 
+
+    void add_task(TaskT f);
     void run();
-
-    IVarRef new_ivar() {
-        auto id = next_ivar_id;
-        next_ivar_id++;
-        ivars.insert({id, {}});
-        return IVarRef(0, id, this);
-    }
-
-    template <typename F>
-    void add_task(F f) 
-    {
-        tasks.push(std::move(f));
-    }
 };
 
-IVarRef run_helper(const FutureNode& data, Scheduler* s);
+thread_local Worker* cur_worker;
+
+IVarRef run_helper(const FutureNode& data);
 
 template <typename T>
-void run(const Future<T>& fut, Scheduler& s) {
-    run_helper(*fut.data.get(), &s);
-    s.run();
+void run(const Future<T>& fut, Worker& w) {
+    cur_worker = &w;
+    run_helper(*fut.data.get());
+    w.run();
+    cur_worker = nullptr;
 }
 
 }
