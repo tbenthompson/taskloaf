@@ -1,54 +1,40 @@
 #pragma once
 #include "future.hpp"
 #include "fnc.hpp"
-#include "id.hpp"
+#include "ivar.hpp"
 
 #include <stack>
 #include <unordered_map>
 
 namespace taskloaf {
+//TODO: At some point when things are settled, pimpl this so that users
+//don't need to include info about the internals.
 
-struct Worker;
-
-typedef Function<void(std::vector<Data>& val)> TriggerT;
-typedef Function<Data(std::vector<Data>&)> PureTaskT;
 typedef Function<void()> TaskT;
 
-struct IVarData {
-    std::vector<Data> vals;
-    std::vector<TriggerT> fulfill_triggers;
-    size_t ref_count = 0;
-};
-
-struct IVarRef {
-    int owner;
-    size_t id;
-
-    IVarRef(int owner, size_t id);
-    IVarRef(IVarRef&&);
-    IVarRef(const IVarRef&);
-    IVarRef& operator=(IVarRef&&) = delete;
-    IVarRef& operator=(const IVarRef&) = delete;
-    ~IVarRef();
-
-    void inc_ref();
-    void dec_ref();
-    void fulfill(std::vector<Data> val); 
-    void add_trigger(TriggerT trigger);
-};
+struct Communicator;
 
 struct Worker {
     std::stack<TaskT> tasks;
     std::unordered_map<size_t,IVarData> ivars;
+    Address addr;
     size_t next_ivar_id = 0;
+    std::unique_ptr<Communicator> comm;
+
+    Worker();
+    ~Worker();
 
     IVarRef new_ivar(); 
+    void fulfill(const IVarRef& ivar, std::vector<Data> vals);
+    void add_trigger(const IVarRef& ivar, TriggerT trigger);
+    void inc_ref(const IVarRef& ivar);
+    void dec_ref(const IVarRef& ivar);
 
     void add_task(TaskT f);
     void run();
 };
 
-thread_local Worker* cur_worker;
+extern thread_local Worker* cur_worker;
 
 IVarRef run_helper(const FutureNode& data);
 

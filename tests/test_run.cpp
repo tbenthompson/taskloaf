@@ -5,36 +5,35 @@
 
 using namespace taskloaf;
 
-TEST_CASE("ST Worker") {
+TEST_CASE("Worker") {
     Worker w;
-    cur_worker = &w;
     int x = 0;
     w.add_task([&] () { x = 1; });
     w.run();
     REQUIRE(x == 1);
 }
 
-TEST_CASE("IVar") {
+TEST_CASE("IVar trigger before fulfill") {
     Worker w;
     cur_worker = &w;
     auto ivar = w.new_ivar();
     int x = 0;
-    ivar.add_trigger([&] (std::vector<Data>& val) {
+    w.add_trigger(ivar, [&] (std::vector<Data>& val) {
         x = val[0].get_as<int>(); 
     });
     Data d{make_safe_void_ptr(10)};
-    ivar.fulfill( {d});
+    w.fulfill(ivar, {d});
     REQUIRE(x == 10);
 }
 
-TEST_CASE("IVar add trigger after fulfill") {
+TEST_CASE("Trigger after fulfill") {
     Worker w;
     cur_worker = &w;
     auto ivar = w.new_ivar();
     int x = 0;
     Data d{make_safe_void_ptr(10)};
-    ivar.fulfill( {d});
-    ivar.add_trigger([&] (std::vector<Data>& val) {
+    w.fulfill(ivar, {d});
+    w.add_trigger(ivar, [&] (std::vector<Data>& val) {
         x = val[0].get_as<int>(); 
     });
     REQUIRE(x == 10);

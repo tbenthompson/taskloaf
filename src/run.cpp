@@ -2,64 +2,34 @@
 
 namespace taskloaf {
 
+thread_local Worker* cur_worker;
+
+typedef Function<Data(std::vector<Data>&)> PureTaskT;
+
+struct Communicator {
+
+};
+
+Worker::Worker():
+    next_ivar_id(0),
+    comm(std::make_unique<Communicator>())
+{
+    
+}
+
+Worker::~Worker() {}
+
 IVarRef Worker::new_ivar() {
     auto id = next_ivar_id;
     next_ivar_id++;
     ivars.insert({id, {}});
-    return IVarRef(0, id);
+    return IVarRef(Address{"localhost", 0}, id);
 }
 
-void Worker::add_task(TaskT f) 
-{
-    tasks.push(std::move(f));
-}
-
-void Worker::run()
-{
-    while (!tasks.empty()) {
-        auto t = std::move(tasks.top());
-        tasks.pop();
-        t();
-    }
-}
-
-IVarRef::IVarRef(int owner, size_t id):
-    owner(owner), id(id)
-{
-    assert(cur_worker->ivars.count(id) > 0);
-    inc_ref();
-}
-
-IVarRef::~IVarRef() {
-    assert(cur_worker->ivars.count(id) > 0);
-    dec_ref();
-}
-
-IVarRef::IVarRef(IVarRef&& ref):
-    IVarRef(std::move(ref.owner), std::move(ref.id))
-{}
-
-IVarRef::IVarRef(const IVarRef& ref):
-    IVarRef(ref.owner, ref.id)
-{}
-
-void IVarRef::inc_ref() {
-    cur_worker->ivars[id].ref_count++;
-}
-
-void IVarRef::dec_ref() {
-    auto& ref_count = cur_worker->ivars[id].ref_count;
-    ref_count--;
-    if (ref_count == 0) {
-        cur_worker->ivars.erase(id);
-    }
-}
-
-
-void IVarRef::fulfill(std::vector<Data> vals) {
+void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
     assert(vals.size() > 0);
 
-    auto& ivar_data = cur_worker->ivars[id];
+    auto& ivar_data = ivars[iv.id];
     assert(ivar_data.vals.size() == 0);
 
     ivar_data.vals = std::move(vals);
@@ -68,9 +38,8 @@ void IVarRef::fulfill(std::vector<Data> vals) {
     }
 }
 
-void IVarRef::add_trigger(TriggerT trigger)
-{
-    auto& ivar_data = cur_worker->ivars[id];
+void Worker::add_trigger(const IVarRef& iv, TriggerT trigger) {
+    auto& ivar_data = ivars[iv.id];
     if (ivar_data.vals.size() > 0) {
         trigger(ivar_data.vals);
     } else {
@@ -78,16 +47,41 @@ void IVarRef::add_trigger(TriggerT trigger)
     }
 }
 
+void Worker::inc_ref(const IVarRef& iv) {
+    ivars[iv.id].ref_count++;
+}
+
+void Worker::dec_ref(const IVarRef& iv) {
+    auto& ref_count = ivars[iv.id].ref_count;
+    ref_count--;
+    if (ref_count == 0) {
+        ivars.erase(iv.id);
+    }
+}
+
+void Worker::add_task(TaskT f) {
+    tasks.push(std::move(f));
+}
+
+void Worker::run() {
+    while (!tasks.empty()) {
+        auto t = std::move(tasks.top());
+        tasks.pop();
+        t();
+    }
+}
+
+
 IVarRef run_then(const Then& then) {
     auto inside = run_helper(*then.child.get());
     auto outside = cur_worker->new_ivar();
-    inside.add_trigger(
+    cur_worker->add_trigger(inside,
         [outside, fnc = PureTaskT(then.fnc)] 
         (std::vector<Data>& vals) mutable {
             cur_worker->add_task(
                 [outside, vals, fnc = std::move(fnc)]
                 () mutable {
-                    outside.fulfill({fnc(vals)});
+                    cur_worker->fulfill(outside, {fnc(vals)});
                 }
             );
         }
@@ -98,15 +92,15 @@ IVarRef run_then(const Then& then) {
 IVarRef run_unwrap(const Unwrap& unwrap) {
     auto inside = run_helper(*unwrap.child.get());
     auto out_future = cur_worker->new_ivar();
-    inside.add_trigger(
+    cur_worker->add_trigger(inside,
         [out_future, fnc = PureTaskT(unwrap.fnc)]
         (std::vector<Data>& vals) mutable {
             auto out = fnc(vals);
             auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
             auto result = run_helper(*future_data);
-            result.add_trigger([out_future]
-                (std::vector<Data>& vals) mutable {
-                    out_future.fulfill(vals); 
+            cur_worker->add_trigger(result,
+                [out_future] (std::vector<Data>& vals) mutable {
+                    cur_worker->fulfill(out_future, vals); 
                 }
             );
         }
@@ -120,7 +114,7 @@ IVarRef run_async(const Async& async) {
         [out_future, fnc = PureTaskT(async.fnc)]
         () mutable {
             std::vector<Data> empty;
-            out_future.fulfill({fnc(empty)});
+            cur_worker->fulfill(out_future, {fnc(empty)});
         }
     );
     return out_future;
@@ -128,7 +122,7 @@ IVarRef run_async(const Async& async) {
 
 IVarRef run_ready(const Ready& ready) {
     auto out = cur_worker->new_ivar();
-    out.fulfill({Data{ready.data}});
+    cur_worker->fulfill(out, {Data{ready.data}});
     return out;
 }
 
@@ -138,18 +132,18 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children,
     auto child_run = run_helper(*children.back().get());
     children.pop_back();
     if (children.size() == 0) {
-        child_run.add_trigger(
+        cur_worker->add_trigger(child_run,
             [
                 result = std::move(result),
                 accumulator = std::move(accumulator)
             ]
             (std::vector<Data>& vals) mutable {
                 accumulator.push_back(vals[0]);
-                result.fulfill(std::move(accumulator));
+                cur_worker->fulfill(result, std::move(accumulator));
             }
         );
     } else {
-        child_run.add_trigger(
+        cur_worker->add_trigger(child_run,
             [
                 children = std::move(children),
                 result = std::move(result),

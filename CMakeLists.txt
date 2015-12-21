@@ -59,7 +59,7 @@ ExternalProject_Add(
 add_library(taskloaf SHARED
     src/start.cpp
     src/run.cpp
-    src/id.cpp
+    src/ivar.cpp
     )
 
 target_include_directories(taskloaf PRIVATE
@@ -81,7 +81,6 @@ add_executable(run_tests
     tests/test_data.cpp
     tests/test_print.cpp
     tests/test_run.cpp
-    tests/test_id.cpp
     )
 target_include_directories(run_tests PRIVATE
     ${CATCH_INCLUDE_DIRS}
