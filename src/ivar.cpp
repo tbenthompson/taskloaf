@@ -4,18 +4,21 @@
 namespace taskloaf {
 
 IVarRef::IVarRef(Address owner, size_t id):
-    owner(owner), id(id)
+    owner(std::move(owner)), id(id)
 {
     cur_worker->inc_ref(*this);
 }
 
 IVarRef::~IVarRef() {
-    cur_worker->dec_ref(*this);
+    if (!owner.hostname.empty()) {
+        cur_worker->dec_ref(*this);
+    }
 }
 
-IVarRef::IVarRef(IVarRef&& ref):
-    IVarRef(std::move(ref.owner), std::move(ref.id))
-{}
+IVarRef::IVarRef(IVarRef&& ref) {
+    owner = std::move(ref.owner);
+    id = std::move(ref.id);
+}
 
 IVarRef::IVarRef(const IVarRef& ref):
     IVarRef(ref.owner, ref.id)

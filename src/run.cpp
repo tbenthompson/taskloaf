@@ -92,6 +92,7 @@ void Worker::run() {
         tasks.pop();
         t();
     }
+    std::cout << ivars.size() << std::endl;
 }
 
 

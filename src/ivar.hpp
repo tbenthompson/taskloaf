@@ -21,8 +21,8 @@ struct IVarRef {
     size_t id;
 
     IVarRef(Address owner, size_t id);
-    IVarRef(IVarRef&&);
     IVarRef(const IVarRef&);
+    IVarRef(IVarRef&&);
     IVarRef& operator=(IVarRef&&) = delete;
     IVarRef& operator=(const IVarRef&) = delete;
     ~IVarRef();

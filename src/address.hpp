@@ -20,7 +20,7 @@ inline bool operator<(const Address& a, const Address& b) {
 }
 
 inline bool operator==(const Address& a, const Address& b) {
-    return a.hostname == b.hostname && a.port == b.port;
+    return a.port == b.port && a.hostname == b.hostname;
 }
 
 inline bool operator!=(const Address& a, const Address& b) {

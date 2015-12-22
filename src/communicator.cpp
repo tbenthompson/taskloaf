@@ -7,7 +7,7 @@ namespace taskloaf {
 Communicator::Communicator() {
     auto port = caf::io::publish(comm, 0);
     //TODO: This needs to be changed before a distributed run will work.
-    addr = {"", port};
+    addr = {"localhost", port};
 }
 
 const Address& Communicator::get_addr() {

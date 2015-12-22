@@ -103,7 +103,6 @@ TEST_CASE("Run unwrap") {
               << "ms.\n";
 
 auto runner() {
-    Worker s;
     TIC 
     auto task = fib(31).then([] (int x) { 
         // REQUIRE(x == 28657);
@@ -112,6 +111,7 @@ auto runner() {
     });
     TOC("make task");
     TIC2
+    Worker s;
     cur_worker = &s;
     run_helper(*task.data.get());
     TOC("plan");
