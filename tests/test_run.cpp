@@ -5,40 +5,6 @@
 
 using namespace taskloaf;
 
-TEST_CASE("Worker") {
-    Worker w;
-    int x = 0;
-    w.add_task([&] () { x = 1; });
-    w.run();
-    REQUIRE(x == 1);
-}
-
-TEST_CASE("IVar trigger before fulfill") {
-    Worker w;
-    cur_worker = &w;
-    auto ivar = w.new_ivar();
-    int x = 0;
-    w.add_trigger(ivar, [&] (std::vector<Data>& val) {
-        x = val[0].get_as<int>(); 
-    });
-    Data d{make_safe_void_ptr(10)};
-    w.fulfill(ivar, {d});
-    REQUIRE(x == 10);
-}
-
-TEST_CASE("Trigger after fulfill") {
-    Worker w;
-    cur_worker = &w;
-    auto ivar = w.new_ivar();
-    int x = 0;
-    Data d{make_safe_void_ptr(10)};
-    w.fulfill(ivar, {d});
-    w.add_trigger(ivar, [&] (std::vector<Data>& val) {
-        x = val[0].get_as<int>(); 
-    });
-    REQUIRE(x == 10);
-}
-
 TEST_CASE("Run ready then") {
     Worker s;
     auto out = ready(10).then([] (int x) {
@@ -104,7 +70,7 @@ TEST_CASE("Run unwrap") {
 
 auto runner() {
     TIC 
-    auto task = fib(31).then([] (int x) { 
+    auto task = fib(21).then([] (int x) { 
         // REQUIRE(x == 28657);
         std::cout << x << std::endl;
         return 0;
@@ -122,6 +88,7 @@ auto runner() {
     return start;
 }
 
+//Took ~4 seconds for index = 31 on Tuesday 22 Dec.
 TEST_CASE("Run Fib") {
     auto start = runner();
     int time_ms;

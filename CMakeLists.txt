@@ -61,6 +61,9 @@ add_library(taskloaf SHARED
     src/run.cpp
     src/ivar.cpp
     src/communicator.cpp
+    src/worker.cpp
+    src/task_collection.cpp
+    src/ivar_tracker.cpp
     )
 
 target_include_directories(taskloaf PRIVATE
@@ -82,6 +85,7 @@ add_executable(run_tests
     tests/test_data.cpp
     tests/test_print.cpp
     tests/test_run.cpp
+    tests/test_worker.cpp
     )
 target_include_directories(run_tests PRIVATE
     ${CATCH_INCLUDE_DIRS}

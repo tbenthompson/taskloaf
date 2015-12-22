@@ -14,19 +14,23 @@ const Address& Communicator::get_addr() {
     return addr;
 }
 
-void Communicator::inc_ref(const IVarRef& which) {
+void Communicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks) {
+    (void)ivars; (void)tasks;
+}
+
+void Communicator::send_inc_ref(const IVarRef& which) {
     (void)which;
 }
 
-void Communicator::dec_ref(const IVarRef& which) {
+void Communicator::send_dec_ref(const IVarRef& which) {
     (void)which;
 }
 
-void Communicator::fulfill(const IVarRef& which, std::vector<Data> val) {
+void Communicator::send_fulfill(const IVarRef& which, std::vector<Data> val) {
     (void)which; (void)val;
 }
 
-void Communicator::add_trigger(const IVarRef& which, TriggerT trigger) {
+void Communicator::send_add_trigger(const IVarRef& which, TriggerT trigger) {
     (void)which; (void)trigger;
 }
 
