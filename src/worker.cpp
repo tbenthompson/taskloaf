@@ -1,0 +1,60 @@
+#include "worker.hpp"
+#include "communicator.hpp"
+
+namespace taskloaf {
+
+thread_local Worker* cur_worker;
+
+Worker::Worker():
+    comm(std::make_unique<Communicator>()),
+    ivars(comm->get_addr())
+{
+    
+}
+
+Worker::~Worker() {}
+
+void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
+    if (iv.owner != comm->get_addr()) {
+        comm->send_fulfill(iv, std::move(vals));
+        return;
+    }
+    ivars.fulfill(iv, std::move(vals));
+}
+
+void Worker::add_trigger(const IVarRef& iv, TriggerT trigger) {
+    if (iv.owner != comm->get_addr()) {
+        comm->send_add_trigger(iv, std::move(trigger));
+        return;
+    }
+    ivars.add_trigger(iv, std::move(trigger));
+}
+
+void Worker::inc_ref(const IVarRef& iv) {
+    if (iv.owner != comm->get_addr()) {
+        comm->send_inc_ref(iv);
+        return;
+    }
+    ivars.inc_ref(iv);
+}
+
+void Worker::dec_ref(const IVarRef& iv) {
+    if (iv.owner != comm->get_addr()) {
+        comm->send_dec_ref(iv);
+        return;
+    }
+    ivars.dec_ref(iv);
+}
+
+//TODO: Maybe have two run versions. One runs endlessly for clients, the
+//other runs only until there are no more tasks on this particular Worker.
+//In other words, a stealing worker and a non-stealing worker.
+void Worker::run() {
+    while (!tasks.empty()) {
+        tasks.next()();
+        comm->handle_messages(ivars, tasks);
+    }
+    std::cout << ivars.ivars.size() << std::endl;
+}
+
+} //end namespace taskloaf
