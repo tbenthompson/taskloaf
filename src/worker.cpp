@@ -6,13 +6,25 @@ namespace taskloaf {
 thread_local Worker* cur_worker;
 
 Worker::Worker():
-    comm(std::make_unique<Communicator>()),
-    ivars(comm->get_addr())
+    comm(std::make_unique<CAFCommunicator>()),
+    ivars()
 {
     
 }
 
 Worker::~Worker() {}
+
+void Worker::meet(Address addr) {
+    comm->meet(addr);
+}
+
+void Worker::add_task(TaskT f) {
+    tasks.add_task(std::move(f));
+}
+
+IVarRef Worker::new_ivar() {
+    return ivars.new_ivar(comm->get_addr());
+}
 
 void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
     if (iv.owner != comm->get_addr()) {
@@ -54,7 +66,6 @@ void Worker::run() {
         tasks.next()();
         comm->handle_messages(ivars, tasks);
     }
-    std::cout << ivars.ivars.size() << std::endl;
 }
 
 } //end namespace taskloaf

@@ -3,7 +3,10 @@
 #include "data.hpp"
 #include "ivar.hpp"
 
-#include <caf/all.hpp>
+namespace caf {
+    struct scoped_actor;
+    struct actor;
+}
 
 namespace taskloaf {
 
@@ -12,6 +15,8 @@ struct TaskCollection;
 
 struct CommunicatorI {
     virtual const Address& get_addr() = 0;
+
+    virtual void meet(Address addr) = 0;
     virtual void handle_messages(IVarTracker& ivars, TaskCollection& tasks) = 0;
     virtual void send_inc_ref(const IVarRef& which) = 0;
     virtual void send_dec_ref(const IVarRef& which) = 0;
@@ -20,18 +25,21 @@ struct CommunicatorI {
     virtual void steal() = 0;
 };
 
-struct Communicator: public CommunicatorI {
-    //TODO: Could make this a pointer to not infect other modules with caf includes
-    caf::scoped_actor comm; 
+struct CAFCommunicator: public CommunicatorI {
+    std::unique_ptr<caf::scoped_actor> comm; 
     Address addr;
+    std::vector<caf::actor> friends;
 
-    Communicator();
+    CAFCommunicator();
+    ~CAFCommunicator();
 
+    int n_friends();
     const Address& get_addr() override;
+    void meet(Address addr) override;
     void handle_messages(IVarTracker& ivars, TaskCollection& tasks) override;
     void send_inc_ref(const IVarRef& which) override;
     void send_dec_ref(const IVarRef& which) override;
-    void send_fulfill(const IVarRef& which, std::vector<Data> val) override;
+    void send_fulfill(const IVarRef& which, std::vector<Data> vals) override;
     void send_add_trigger(const IVarRef& which, TriggerT trigger) override;
     void steal() override;
 };

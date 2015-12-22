@@ -6,11 +6,11 @@ typedef Function<Data(std::vector<Data>&)> PureTaskT;
 
 IVarRef run_then(const Then& then) {
     auto inside = run_helper(*then.child.get());
-    auto outside = cur_worker->ivars.new_ivar();
+    auto outside = cur_worker->new_ivar();
     cur_worker->add_trigger(inside,
         [outside, fnc = PureTaskT(then.fnc)] 
         (std::vector<Data>& vals) mutable {
-            cur_worker->tasks.add_task(
+            cur_worker->add_task(
                 [
                     outside = std::move(outside),
                     vals, fnc = std::move(fnc)
@@ -26,7 +26,7 @@ IVarRef run_then(const Then& then) {
 
 IVarRef run_unwrap(const Unwrap& unwrap) {
     auto inside = run_helper(*unwrap.child.get());
-    auto out_future = cur_worker->ivars.new_ivar();
+    auto out_future = cur_worker->new_ivar();
     cur_worker->add_trigger(inside,
         [out_future, fnc = PureTaskT(unwrap.fnc)]
         (std::vector<Data>& vals) mutable {
@@ -44,8 +44,8 @@ IVarRef run_unwrap(const Unwrap& unwrap) {
 }
 
 IVarRef run_async(const Async& async) {
-    auto out_future = cur_worker->ivars.new_ivar();
-    cur_worker->tasks.add_task(
+    auto out_future = cur_worker->new_ivar();
+    cur_worker->add_task(
         [out_future, fnc = PureTaskT(async.fnc)]
         () mutable {
             std::vector<Data> empty;
@@ -56,7 +56,7 @@ IVarRef run_async(const Async& async) {
 }
 
 IVarRef run_ready(const Ready& ready) {
-    auto out = cur_worker->ivars.new_ivar();
+    auto out = cur_worker->new_ivar();
     cur_worker->fulfill(out, {Data{ready.data}});
     return out;
 }
@@ -95,7 +95,7 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children,
 }
 
 IVarRef run_whenall(const WhenAll& whenall) {
-    auto result = cur_worker->ivars.new_ivar();
+    auto result = cur_worker->new_ivar();
     whenall_child(whenall.children, {}, result);
     return result;
 }

@@ -2,12 +2,11 @@
 
 namespace taskloaf {
 
-IVarTracker::IVarTracker(Address addr):
-    addr(addr),
+IVarTracker::IVarTracker():
     next_ivar_id(0)
 {}
 
-IVarRef IVarTracker::new_ivar() {
+IVarRef IVarTracker::new_ivar(Address addr) {
     auto id = next_ivar_id;
     next_ivar_id++;
     ivars.insert({id, {}});

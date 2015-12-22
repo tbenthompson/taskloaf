@@ -18,12 +18,17 @@ struct Worker {
     Worker();
     ~Worker();
 
-    void run();
+    void meet(Address addr);
 
+    void add_task(TaskT f);
+
+    IVarRef new_ivar(); 
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
+
+    void run();
 };
 
 extern thread_local Worker* cur_worker;
