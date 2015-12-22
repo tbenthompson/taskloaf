@@ -17,7 +17,6 @@ struct Communicator;
 struct Worker {
     std::stack<TaskT> tasks;
     std::unordered_map<size_t,IVarData> ivars;
-    Address addr;
     size_t next_ivar_id = 0;
     std::unique_ptr<Communicator> comm;
 

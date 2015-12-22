@@ -6,12 +6,10 @@ namespace taskloaf {
 IVarRef::IVarRef(Address owner, size_t id):
     owner(owner), id(id)
 {
-    assert(cur_worker->ivars.count(id) > 0);
     cur_worker->inc_ref(*this);
 }
 
 IVarRef::~IVarRef() {
-    assert(cur_worker->ivars.count(id) > 0);
     cur_worker->dec_ref(*this);
 }
 

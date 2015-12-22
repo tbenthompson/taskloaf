@@ -60,6 +60,7 @@ add_library(taskloaf SHARED
     src/start.cpp
     src/run.cpp
     src/ivar.cpp
+    src/communicator.cpp
     )
 
 target_include_directories(taskloaf PRIVATE

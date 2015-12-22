@@ -1,3 +1,4 @@
+#include "communicator.hpp"
 #include "run.hpp"
 
 namespace taskloaf {
@@ -5,10 +6,6 @@ namespace taskloaf {
 thread_local Worker* cur_worker;
 
 typedef Function<Data(std::vector<Data>&)> PureTaskT;
-
-struct Communicator {
-
-};
 
 Worker::Worker():
     next_ivar_id(0),
@@ -23,11 +20,16 @@ IVarRef Worker::new_ivar() {
     auto id = next_ivar_id;
     next_ivar_id++;
     ivars.insert({id, {}});
-    return IVarRef(Address{"localhost", 0}, id);
+    return IVarRef(comm->get_addr(), id);
 }
 
 void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
     assert(vals.size() > 0);
+
+    if (iv.owner != comm->get_addr()) {
+        comm->fulfill(iv, std::move(vals));
+        return;
+    }
 
     auto& ivar_data = ivars[iv.id];
     assert(ivar_data.vals.size() == 0);
@@ -36,9 +38,15 @@ void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
     for (auto& t: ivar_data.fulfill_triggers) {
         t(ivar_data.vals);
     }
+    ivar_data.fulfill_triggers.clear();
 }
 
 void Worker::add_trigger(const IVarRef& iv, TriggerT trigger) {
+    if (iv.owner != comm->get_addr()) {
+        comm->add_trigger(iv, std::move(trigger));
+        return;
+    }
+
     auto& ivar_data = ivars[iv.id];
     if (ivar_data.vals.size() > 0) {
         trigger(ivar_data.vals);
@@ -48,10 +56,22 @@ void Worker::add_trigger(const IVarRef& iv, TriggerT trigger) {
 }
 
 void Worker::inc_ref(const IVarRef& iv) {
+    if (iv.owner != comm->get_addr()) {
+        comm->inc_ref(iv);
+        return;
+    }
+
+    assert(ivars.count(iv.id) > 0);
     ivars[iv.id].ref_count++;
 }
 
 void Worker::dec_ref(const IVarRef& iv) {
+    if (iv.owner != comm->get_addr()) {
+        comm->dec_ref(iv);
+        return;
+    }
+
+    assert(ivars.count(iv.id) > 0);
     auto& ref_count = ivars[iv.id].ref_count;
     ref_count--;
     if (ref_count == 0) {
@@ -63,6 +83,9 @@ void Worker::add_task(TaskT f) {
     tasks.push(std::move(f));
 }
 
+//TODO: Maybe have two run versions. One runs endlessly for clients, the
+//other runs only until there are no more tasks on this particular Worker.
+//In other words, a stealing worker and a non-stealing worker.
 void Worker::run() {
     while (!tasks.empty()) {
         auto t = std::move(tasks.top());
@@ -79,7 +102,10 @@ IVarRef run_then(const Then& then) {
         [outside, fnc = PureTaskT(then.fnc)] 
         (std::vector<Data>& vals) mutable {
             cur_worker->add_task(
-                [outside, vals, fnc = std::move(fnc)]
+                [
+                    outside = std::move(outside),
+                    vals, fnc = std::move(fnc)
+                ]
                 () mutable {
                     cur_worker->fulfill(outside, {fnc(vals)});
                 }

@@ -20,7 +20,7 @@ set(CMAKE_THREAD_LIBS_INIT -lpthread)
 ################################################################################
 
 set(warnings "-Wall -Wextra -Werror -Wno-parentheses -Wno-deprecated-declarations")
-set(opt "-O3")
+set(opt "-O3 -g")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(opt "-O0 -g -DSPDLOG_TRACE_ON")
 endif()
