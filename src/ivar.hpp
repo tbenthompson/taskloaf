@@ -12,7 +12,7 @@ typedef Function<void(std::vector<Data>& val)> TriggerT;
 struct IVarData {
     std::vector<Data> vals;
     std::vector<TriggerT> fulfill_triggers;
-    size_t ref_count = 0;
+    int ref_count = 0;
 };
 
 // A reference counting "pointer" to an IVar

@@ -82,6 +82,7 @@ TEST_CASE("Inc ref preserves") {
     REQUIRE(w.ivars.ivars.size() == 1);
 }
 
+//TODO: Refactor these multi worker tests.
 TEST_CASE("Two communicators meet") {
     IVarTracker iv;
     TaskCollection t;
@@ -109,24 +110,80 @@ TEST_CASE("Two workers stealing") {
 }
 
 TEST_CASE("Remote reference counting") {
-    Worker w1; 
+    Worker w1;
     Worker w2;
     {
+        cur_worker = &w2;
+        auto unused = w2.new_ivar(); (void)unused;
         cur_worker = &w1;
-        auto iv = w1.new_ivar();
-        w1.add_task([iv = std::move(iv)] () { 
-            //TODO: Simplify this fulfill statement. Presumably, it could be
-            //iv.fulfill(1);
-            cur_worker->fulfill(iv, {Data{make_safe_void_ptr(1)}});
-        });
+        IVarRef iv(w2.get_addr(), 0);
+        cur_worker = &w2;
+        w2.comm->handle_messages(w2.ivars, w2.tasks);
+        REQUIRE(w2.ivars.ivars.size() == 1);
+        cur_worker = &w1;
     }
-    w2.meet(w1.get_addr());
-    w2.comm->steal();
-    w1.comm->handle_messages(w1.ivars, w1.tasks);
+    cur_worker = &w2;
     w2.comm->handle_messages(w2.ivars, w2.tasks);
-    REQUIRE(w1.ivars.ivars.size() == 1);
-    w2.run();
+    REQUIRE(w2.ivars.ivars.size() == 0);
+}
+
+TEST_CASE("Remote reference counting change location") {
+    Worker w1;
+    Worker w2;
+    {
+        cur_worker = &w2;
+        auto unused = w2.new_ivar(); (void)unused;
+        IVarRef iv(w2.get_addr(), 0);
+        REQUIRE(w2.ivars.ivars.size() == 1);
+        cur_worker = &w1;
+    }
+    cur_worker = &w2;
+    w2.comm->handle_messages(w2.ivars, w2.tasks);
+    REQUIRE(w2.ivars.ivars.size() == 0);
+}
+
+TEST_CASE("Remote fulfill") {
+    Worker w1;
+    Worker w2;
+    int x = 0;
+
+    cur_worker = &w2;
+    auto iv = w2.new_ivar();
+    w2.add_trigger(iv, [&] (std::vector<Data>& vals) {
+        x = vals[0].get_as<int>(); 
+    });
+
     cur_worker = &w1;
-    w1.comm->handle_messages(w1.ivars, w1.tasks);
-    // REQUIRE(w1.ivars.ivars.size() == 0);
+    w1.fulfill(iv, {Data{make_safe_void_ptr(1)}});
+
+    REQUIRE(x == 0);
+
+    cur_worker = &w2;
+    w2.comm->handle_messages(w2.ivars, w2.tasks);
+
+    REQUIRE(x == 1);
+}
+
+TEST_CASE("Remote add trigger") {
+    Worker w1;
+    Worker w2;
+    int x = 0;
+
+    cur_worker = &w2;
+    auto iv = w2.new_ivar();
+
+    cur_worker = &w1;
+    w1.add_trigger(iv, [&] (std::vector<Data>& vals) {
+        x = vals[0].get_as<int>(); 
+    });
+
+    cur_worker = &w2;
+    w2.comm->handle_messages(w2.ivars, w2.tasks);
+
+    REQUIRE(x == 0);
+
+    cur_worker = &w2;
+    w2.fulfill(iv, {Data{make_safe_void_ptr(1)}});
+
+    REQUIRE(x == 1);
 }

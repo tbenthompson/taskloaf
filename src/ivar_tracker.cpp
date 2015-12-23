@@ -1,5 +1,7 @@
 #include "ivar_tracker.hpp"
 
+#include <iostream>
+
 namespace taskloaf {
 
 IVarTracker::IVarTracker():
@@ -36,14 +38,19 @@ void IVarTracker::add_trigger(const IVarRef& iv, TriggerT trigger) {
 
 void IVarTracker::inc_ref(const IVarRef& iv) {
     assert(ivars.count(iv.id) > 0);
+    // std::cout << "start incref(" << iv.id << ") from " << ivars[iv.id].ref_count << std::endl;
     ivars[iv.id].ref_count++;
+    // std::cout << "end incref(" << iv.id << ") to " << ivars[iv.id].ref_count << std::endl;
 }
 
 void IVarTracker::dec_ref(const IVarRef& iv) {
     assert(ivars.count(iv.id) > 0);
+    // std::cout << "start decref(" << iv.id << ") from " << ivars[iv.id].ref_count << std::endl;
     auto& ref_count = ivars[iv.id].ref_count;
     ref_count--;
-    if (ref_count == 0) {
+    // std::cout << "end decref(" << iv.id << ") to " << ivars[iv.id].ref_count << std::endl;
+    if (ref_count <= 0) {
+        // std::cout << "erasing " << iv.id << std::endl;
         ivars.erase(iv.id);
     }
 }

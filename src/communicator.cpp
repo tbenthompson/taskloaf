@@ -94,16 +94,24 @@ void CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks)
             [&] (steal_atom, TaskT t) {
                 tasks.add_task(std::move(t));
             },
-            [&] (inc_ref_atom, IVarRef which) {
+            [&] (inc_ref_atom, Address owner, size_t id) {
+                assert(owner == addr);
+                IVarRef which(owner, id);
                 ivars.inc_ref(which);
             },
-            [&] (dec_ref_atom, IVarRef which) {
+            [&] (dec_ref_atom, Address owner, size_t id) {
+                assert(owner == addr);
+                IVarRef which(owner, id);
                 ivars.dec_ref(which);
             },
-            [&] (fulfill_atom, IVarRef which, std::vector<Data> vals) {
+            [&] (fulfill_atom, Address owner, size_t id, std::vector<Data> vals) {
+                assert(owner == addr);
+                IVarRef which(owner, id);
                 ivars.fulfill(which, std::move(vals));
             },
-            [&] (add_trigger_atom, IVarRef which, TriggerT trigger) {
+            [&] (add_trigger_atom, Address owner, size_t id, TriggerT trigger) {
+                assert(owner == addr);
+                IVarRef which(owner, id);
                 ivars.add_trigger(which, std::move(trigger));
             }
         );
@@ -111,20 +119,29 @@ void CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks)
 }
 
 void CAFCommunicator::send_inc_ref(const IVarRef& which) {
-    (void)which;
+    meet(which.owner);
+    (*comm)->send(friends[which.owner], inc_ref_atom::value, which.owner, which.id);
 }
 
 void CAFCommunicator::send_dec_ref(const IVarRef& which) {
     meet(which.owner);
-    (*comm)->send(friends[which.owner], dec_ref_atom::value, which);
+    (*comm)->send(friends[which.owner], dec_ref_atom::value, which.owner, which.id);
 }
 
 void CAFCommunicator::send_fulfill(const IVarRef& which, std::vector<Data> vals) {
-    (void)which; (void)vals;
+    meet(which.owner);
+    (*comm)->send(
+        friends[which.owner], fulfill_atom::value,
+        which.owner, which.id, std::move(vals)
+    );
 }
 
 void CAFCommunicator::send_add_trigger(const IVarRef& which, TriggerT trigger) {
-    (void)which; (void)trigger;
+    meet(which.owner);
+    (*comm)->send(
+        friends[which.owner], add_trigger_atom::value,
+        which.owner, which.id, std::move(trigger)
+    );
 }
 
 void CAFCommunicator::steal() { 

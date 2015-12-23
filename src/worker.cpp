@@ -57,13 +57,10 @@ void Worker::inc_ref(const IVarRef& iv) {
 }
 
 void Worker::dec_ref(const IVarRef& iv) {
-    std::cout << comm->get_addr().hostname << ":" << comm->get_addr().port << std::endl;
-    std::cout << iv.owner.hostname << ":" << iv.owner.port << std::endl;
     if (iv.owner != comm->get_addr()) {
         comm->send_dec_ref(iv);
         return;
     }
-    std::cout << "SUCC" << std::endl;
     ivars.dec_ref(iv);
 }
 
