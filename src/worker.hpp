@@ -19,6 +19,7 @@ struct Worker {
     ~Worker();
 
     void meet(Address addr);
+    Address get_addr();
 
     void add_task(TaskT f);
 

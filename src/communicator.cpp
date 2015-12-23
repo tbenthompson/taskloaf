@@ -1,5 +1,6 @@
 #include "communicator.hpp"
 #include "ivar_tracker.hpp"
+#include "task_collection.hpp"
 
 #include <caf/all.hpp>
 #include <caf/io/all.hpp>
@@ -11,6 +12,7 @@ using inc_ref_atom = caf::atom_constant<caf::atom("inc_ref")>;
 using dec_ref_atom = caf::atom_constant<caf::atom("dec_ref")>;
 using fulfill_atom = caf::atom_constant<caf::atom("fulfill")>;
 using add_trigger_atom = caf::atom_constant<caf::atom("add_trig")>;
+using steal_atom = caf::atom_constant<caf::atom("steal")>;
 
 CAFCommunicator::CAFCommunicator():
     comm(std::make_unique<caf::scoped_actor>())
@@ -63,19 +65,34 @@ caf::actor connect(caf::blocking_actor* self, Address to_addr)
     return dest;
 }
 
-void CAFCommunicator::meet(Address addr) {
-    friends.push_back(connect((*comm).get(), addr));
-    (*comm)->send(friends.back(), meet_atom::value);
+void CAFCommunicator::meet(Address their_addr) {
+    if (friends.count(their_addr) > 0) {
+        return;
+    }
+    friends.insert({their_addr, connect((*comm).get(), their_addr)});
+
+    (*comm)->send(friends[their_addr], meet_atom::value, addr);
+}
+
+caf::actor actor_from_sender(const auto& comm) {
+    return caf::actor_cast<caf::actor>((*comm)->current_sender());
 }
 
 void CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks) {
     (void)tasks;
     while ((*comm)->has_next_message()) {
         (*comm)->receive(
-            [&] (meet_atom) {
-                friends.push_back(caf::actor_cast<caf::actor>(
-                    (*comm)->current_sender())
-                );
+            [&] (meet_atom, Address their_addr) {
+                friends.insert({their_addr, actor_from_sender(comm)});
+            },
+            [&] (steal_atom) {
+                if (tasks.empty()) {
+                    return;
+                }
+                (*comm)->send(actor_from_sender(comm), steal_atom::value, tasks.steal());
+            },
+            [&] (steal_atom, TaskT t) {
+                tasks.add_task(std::move(t));
             },
             [&] (inc_ref_atom, IVarRef which) {
                 ivars.inc_ref(which);
@@ -98,7 +115,8 @@ void CAFCommunicator::send_inc_ref(const IVarRef& which) {
 }
 
 void CAFCommunicator::send_dec_ref(const IVarRef& which) {
-    (void)which;
+    meet(which.owner);
+    (*comm)->send(friends[which.owner], dec_ref_atom::value, which);
 }
 
 void CAFCommunicator::send_fulfill(const IVarRef& which, std::vector<Data> vals) {
@@ -110,7 +128,8 @@ void CAFCommunicator::send_add_trigger(const IVarRef& which, TriggerT trigger) {
 }
 
 void CAFCommunicator::steal() { 
-    
+    auto& from = friends.begin()->second; 
+    (*comm)->send(from, steal_atom::value);
 }
 
 } //end namespace taskloaf

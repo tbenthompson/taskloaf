@@ -1,6 +1,8 @@
 #include "worker.hpp"
 #include "communicator.hpp"
 
+#include <iostream>
+
 namespace taskloaf {
 
 thread_local Worker* cur_worker;
@@ -16,6 +18,10 @@ Worker::~Worker() {}
 
 void Worker::meet(Address addr) {
     comm->meet(addr);
+}
+
+Address Worker::get_addr() {
+    return comm->get_addr();
 }
 
 void Worker::add_task(TaskT f) {
@@ -51,10 +57,13 @@ void Worker::inc_ref(const IVarRef& iv) {
 }
 
 void Worker::dec_ref(const IVarRef& iv) {
+    std::cout << comm->get_addr().hostname << ":" << comm->get_addr().port << std::endl;
+    std::cout << iv.owner.hostname << ":" << iv.owner.port << std::endl;
     if (iv.owner != comm->get_addr()) {
         comm->send_dec_ref(iv);
         return;
     }
+    std::cout << "SUCC" << std::endl;
     ivars.dec_ref(iv);
 }
 
@@ -62,6 +71,7 @@ void Worker::dec_ref(const IVarRef& iv) {
 //other runs only until there are no more tasks on this particular Worker.
 //In other words, a stealing worker and a non-stealing worker.
 void Worker::run() {
+    cur_worker = this;
     while (!tasks.empty()) {
         tasks.next()();
         comm->handle_messages(ivars, tasks);

@@ -3,6 +3,8 @@
 #include "worker.hpp"
 #include "communicator.hpp"
 
+#include <iostream>
+
 using namespace taskloaf;
 
 TEST_CASE("Worker") {
@@ -13,10 +15,25 @@ TEST_CASE("Worker") {
     REQUIRE(x == 1);
 }
 
-TEST_CASE("Task collection get next") {
+TEST_CASE("Task collection runs from newest tasks") {
     TaskCollection tc;
-    tc.add_task([] () {});
-    tc.next();
+    int x = 0;
+    tc.add_task([&] () { x = 1; });
+    tc.add_task([&] () { x = 2; });
+    tc.next()();
+    REQUIRE(x == 2);
+    tc.next()();
+    REQUIRE(tc.empty());
+}
+
+TEST_CASE("Task collection steals from oldest tasks") {
+    TaskCollection tc; 
+    int x = 0;
+    tc.add_task([&] () { x = 1; });
+    tc.add_task([&] () { x = 2; });
+    tc.steal()();
+    REQUIRE(x == 1);
+    tc.steal()();
     REQUIRE(tc.empty());
 }
 
@@ -81,9 +98,35 @@ TEST_CASE("Two workers stealing") {
     Worker w2;
     int x = 0;
     w1.add_task([&] () { x = 1; });
+    w2.meet(w1.get_addr());
     w2.comm->steal();
-    // w2.meet(w1.
+    REQUIRE(!w1.tasks.empty());
     REQUIRE(w2.tasks.empty());
     w1.comm->handle_messages(w1.ivars, w1.tasks);
+    REQUIRE(w1.tasks.empty());
+    w2.comm->handle_messages(w2.ivars, w2.tasks);
     REQUIRE(!w2.tasks.empty());
+}
+
+TEST_CASE("Remote reference counting") {
+    Worker w1; 
+    Worker w2;
+    {
+        cur_worker = &w1;
+        auto iv = w1.new_ivar();
+        w1.add_task([iv = std::move(iv)] () { 
+            //TODO: Simplify this fulfill statement. Presumably, it could be
+            //iv.fulfill(1);
+            cur_worker->fulfill(iv, {Data{make_safe_void_ptr(1)}});
+        });
+    }
+    w2.meet(w1.get_addr());
+    w2.comm->steal();
+    w1.comm->handle_messages(w1.ivars, w1.tasks);
+    w2.comm->handle_messages(w2.ivars, w2.tasks);
+    REQUIRE(w1.ivars.ivars.size() == 1);
+    w2.run();
+    cur_worker = &w1;
+    w1.comm->handle_messages(w1.ivars, w1.tasks);
+    // REQUIRE(w1.ivars.ivars.size() == 0);
 }

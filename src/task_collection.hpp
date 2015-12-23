@@ -1,19 +1,19 @@
 #pragma once
 #include "fnc.hpp"
 
-#include <stack>
+#include <deque>
 
 namespace taskloaf {
 
 typedef Function<void()> TaskT;
 
 struct TaskCollection {
-    std::stack<TaskT> tasks;
+    std::deque<TaskT> tasks;
 
+    bool empty();
     void add_task(TaskT f);
     TaskT next();
-    bool empty();
-    //steal
+    TaskT steal();
 };
 
 } //end namespace taskloaf
