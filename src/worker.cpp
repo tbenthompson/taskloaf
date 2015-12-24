@@ -64,15 +64,40 @@ void Worker::dec_ref(const IVarRef& iv) {
     ivars.dec_ref(iv);
 }
 
-//TODO: Maybe have two run versions. One runs endlessly for clients, the
-//other runs only until there are no more tasks on this particular Worker.
-//In other words, a stealing worker and a non-stealing worker.
-void Worker::run() {
+void Worker::run_no_stealing() {
     cur_worker = this;
-    while (!tasks.empty()) {
+    while (!ivars.empty() || !tasks.empty()) {
         tasks.next()();
         comm->handle_messages(ivars, tasks);
     }
+}
+
+void Worker::run_stealing() {
+    int n_tasks = 0;
+    cur_worker = this;
+    while (true) {
+        if (tasks.empty()) {
+            comm->steal();
+        } else {
+            tasks.next()();
+            n_tasks++;
+            if (n_tasks % 100000 == 0) {
+                std::cout << "n(" << core_id << "): " << n_tasks 
+                          << " " << tasks.size() << std::endl;
+            }
+        }
+        comm->handle_messages(ivars, tasks);
+    }
+}
+
+void Worker::set_core_affinity(int core_id) {
+    this->core_id = core_id;
+    cpu_set_t cs;
+    CPU_ZERO(&cs);
+    CPU_SET(core_id, &cs);
+    auto err = pthread_setaffinity_np(pthread_self(), sizeof(cs), &cs);
+    (void)err;
+    assert(err == 0);
 }
 
 } //end namespace taskloaf

@@ -8,6 +8,10 @@ IVarTracker::IVarTracker():
     next_ivar_id(0)
 {}
 
+bool IVarTracker::empty() {
+    return ivars.empty();
+}
+
 IVarRef IVarTracker::new_ivar(Address addr) {
     auto id = next_ivar_id;
     next_ivar_id++;

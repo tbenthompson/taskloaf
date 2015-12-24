@@ -13,7 +13,8 @@ IVarRef run_then(const Then& then) {
             cur_worker->add_task(
                 [
                     outside = std::move(outside),
-                    vals, fnc = std::move(fnc)
+                    vals = std::vector<Data>(vals),
+                    fnc = std::move(fnc)
                 ]
                 () mutable {
                     cur_worker->fulfill(outside, {fnc(vals)});
@@ -61,13 +62,12 @@ IVarRef run_ready(const Ready& ready) {
     return out;
 }
 
-void whenall_child(std::vector<std::shared_ptr<FutureNode>> children,
-    std::vector<Data> accumulator, IVarRef result) 
-{
-    auto child_run = run_helper(*children.back().get());
-    children.pop_back();
-    if (children.size() == 0) {
-        cur_worker->add_trigger(child_run,
+void whenall_child(std::vector<IVarRef> child_results,
+    std::vector<Data> accumulator, IVarRef result) {
+    auto next_result = std::move(child_results.back());
+    child_results.pop_back();
+    if (child_results.size() == 0) {
+        cur_worker->add_trigger(next_result,
             [
                 result = std::move(result),
                 accumulator = std::move(accumulator)
@@ -78,15 +78,15 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children,
             }
         );
     } else {
-        cur_worker->add_trigger(child_run,
+        cur_worker->add_trigger(next_result,
             [
-                children = std::move(children),
+                child_results = std::move(child_results),
                 result = std::move(result),
                 accumulator = std::move(accumulator)
             ]
             (std::vector<Data>& vals) mutable {
                 accumulator.push_back(vals[0]);
-                whenall_child(std::move(children), 
+                whenall_child(std::move(child_results), 
                     std::move(accumulator), std::move(result)
                 );
             }
@@ -94,9 +94,22 @@ void whenall_child(std::vector<std::shared_ptr<FutureNode>> children,
     }
 }
 
+//TODO?: This can be much faster if the whole tree is spawned all at once,
+//but then all the ivars are on the submission node.
 IVarRef run_whenall(const WhenAll& whenall) {
     auto result = cur_worker->new_ivar();
-    whenall_child(whenall.children, {}, result);
+    std::vector<IVarRef> child_results;
+    for (size_t i = 0; i < whenall.children.size(); i++) {
+        auto c = whenall.children[i];
+        // Spawn the computations in a delayed way.
+        auto async = std::make_shared<Async>([c] (std::vector<Data>& in) { 
+            (void)in;
+            return Data{make_safe_void_ptr(c)}; 
+        });
+        Unwrap unwrapper(async, [] (std::vector<Data>& in) { return in[0]; });
+        child_results.push_back(run_helper(unwrapper));
+    }
+    whenall_child(std::move(child_results), {}, result);
     return result;
 }
 

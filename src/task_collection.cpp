@@ -2,6 +2,10 @@
 
 namespace taskloaf {
 
+size_t TaskCollection::size() {
+    return tasks.size();
+}
+
 bool TaskCollection::empty() {
     return tasks.empty();
 }

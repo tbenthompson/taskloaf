@@ -12,6 +12,7 @@ struct IVarTracker {
 
     IVarTracker();
 
+    bool empty();
     IVarRef new_ivar(Address addr); 
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);

@@ -10,7 +10,7 @@ template <typename T>
 void run(const Future<T>& fut, Worker& w) {
     cur_worker = &w;
     run_helper(*fut.data.get());
-    w.run();
+    w.run_no_stealing();
     cur_worker = nullptr;
 }
 

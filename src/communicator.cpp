@@ -13,13 +13,15 @@ using dec_ref_atom = caf::atom_constant<caf::atom("dec_ref")>;
 using fulfill_atom = caf::atom_constant<caf::atom("fulfill")>;
 using add_trigger_atom = caf::atom_constant<caf::atom("add_trig")>;
 using steal_atom = caf::atom_constant<caf::atom("steal")>;
+using steal_fail_atom = caf::atom_constant<caf::atom("steal_fail")>;
 
 CAFCommunicator::CAFCommunicator():
-    comm(std::make_unique<caf::scoped_actor>())
+    comm(std::make_unique<caf::scoped_actor>()),
+    stealing(false)
 {
     auto port = caf::io::publish(*comm, 0);
     //TODO: This needs to be changed before a distributed run will work.
-    addr = {"localhost", port};
+    my_addr = {"localhost", port};
 }
 
 CAFCommunicator::~CAFCommunicator() {
@@ -31,7 +33,7 @@ int CAFCommunicator::n_friends() {
 }
 
 const Address& CAFCommunicator::get_addr() {
-    return addr;
+    return my_addr;
 }
 
 caf::actor connect(caf::blocking_actor* self, Address to_addr)
@@ -71,7 +73,7 @@ void CAFCommunicator::meet(Address their_addr) {
     }
     friends.insert({their_addr, connect((*comm).get(), their_addr)});
 
-    (*comm)->send(friends[their_addr], meet_atom::value, addr);
+    (*comm)->send(friends[their_addr], meet_atom::value, my_addr);
 }
 
 caf::actor actor_from_sender(const auto& comm) {
@@ -86,31 +88,39 @@ void CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks)
                 friends.insert({their_addr, actor_from_sender(comm)});
             },
             [&] (steal_atom) {
-                if (tasks.empty()) {
+                if (tasks.size() <= 1) {
+                    (*comm)->send(actor_from_sender(comm), steal_fail_atom::value);
                     return;
                 }
-                (*comm)->send(actor_from_sender(comm), steal_atom::value, tasks.steal());
+                (*comm)->send(
+                    actor_from_sender(comm), steal_atom::value,
+                    std::move(tasks.steal())
+                );
+            },
+            [&] (steal_fail_atom) {
+                stealing = false;
             },
             [&] (steal_atom, TaskT t) {
+                stealing = false;
                 tasks.add_task(std::move(t));
             },
             [&] (inc_ref_atom, Address owner, size_t id) {
-                assert(owner == addr);
+                assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.inc_ref(which);
             },
             [&] (dec_ref_atom, Address owner, size_t id) {
-                assert(owner == addr);
+                assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.dec_ref(which);
             },
             [&] (fulfill_atom, Address owner, size_t id, std::vector<Data> vals) {
-                assert(owner == addr);
+                assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.fulfill(which, std::move(vals));
             },
             [&] (add_trigger_atom, Address owner, size_t id, TriggerT trigger) {
-                assert(owner == addr);
+                assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.add_trigger(which, std::move(trigger));
             }
@@ -145,8 +155,17 @@ void CAFCommunicator::send_add_trigger(const IVarRef& which, TriggerT trigger) {
 }
 
 void CAFCommunicator::steal() { 
-    auto& from = friends.begin()->second; 
-    (*comm)->send(from, steal_atom::value);
+    if (stealing || friends.size() == 0) {
+        return; 
+    }
+    stealing = true;
+
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, friends.size() - 1);
+    auto item = friends.begin();
+    std::advance(item, dis(gen));
+    (*comm)->send(item->second, steal_atom::value);
 }
 
 } //end namespace taskloaf

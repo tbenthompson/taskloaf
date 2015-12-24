@@ -3,6 +3,8 @@
 #include "run.hpp"
 #include "fib.hpp"
 
+#include <thread>
+
 using namespace taskloaf;
 
 TEST_CASE("Run ready then") {
@@ -70,19 +72,19 @@ TEST_CASE("Run unwrap") {
 
 auto runner() {
     TIC 
-    auto task = fib(21).then([] (int x) { 
+    auto task = fib(31).then([] (int x) { 
         // REQUIRE(x == 28657);
         std::cout << x << std::endl;
         return 0;
     });
     TOC("make task");
     TIC2
-    Worker s;
-    cur_worker = &s;
+    Worker w;
+    cur_worker = &w;
     run_helper(*task.data.get());
     TOC("plan");
     TIC2
-    s.run();
+    w.run_no_stealing();
     TOC("run");
     TIC2
     return start;
@@ -95,3 +97,31 @@ TEST_CASE("Run Fib") {
     TOC("destruction")
 //     run(task, s);
 }
+
+// TEST_CASE("Parallel fib") {
+//     int n_workers = 3;
+//     std::vector<std::thread> threads;
+//     std::vector<Worker> workers(n_workers);
+//     for (int i = 0; i < n_workers; i++) { 
+//         for (int j = 0; j < i; j++) {
+//             workers[i].meet(workers[j].get_addr()); 
+//         }
+//         threads.emplace_back([&] (int i) {
+//             workers[i].set_core_affinity(i);
+//             // TODO: Figure out a way to end the program!
+//             // TODO: run until no remaining ivars hosted on the node.
+//             workers[i].run_stealing();
+//             std::cout << "BYE!" << std::endl;
+//         }, i);
+//     }
+// 
+//     Worker w_run;
+//     for (auto& w: workers) {
+//         w_run.meet(w.get_addr());
+//     }
+//     run(fib(31).then([] (int x) { std::cout << x << std::endl; return 0; }), w_run);
+// 
+//     for (auto& t: threads) { 
+//         t.join();         
+//     }
+// }

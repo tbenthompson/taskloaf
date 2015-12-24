@@ -27,8 +27,9 @@ struct CommunicatorI {
 
 struct CAFCommunicator: public CommunicatorI {
     std::unique_ptr<caf::scoped_actor> comm; 
-    Address addr;
+    Address my_addr;
     std::map<Address,caf::actor> friends;
+    bool stealing;
 
     CAFCommunicator();
     ~CAFCommunicator();

@@ -11,7 +11,7 @@ TEST_CASE("Worker") {
     Worker w;
     int x = 0;
     w.add_task([&] () { x = 1; });
-    w.run();
+    w.run_no_stealing();
     REQUIRE(x == 1);
 }
 
@@ -94,19 +94,30 @@ TEST_CASE("Two communicators meet") {
     REQUIRE(c1.n_friends() == 1);
 }
 
-TEST_CASE("Two workers stealing") {
+void stealing_test(int n_steals) {
     Worker w1;
     Worker w2;
     int x = 0;
     w1.add_task([&] () { x = 1; });
+    w1.add_task([&] () { x = 1; });
     w2.meet(w1.get_addr());
-    w2.comm->steal();
-    REQUIRE(!w1.tasks.empty());
-    REQUIRE(w2.tasks.empty());
+    for (int i = 0; i < n_steals; i++) {
+        w2.comm->steal();
+    }
+    REQUIRE(w1.tasks.size() == 2);
+    REQUIRE(w2.tasks.size() == 0);
     w1.comm->handle_messages(w1.ivars, w1.tasks);
-    REQUIRE(w1.tasks.empty());
+    REQUIRE(w1.tasks.size() == 1);
     w2.comm->handle_messages(w2.ivars, w2.tasks);
-    REQUIRE(!w2.tasks.empty());
+    REQUIRE(w2.tasks.size() == 1);
+}
+
+TEST_CASE("Two workers one steal") {
+    stealing_test(1);
+}
+
+TEST_CASE("Two workers two steals = second does nothing") {
+    stealing_test(2);
 }
 
 TEST_CASE("Remote reference counting") {

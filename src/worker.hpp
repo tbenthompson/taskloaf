@@ -14,6 +14,7 @@ struct Worker {
     std::unique_ptr<CommunicatorI> comm;
     TaskCollection tasks;
     IVarTracker ivars;
+    int core_id;
 
     Worker();
     ~Worker();
@@ -29,7 +30,10 @@ struct Worker {
     void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
 
-    void run();
+    void run_no_stealing();
+    void run_stealing();
+
+    void set_core_affinity(int core_id);
 };
 
 extern thread_local Worker* cur_worker;
