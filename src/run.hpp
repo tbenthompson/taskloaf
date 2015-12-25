@@ -14,4 +14,9 @@ void run(const Future<T>& fut, Worker& w) {
     cur_worker = nullptr;
 }
 
+inline int shutdown() {
+    cur_worker->shutdown(); 
+    return 0;
+}
+
 }

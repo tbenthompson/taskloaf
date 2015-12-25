@@ -11,8 +11,7 @@ TEST_CASE("Run ready then") {
     Worker s;
     auto out = ready(10).then([] (int x) {
         REQUIRE(x == 10);
-        cur_worker->shutdown();
-        return 0;
+        return shutdown();
     });
     run(out, s);
 }
@@ -23,8 +22,7 @@ TEST_CASE("Run async") {
         return 20;
     }).then([] (int x) {
         REQUIRE(x == 20);   
-        cur_worker->shutdown();
-        return 0;
+        return shutdown();
     });
     run(out, s);
 }
@@ -37,8 +35,7 @@ TEST_CASE("Run when all") {
         return x * y; 
     }).then([] (int z) {
         REQUIRE(z == 200);
-        cur_worker->shutdown();
-        return 0;
+        return shutdown();
     });
     run(out, s);
 }
@@ -53,8 +50,7 @@ TEST_CASE("Run unwrap") {
         }
     }).unwrap().then([] (int y) {
         REQUIRE(y == 5);
-        cur_worker->shutdown();
-        return 0;
+        return shutdown();
     });
     run(out, s);
 }
@@ -79,8 +75,7 @@ auto runner() {
     auto task = fib(44, 31).then([] (int x) { 
         // REQUIRE(x == 28657);
         std::cout << x << std::endl;
-        cur_worker->shutdown();
-        return 0;
+        return shutdown();
     });
     TOC("make task");
     TIC2
@@ -124,8 +119,7 @@ TEST_CASE("Parallel fib") {
     }
     auto t = fib(31).then([] (int x) {
         std::cout << x << std::endl;
-        cur_worker->shutdown(); 
-        return 0;
+        return shutdown();
     });
     run(t, w_run);
 

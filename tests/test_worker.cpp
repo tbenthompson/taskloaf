@@ -98,16 +98,18 @@ void stealing_test(int n_steals) {
     Worker w1;
     Worker w2;
     int x = 0;
-    w1.add_task([&] () { x = 1; });
-    w1.add_task([&] () { x = 1; });
+    int n_tasks = 5;
+    for (int i = 0; i < n_tasks; i++) {
+        w1.add_task([&] () { x = 1; });
+    }
     w2.meet(w1.get_addr());
     for (int i = 0; i < n_steals; i++) {
         w2.comm->steal();
     }
-    REQUIRE(w1.tasks.size() == 2);
+    REQUIRE(w1.tasks.size() == n_tasks);
     REQUIRE(w2.tasks.size() == 0);
     w1.comm->handle_messages(w1.ivars, w1.tasks);
-    REQUIRE(w1.tasks.size() == 1);
+    REQUIRE(w1.tasks.size() == n_tasks - 1);
     w2.comm->handle_messages(w2.ivars, w2.tasks);
     REQUIRE(w2.tasks.size() == 1);
 }
