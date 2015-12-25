@@ -7,11 +7,11 @@ size_t TaskCollection::size() {
 }
 
 bool TaskCollection::should_steal() {
-    return tasks.size() < 2;
+    return tasks.size() <= 1;
 }
 
 bool TaskCollection::should_allow_steal() {
-    return tasks.size() >= 3;
+    return tasks.size() >= 1;
 }
 
 void TaskCollection::stolen_task(TaskT f) {

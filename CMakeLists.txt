@@ -73,7 +73,6 @@ target_include_directories(taskloaf PRIVATE
 add_dependencies(taskloaf actor-framework spdlog )
 target_link_libraries(taskloaf ${CAF_LIBRARIES})
 
-
 ################################################################################
 #                              taskloaf tests
 ################################################################################
@@ -98,3 +97,17 @@ target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
 
 enable_testing()
 add_test(all-tests run_tests)
+
+################################################################################
+#                              taskloaf examples
+################################################################################
+
+macro(taskloaf_example name filename) 
+    add_executable(${name} ${filename})
+    target_include_directories(${name} PRIVATE ${TASKLOAF_INCLUDE_DIR})
+    add_dependencies(${name} taskloaf)
+    target_link_libraries(${name} taskloaf)
+endmacro()
+
+taskloaf_example(fib examples/fib.cpp)
+taskloaf_example(loop examples/loop.cpp)

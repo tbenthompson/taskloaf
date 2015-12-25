@@ -11,13 +11,14 @@ namespace taskloaf {
 struct CommunicatorI;
 
 struct Worker {
-    std::unique_ptr<CommunicatorI> comm;
     TaskCollection tasks;
     IVarTracker ivars;
+    std::unique_ptr<CommunicatorI> comm;
     int core_id;
     bool stop;
 
     Worker();
+    Worker(Worker&&);
     ~Worker();
 
     void shutdown();

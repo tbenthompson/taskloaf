@@ -9,10 +9,11 @@ thread_local Worker* cur_worker;
 
 Worker::Worker():
     comm(std::make_unique<CAFCommunicator>()),
+    core_id(-1),
     stop(false)
-{
-    
-}
+{}
+
+Worker::Worker(Worker&&) = default;
 
 Worker::~Worker() {
     cur_worker = this;
@@ -64,6 +65,12 @@ void Worker::inc_ref(const IVarRef& iv) {
 }
 
 void Worker::dec_ref(const IVarRef& iv) {
+    //TODO: This is sketchy... when the Worker destructor is called, the
+    //IVarRef destructors for any of the contained things is called and
+    //there is a reference loop via the cur_worker global variable.
+    if (stop) {
+        return;
+    }
     if (iv.owner != comm->get_addr()) {
         comm->send_dec_ref(iv);
         return;

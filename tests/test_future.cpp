@@ -1,7 +1,6 @@
 #include "catch.hpp"
 
 #include "future.hpp"
-#include "fib.hpp"
 
 using namespace taskloaf; 
 
@@ -41,6 +40,3 @@ TEST_CASE("Async fnc") {
     auto f = async(bark);
 }
 
-TEST_CASE("Fib") {
-    auto c = fib(10);
-}

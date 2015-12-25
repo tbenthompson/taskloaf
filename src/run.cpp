@@ -1,8 +1,46 @@
 #include "run.hpp"
 
+#include <vector>
+#include <thread>
+#include <atomic>
+
 namespace taskloaf {
 
 typedef Function<Data(std::vector<Data>&)> PureTaskT;
+
+void launch_helper(int n_workers, std::shared_ptr<FutureNode> f) {
+    std::vector<Address> addrs(n_workers);
+    std::vector<std::thread> threads;
+    for (int i = 0; i < n_workers; i++) { 
+        std::atomic<bool> spawn_next(false);
+        threads.emplace_back(
+            [f, i, &addrs, &spawn_next] () mutable {
+                Worker w;
+                cur_worker = &w;
+                addrs[i] = w.get_addr();
+                spawn_next = true;
+                for (int j = 0; j < i; j++) {
+                    w.meet(addrs[j]); 
+                }
+                if (i == 0) {
+                    run_helper(*f);
+                }
+                w.set_core_affinity(i);
+                w.run();
+            }
+        );
+        while(!spawn_next) { }
+    }
+
+    for (auto& t: threads) { 
+        t.join();         
+    }
+}
+
+int shutdown() {
+    cur_worker->shutdown(); 
+    return 0;
+}
 
 IVarRef run_then(const Then& then) {
     auto inside = run_helper(*then.child.get());
@@ -35,7 +73,8 @@ IVarRef run_unwrap(const Unwrap& unwrap) {
             auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
             auto result = run_helper(*future_data);
             cur_worker->add_trigger(result,
-                [out_future] (std::vector<Data>& vals) mutable {
+                [out_future = std::move(out_future)]
+                (std::vector<Data>& vals) mutable {
                     cur_worker->fulfill(out_future, vals); 
                 }
             );
@@ -102,7 +141,7 @@ IVarRef run_whenall(const WhenAll& whenall) {
         auto child_slot = cur_worker->new_ivar();
         child_results.push_back(child_slot);
 
-        // // Spawn the computations in a delayed way.
+        // Spawn the computations in a delayed way.
         cur_worker->add_task(
             [c, child_slot = std::move(child_slot)] 
             () {
@@ -115,9 +154,6 @@ IVarRef run_whenall(const WhenAll& whenall) {
                 );
             }
         );
-        
-        // Spawn the child computations immediately.
-        // child_results.push_back(run_helper(*c));
     }
     whenall_child(std::move(child_results), {}, result);
     return result;
