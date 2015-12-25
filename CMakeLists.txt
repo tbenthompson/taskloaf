@@ -110,4 +110,4 @@ macro(taskloaf_example name filename)
 endmacro()
 
 taskloaf_example(fib examples/fib.cpp)
-taskloaf_example(loop examples/loop.cpp)
+taskloaf_example(totient examples/totient.cpp)

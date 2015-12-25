@@ -22,18 +22,24 @@ int totient(int index) {
     return result;
 }
 
-int main() {
-    int sum = 0;
-    Worker w;
-    for (int i = 0; i < 10000; i++) {
-        auto t = async([i] () { return totient(i); });
-        run(t, w);
-        // sum += t;
+Future<int> sum_totient(int lower, int upper) {
+    if (lower == upper) {
+        return async([=] () { return totient(lower); });
+    } else {
+        auto middle = (lower + upper) / 2;
+        return when_all(
+            sum_totient(lower, middle),
+            sum_totient(middle + 1, upper)
+        ).then([] (int a, int b) { return a + b; });
     }
-    std::cout << sum << std::endl;
-    // int n = 1000;
-    // int chunks = 4;
-    // for (int i = 0; i < chunks; i++) {
-    //     // async(gen_vals
-    // }
+}
+
+int main() {
+    int n = 10000;
+    launch(4, [=] () {
+        return sum_totient(0, n).then([] (int x) {
+            std::cout << x << std::endl;
+            return shutdown();
+        });
+    });
 }
