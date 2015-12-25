@@ -1,4 +1,5 @@
 #include "run.hpp"
+#include "timing.hpp"
 
 #include <iostream>
 
@@ -35,11 +36,21 @@ Future<int> sum_totient(int lower, int upper) {
 }
 
 int main() {
-    int n = 10000;
-    launch(4, [=] () {
-        return sum_totient(0, n).then([] (int x) {
+    int n = 1000;
+    TIC
+    launch(1, [=] () {
+        return sum_totient(1, n).then([] (int x) {
             std::cout << x << std::endl;
             return shutdown();
         });
     });
+    TOC("1");
+    TIC2
+    launch(4, [=] () {
+        return sum_totient(1, n).then([] (int x) {
+            std::cout << x << std::endl;
+            return shutdown();
+        });
+    });
+    TOC("4");
 }

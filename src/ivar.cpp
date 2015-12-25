@@ -1,5 +1,6 @@
 #include "ivar.hpp"
 #include "run.hpp"
+#include "worker.hpp"
 
 namespace taskloaf {
 
