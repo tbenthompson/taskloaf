@@ -15,10 +15,12 @@ struct Worker {
     TaskCollection tasks;
     IVarTracker ivars;
     int core_id;
+    bool stop;
 
     Worker();
     ~Worker();
 
+    void shutdown();
     void meet(Address addr);
     Address get_addr();
 
@@ -30,8 +32,7 @@ struct Worker {
     void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
 
-    void run_no_stealing();
-    void run_stealing();
+    void run();
 
     void set_core_affinity(int core_id);
 };

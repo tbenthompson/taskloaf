@@ -11,5 +11,5 @@ TEST_CASE("Fib print") {
     std::ostringstream stream;
     auto f = fib(3);
     print(f, stream);
-    REQUIRE(stream.str() == "Then\n  WhenAll\n    Ready\n    Ready\n");
+    REQUIRE(stream.str() == "Then\n  WhenAll\n    Async\n    Async\n");
 }

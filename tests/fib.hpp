@@ -4,12 +4,20 @@
 
 namespace tsk = taskloaf;
 
-inline tsk::Future<int> fib(int index) {
+inline int fib_serial(int index) {
     if (index < 3) {
-        return tsk::ready(1);
+        return 1;
     } else {
-        auto af = fib(index - 1);
-        auto bf = fib(index - 2);
+        return fib_serial(index - 1) + fib_serial(index - 2);
+    }
+}
+
+inline tsk::Future<int> fib(int index, int grouping = 3) {
+    if (index < grouping) {
+        return tsk::async([=] () { return fib_serial(index); });
+    } else {
+        auto af = fib(index - 1, grouping);
+        auto bf = fib(index - 2, grouping);
         return tsk::when_all(af, bf).then([] (int a, int b) { return a + b; });
     }
 }

@@ -9,12 +9,19 @@ thread_local Worker* cur_worker;
 
 Worker::Worker():
     comm(std::make_unique<CAFCommunicator>()),
-    ivars()
+    stop(false)
 {
     
 }
 
-Worker::~Worker() {}
+Worker::~Worker() {
+    cur_worker = this;
+}
+
+void Worker::shutdown() {
+    comm->send_shutdown();
+    stop = true;
+}
 
 void Worker::meet(Address addr) {
     comm->meet(addr);
@@ -64,29 +71,20 @@ void Worker::dec_ref(const IVarRef& iv) {
     ivars.dec_ref(iv);
 }
 
-void Worker::run_no_stealing() {
-    cur_worker = this;
-    while (!ivars.empty() || !tasks.empty()) {
-        tasks.next()();
-        comm->handle_messages(ivars, tasks);
-    }
-}
-
-void Worker::run_stealing() {
+void Worker::run() {
     int n_tasks = 0;
     cur_worker = this;
-    while (true) {
-        if (tasks.empty()) {
+    while (!stop) {
+        if (tasks.should_steal()) {
             comm->steal();
-        } else {
+        }
+        if (tasks.size() > 0) {
+            // std::cout << "n(" << core_id << "): " << n_tasks 
+            //           << " " << tasks.size() << std::endl;
             tasks.next()();
             n_tasks++;
-            if (n_tasks % 100000 == 0) {
-                std::cout << "n(" << core_id << "): " << n_tasks 
-                          << " " << tasks.size() << std::endl;
-            }
         }
-        comm->handle_messages(ivars, tasks);
+        stop = stop || comm->handle_messages(ivars, tasks);
     }
 }
 

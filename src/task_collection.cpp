@@ -6,8 +6,16 @@ size_t TaskCollection::size() {
     return tasks.size();
 }
 
-bool TaskCollection::empty() {
-    return tasks.empty();
+bool TaskCollection::should_steal() {
+    return tasks.size() < 2;
+}
+
+bool TaskCollection::should_allow_steal() {
+    return tasks.size() >= 3;
+}
+
+void TaskCollection::stolen_task(TaskT f) {
+    tasks.push_back(std::move(f));
 }
 
 void TaskCollection::add_task(TaskT f) {

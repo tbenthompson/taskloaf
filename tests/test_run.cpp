@@ -11,6 +11,7 @@ TEST_CASE("Run ready then") {
     Worker s;
     auto out = ready(10).then([] (int x) {
         REQUIRE(x == 10);
+        cur_worker->shutdown();
         return 0;
     });
     run(out, s);
@@ -22,6 +23,7 @@ TEST_CASE("Run async") {
         return 20;
     }).then([] (int x) {
         REQUIRE(x == 20);   
+        cur_worker->shutdown();
         return 0;
     });
     run(out, s);
@@ -35,6 +37,7 @@ TEST_CASE("Run when all") {
         return x * y; 
     }).then([] (int z) {
         REQUIRE(z == 200);
+        cur_worker->shutdown();
         return 0;
     });
     run(out, s);
@@ -50,6 +53,7 @@ TEST_CASE("Run unwrap") {
         }
     }).unwrap().then([] (int y) {
         REQUIRE(y == 5);
+        cur_worker->shutdown();
         return 0;
     });
     run(out, s);
@@ -72,9 +76,10 @@ TEST_CASE("Run unwrap") {
 
 auto runner() {
     TIC 
-    auto task = fib(31).then([] (int x) { 
+    auto task = fib(44, 31).then([] (int x) { 
         // REQUIRE(x == 28657);
         std::cout << x << std::endl;
+        cur_worker->shutdown();
         return 0;
     });
     TOC("make task");
@@ -84,7 +89,7 @@ auto runner() {
     run_helper(*task.data.get());
     TOC("plan");
     TIC2
-    w.run_no_stealing();
+    w.run();
     TOC("run");
     TIC2
     return start;
@@ -98,30 +103,33 @@ TEST_CASE("Run Fib") {
 //     run(task, s);
 }
 
-// TEST_CASE("Parallel fib") {
-//     int n_workers = 3;
-//     std::vector<std::thread> threads;
-//     std::vector<Worker> workers(n_workers);
-//     for (int i = 0; i < n_workers; i++) { 
-//         for (int j = 0; j < i; j++) {
-//             workers[i].meet(workers[j].get_addr()); 
-//         }
-//         threads.emplace_back([&] (int i) {
-//             workers[i].set_core_affinity(i);
-//             // TODO: Figure out a way to end the program!
-//             // TODO: run until no remaining ivars hosted on the node.
-//             workers[i].run_stealing();
-//             std::cout << "BYE!" << std::endl;
-//         }, i);
-//     }
-// 
-//     Worker w_run;
-//     for (auto& w: workers) {
-//         w_run.meet(w.get_addr());
-//     }
-//     run(fib(31).then([] (int x) { std::cout << x << std::endl; return 0; }), w_run);
-// 
-//     for (auto& t: threads) { 
-//         t.join();         
-//     }
-// }
+TEST_CASE("Parallel fib") {
+    int n_workers = 3;
+    std::vector<std::thread> threads;
+    std::vector<Worker> workers(n_workers);
+    for (int i = 0; i < n_workers; i++) { 
+        for (int j = 0; j < i; j++) {
+            workers[i].meet(workers[j].get_addr()); 
+        }
+        threads.emplace_back([&] (int index) {
+            workers[index].set_core_affinity(i);
+            workers[index].run();
+        }, i);
+    }
+
+    Worker w_run;
+    w_run.core_id = -1;
+    for (auto& w: workers) {
+        w_run.meet(w.get_addr());
+    }
+    auto t = fib(31).then([] (int x) {
+        std::cout << x << std::endl;
+        cur_worker->shutdown(); 
+        return 0;
+    });
+    run(t, w_run);
+
+    for (auto& t: threads) { 
+        t.join();         
+    }
+}

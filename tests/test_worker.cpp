@@ -10,8 +10,8 @@ using namespace taskloaf;
 TEST_CASE("Worker") {
     Worker w;
     int x = 0;
-    w.add_task([&] () { x = 1; });
-    w.run_no_stealing();
+    w.add_task([&] () { x = 1; cur_worker->shutdown(); });
+    w.run();
     REQUIRE(x == 1);
 }
 
@@ -23,7 +23,7 @@ TEST_CASE("Task collection runs from newest tasks") {
     tc.next()();
     REQUIRE(x == 2);
     tc.next()();
-    REQUIRE(tc.empty());
+    REQUIRE(tc.size() == 0);
 }
 
 TEST_CASE("Task collection steals from oldest tasks") {
@@ -34,7 +34,7 @@ TEST_CASE("Task collection steals from oldest tasks") {
     tc.steal()();
     REQUIRE(x == 1);
     tc.steal()();
-    REQUIRE(tc.empty());
+    REQUIRE(tc.size() == 0);
 }
 
 TEST_CASE("IVar trigger before fulfill") {

@@ -14,6 +14,7 @@ using fulfill_atom = caf::atom_constant<caf::atom("fulfill")>;
 using add_trigger_atom = caf::atom_constant<caf::atom("add_trig")>;
 using steal_atom = caf::atom_constant<caf::atom("steal")>;
 using steal_fail_atom = caf::atom_constant<caf::atom("steal_fail")>;
+using shutdown_atom = caf::atom_constant<caf::atom("shutdown")>;
 
 CAFCommunicator::CAFCommunicator():
     comm(std::make_unique<caf::scoped_actor>()),
@@ -80,29 +81,32 @@ caf::actor actor_from_sender(const auto& comm) {
     return caf::actor_cast<caf::actor>((*comm)->current_sender());
 }
 
-void CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks) {
-    (void)tasks;
+bool CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks) 
+{
+    bool stop = false;
     while ((*comm)->has_next_message()) {
         (*comm)->receive(
+            [&] (shutdown_atom) {
+                stop = true;
+            },
             [&] (meet_atom, Address their_addr) {
                 friends.insert({their_addr, actor_from_sender(comm)});
             },
             [&] (steal_atom) {
-                if (tasks.size() <= 1) {
+                if (tasks.should_allow_steal()) {
+                    (*comm)->send(actor_from_sender(comm), steal_atom::value,
+                        std::move(tasks.steal())
+                    );
+                } else {
                     (*comm)->send(actor_from_sender(comm), steal_fail_atom::value);
-                    return;
                 }
-                (*comm)->send(
-                    actor_from_sender(comm), steal_atom::value,
-                    std::move(tasks.steal())
-                );
             },
             [&] (steal_fail_atom) {
                 stealing = false;
             },
             [&] (steal_atom, TaskT t) {
                 stealing = false;
-                tasks.add_task(std::move(t));
+                tasks.stolen_task(std::move(t));
             },
             [&] (inc_ref_atom, Address owner, size_t id) {
                 assert(owner == my_addr);
@@ -125,6 +129,13 @@ void CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks)
                 ivars.add_trigger(which, std::move(trigger));
             }
         );
+    }
+    return stop;
+}
+
+void CAFCommunicator::send_shutdown() {
+    for (auto& f: friends) {
+        (*comm)->send(f.second, shutdown_atom::value);
     }
 }
 

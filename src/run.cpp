@@ -94,20 +94,30 @@ void whenall_child(std::vector<IVarRef> child_results,
     }
 }
 
-//TODO?: This can be much faster if the whole tree is spawned all at once,
-//but then all the ivars are on the submission node.
 IVarRef run_whenall(const WhenAll& whenall) {
     auto result = cur_worker->new_ivar();
     std::vector<IVarRef> child_results;
     for (size_t i = 0; i < whenall.children.size(); i++) {
         auto c = whenall.children[i];
-        // Spawn the computations in a delayed way.
-        auto async = std::make_shared<Async>([c] (std::vector<Data>& in) { 
-            (void)in;
-            return Data{make_safe_void_ptr(c)}; 
-        });
-        Unwrap unwrapper(async, [] (std::vector<Data>& in) { return in[0]; });
-        child_results.push_back(run_helper(unwrapper));
+        auto child_slot = cur_worker->new_ivar();
+        child_results.push_back(child_slot);
+
+        // // Spawn the computations in a delayed way.
+        cur_worker->add_task(
+            [c, child_slot = std::move(child_slot)] 
+            () {
+                auto child_iv = run_helper(*c);
+                cur_worker->add_trigger(child_iv,
+                    [child_slot = std::move(child_slot)] 
+                    (std::vector<Data>& vals) {
+                        cur_worker->fulfill(child_slot, std::move(vals));
+                    }
+                );
+            }
+        );
+        
+        // Spawn the child computations immediately.
+        // child_results.push_back(run_helper(*c));
     }
     whenall_child(std::move(child_results), {}, result);
     return result;

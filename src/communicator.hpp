@@ -17,7 +17,8 @@ struct CommunicatorI {
     virtual const Address& get_addr() = 0;
 
     virtual void meet(Address addr) = 0;
-    virtual void handle_messages(IVarTracker& ivars, TaskCollection& tasks) = 0;
+    virtual bool handle_messages(IVarTracker& ivars, TaskCollection& tasks) = 0; 
+    virtual void send_shutdown() = 0;
     virtual void send_inc_ref(const IVarRef& which) = 0;
     virtual void send_dec_ref(const IVarRef& which) = 0;
     virtual void send_fulfill(const IVarRef& which, std::vector<Data> val) = 0;
@@ -37,7 +38,8 @@ struct CAFCommunicator: public CommunicatorI {
     int n_friends();
     const Address& get_addr() override;
     void meet(Address addr) override;
-    void handle_messages(IVarTracker& ivars, TaskCollection& tasks) override;
+    bool handle_messages(IVarTracker& ivars, TaskCollection& tasks) override;
+    void send_shutdown() override;
     void send_inc_ref(const IVarRef& which) override;
     void send_dec_ref(const IVarRef& which) override;
     void send_fulfill(const IVarRef& which, std::vector<Data> vals) override;
