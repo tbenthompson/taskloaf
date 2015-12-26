@@ -82,9 +82,7 @@ void Worker::run() {
     int n_tasks = 0;
     cur_worker = this;
     while (!stop) {
-        if (tasks.should_steal()) {
-            comm->steal();
-        }
+        comm->steal(tasks.size());
         if (tasks.size() > 0) {
             // std::cout << "n(" << core_id << "): " << n_tasks 
             //           << " " << tasks.size() << std::endl;

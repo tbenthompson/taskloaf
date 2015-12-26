@@ -2,16 +2,12 @@
 
 namespace taskloaf {
 
-size_t TaskCollection::size() {
+size_t TaskCollection::size() const {
     return tasks.size();
 }
 
-bool TaskCollection::should_steal() {
-    return tasks.size() <= 1;
-}
-
-bool TaskCollection::should_allow_steal() {
-    return tasks.size() >= 1;
+bool TaskCollection::allow_stealing(size_t n_remote_tasks) const {
+    return tasks.size() > n_remote_tasks + 1;
 }
 
 void TaskCollection::stolen_task(TaskT f) {

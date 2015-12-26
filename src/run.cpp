@@ -17,7 +17,7 @@ void launch_helper(int n_workers, std::shared_ptr<FutureNode> f) {
     for (int i = 0; i < n_workers; i++) { 
         std::atomic<bool> spawn_next(false);
         threads.emplace_back(
-            [f, i, &addrs, &spawn_next] () mutable {
+            [f, i, n_workers, &addrs, &spawn_next] () mutable {
                 Worker w;
                 cur_worker = &w;
                 addrs[i] = w.get_addr();
@@ -25,7 +25,7 @@ void launch_helper(int n_workers, std::shared_ptr<FutureNode> f) {
                 for (int j = 0; j < i; j++) {
                     w.meet(addrs[j]); 
                 }
-                if (i == 0) {
+                if (i == n_workers - 1) {
                     plan(*f);
                 }
                 w.set_core_affinity(i);

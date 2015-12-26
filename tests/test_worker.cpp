@@ -104,7 +104,7 @@ void stealing_test(int n_steals) {
     }
     w2.meet(w1.get_addr());
     for (int i = 0; i < n_steals; i++) {
-        w2.comm->steal();
+        w2.comm->steal(0);
     }
     REQUIRE(w1.tasks.size() == n_tasks);
     REQUIRE(w2.tasks.size() == 0);

@@ -1,5 +1,6 @@
-
+#pragma once
 #include <chrono>
+#include <iostream>
 
 #define TIC\
     std::chrono::high_resolution_clock::time_point start =\

@@ -36,7 +36,7 @@ Future<int> sum_totient(int lower, int upper) {
 }
 
 int main() {
-    int n = 1000;
+    int n = 2000;
     TIC
     launch(1, [=] () {
         return sum_totient(1, n).then([] (int x) {

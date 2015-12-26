@@ -92,8 +92,8 @@ bool CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks)
             [&] (meet_atom, Address their_addr) {
                 friends.insert({their_addr, actor_from_sender(comm)});
             },
-            [&] (steal_atom) {
-                if (tasks.should_allow_steal()) {
+            [&] (steal_atom, size_t n_remote_tasks) {
+                if (tasks.allow_stealing(n_remote_tasks)) {
                     (*comm)->send(actor_from_sender(comm), steal_atom::value,
                         std::move(tasks.steal())
                     );
@@ -165,7 +165,7 @@ void CAFCommunicator::send_add_trigger(const IVarRef& which, TriggerT trigger) {
     );
 }
 
-void CAFCommunicator::steal() { 
+void CAFCommunicator::steal(size_t n_local_tasks) { 
     if (stealing || friends.size() == 0) {
         return; 
     }
@@ -176,7 +176,7 @@ void CAFCommunicator::steal() {
     std::uniform_int_distribution<> dis(0, friends.size() - 1);
     auto item = friends.begin();
     std::advance(item, dis(gen));
-    (*comm)->send(item->second, steal_atom::value);
+    (*comm)->send(item->second, steal_atom::value, n_local_tasks);
 }
 
 } //end namespace taskloaf

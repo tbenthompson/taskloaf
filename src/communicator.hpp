@@ -23,7 +23,7 @@ struct CommunicatorI {
     virtual void send_dec_ref(const IVarRef& which) = 0;
     virtual void send_fulfill(const IVarRef& which, std::vector<Data> val) = 0;
     virtual void send_add_trigger(const IVarRef& which, TriggerT trigger) = 0;
-    virtual void steal() = 0;
+    virtual void steal(size_t n_local_tasks) = 0;
 };
 
 struct CAFCommunicator: public CommunicatorI {
@@ -44,7 +44,7 @@ struct CAFCommunicator: public CommunicatorI {
     void send_dec_ref(const IVarRef& which) override;
     void send_fulfill(const IVarRef& which, std::vector<Data> vals) override;
     void send_add_trigger(const IVarRef& which, TriggerT trigger) override;
-    void steal() override;
+    void steal(size_t n_local_tasks) override;
 };
 
 } //end namespace taskloaf

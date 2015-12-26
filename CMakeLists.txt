@@ -111,3 +111,4 @@ endmacro()
 
 taskloaf_example(fib examples/fib.cpp)
 taskloaf_example(totient examples/totient.cpp)
+taskloaf_example(dot_product examples/dot_product.cpp)

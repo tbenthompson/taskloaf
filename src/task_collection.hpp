@@ -10,9 +10,8 @@ typedef Function<void()> TaskT;
 struct TaskCollection {
     std::deque<TaskT> tasks;
 
-    size_t size();
-    bool should_steal();
-    bool should_allow_steal();
+    size_t size() const;
+    bool allow_stealing(size_t n_remote_tasks) const;
     void stolen_task(TaskT f);
     void add_task(TaskT f);
     TaskT next();

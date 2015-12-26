@@ -22,8 +22,11 @@ Future<int> fib(int index, int grouping = 3) {
 }
 
 int main() {
+    TIC;
+    fib(45, 30);
+    TOC("START");
     for (int n_workers = 1; n_workers <= 4; n_workers++) {
-        TIC
+        TIC2;
         launch(n_workers, [] () {
             return fib(45, 30).then([] (int x) {
                 std::cout << x << std::endl;
