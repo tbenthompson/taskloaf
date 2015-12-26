@@ -1,6 +1,6 @@
 #include "catch.hpp"
 
-#include "data.hpp"
+#include "taskloaf/data.hpp"
 
 using namespace taskloaf;
 

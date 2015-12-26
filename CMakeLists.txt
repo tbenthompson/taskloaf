@@ -57,13 +57,13 @@ ExternalProject_Add(
 ################################################################################
 
 add_library(taskloaf SHARED
-    src/start.cpp
-    src/run.cpp
-    src/ivar.cpp
-    src/communicator.cpp
-    src/worker.cpp
-    src/task_collection.cpp
-    src/ivar_tracker.cpp
+    src/taskloaf/start.cpp
+    src/taskloaf/run.cpp
+    src/taskloaf/ivar.cpp
+    src/taskloaf/communicator.cpp
+    src/taskloaf/worker.cpp
+    src/taskloaf/task_collection.cpp
+    src/taskloaf/ivar_tracker.cpp
     )
 
 target_include_directories(taskloaf PRIVATE

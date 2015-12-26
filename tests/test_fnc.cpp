@@ -1,6 +1,6 @@
 #include "catch.hpp"
 
-#include "fnc.hpp"
+#include "taskloaf/fnc.hpp"
 
 using namespace taskloaf;
 

@@ -1,6 +1,6 @@
 #include "catch.hpp"
 
-#include "future.hpp"
+#include "taskloaf/future.hpp"
 
 using namespace taskloaf; 
 

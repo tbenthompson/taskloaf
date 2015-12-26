@@ -1,7 +1,7 @@
 #include "catch.hpp"
 
-#include "worker.hpp"
-#include "communicator.hpp"
+#include "taskloaf/worker.hpp"
+#include "taskloaf/communicator.hpp"
 
 #include <iostream>
 
