@@ -5,7 +5,7 @@ namespace taskloaf {
 
 void launch_helper(int n_workers, std::shared_ptr<FutureNode> f);
 int shutdown();
-void run_helper(const FutureNode& data);
+void run_helper(FutureNode& data);
 
 template <typename F>
 void launch(int n_workers, F f) {

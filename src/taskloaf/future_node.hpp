@@ -50,7 +50,7 @@ struct Async: public FutureNode {
 struct Ready: public FutureNode {
     template <typename T>
     Ready(T val):
-        data(make_safe_void_ptr(val))
+        data(make_safe_void_ptr(std::move(val)))
     { type = ReadyType; }
 
     const SafeVoidPtr data;

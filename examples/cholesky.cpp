@@ -234,8 +234,7 @@ FutureList cholesky_plan(const FutureList& inputs)
     return full_out;
 }
 
-void run(int n, int n_blocks)
-{
+void run(int n, int n_blocks, int n_workers) {
     auto A = random_spd_matrix(n);
 
     auto correct = A;
@@ -249,7 +248,7 @@ void run(int n, int n_blocks)
 
     TIC2
     auto inputs = submit_input_data(block_A);
-    tsk::launch(4, [=] () {
+    tsk::launch(n_workers, [=] () {
         auto block_futures = cholesky_plan(inputs);
         return block_futures.back().then([] (auto x) {
             (void)x; return tsk::shutdown(); 
@@ -260,6 +259,10 @@ void run(int n, int n_blocks)
     // check_error(correct, blocks);
 }
 
-int main() {
-    run(8000, 20);
+int main(int argc, char** argv) {
+    (void)argc;
+    int n = std::stoi(std::string(argv[1]));
+    size_t n_blocks = std::stoi(std::string(argv[2]));
+    int n_workers = std::stoi(std::string(argv[3]));
+    run(n, n_blocks, n_workers);
 }

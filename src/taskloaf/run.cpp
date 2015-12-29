@@ -57,31 +57,31 @@ struct Planner {
         return {true, ivref};
     }
 
-    IVarRef plan(const FutureNode& data) {
+    IVarRef plan(FutureNode& data) {
         auto result = new_ivar(&data);
         if (!result.first) {
             return result.second;
         }
 
         if (data.type == ThenType) {
-            plan_then(reinterpret_cast<const Then&>(data), result.second);
+            plan_then(reinterpret_cast<Then&>(data), result.second);
         } else if (data.type == UnwrapType) {
-            plan_unwrap(reinterpret_cast<const Unwrap&>(data), result.second);
+            plan_unwrap(reinterpret_cast<Unwrap&>(data), result.second);
         } else if (data.type == AsyncType) {
-            plan_async(reinterpret_cast<const Async&>(data), result.second);
+            plan_async(reinterpret_cast<Async&>(data), result.second);
         } else if (data.type == ReadyType) {
-            plan_ready(reinterpret_cast<const Ready&>(data), result.second);
+            plan_ready(reinterpret_cast<Ready&>(data), result.second);
         } else if (data.type == WhenAllType) {
-            plan_whenall(reinterpret_cast<const WhenAll&>(data), result.second);
+            plan_whenall(reinterpret_cast<WhenAll&>(data), result.second);
         }
 
         return result.second;
     }
 
-    void plan_then(const Then& then, const IVarRef& out_future) {
+    void plan_then(Then& then, const IVarRef& out_future) {
         auto inside = plan(*then.child.get());
         cur_worker->add_trigger(inside,
-            [out_future, fnc = PureTaskT(then.fnc)] 
+            [out_future, fnc = PureTaskT(std::move(then.fnc))] 
             (std::vector<Data>& vals) mutable {
                 cur_worker->add_task(
                     [
@@ -97,10 +97,10 @@ struct Planner {
         );
     }
 
-    void plan_unwrap(const Unwrap& unwrap, const IVarRef& out_future) {
+    void plan_unwrap(Unwrap& unwrap, const IVarRef& out_future) {
         auto inside = plan(*unwrap.child.get());
         cur_worker->add_trigger(inside,
-            [out_future, fnc = PureTaskT(unwrap.fnc)]
+            [out_future, fnc = PureTaskT(std::move(unwrap.fnc))]
             (std::vector<Data>& vals) mutable {
                 auto out = fnc(vals);
                 auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
@@ -116,9 +116,9 @@ struct Planner {
         );
     }
 
-    void plan_async(const Async& async, const IVarRef& out_future) {
+    void plan_async(Async& async, const IVarRef& out_future) {
         cur_worker->add_task(
-            [out_future, fnc = PureTaskT(async.fnc)]
+            [out_future, fnc = PureTaskT(std::move(async.fnc))]
             () mutable {
                 std::vector<Data> empty;
                 cur_worker->fulfill(out_future, {fnc(empty)});
@@ -126,15 +126,14 @@ struct Planner {
         );
     }
 
-    void plan_ready(const Ready& ready, const IVarRef& out_future) {
-        cur_worker->fulfill(out_future, {Data{ready.data}});
+    void plan_ready(Ready& ready, const IVarRef& out_future) {
+        cur_worker->fulfill(out_future, {Data{std::move(ready.data)}});
     }
 
     void plan_whenall(const WhenAll& whenall, const IVarRef& out_future) {
         std::queue<IVarRef> child_results;
         for (size_t i = 0; i < whenall.children.size(); i++) {
-            auto c = whenall.children[i];
-            child_results.push(plan(*c));
+            child_results.push(plan(*whenall.children[i]));
         }
         whenall_child(std::move(child_results), {}, out_future);
     }
@@ -176,7 +175,7 @@ int shutdown() {
 }
 
 
-void run_helper(const FutureNode& data) {
+void run_helper(FutureNode& data) {
     Worker w;
     cur_worker = &w;
     Planner planner;
