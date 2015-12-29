@@ -13,8 +13,8 @@ struct Future {
 
     template <typename F>
     auto then(F f) const {
-        typedef std::result_of_t<F(Ts...)> Return;
-        std::function<Return(Ts...)> fnc(std::move(f));
+        typedef std::result_of_t<F(Ts&...)> Return;
+        std::function<Return(Ts&...)> fnc(std::move(f));
         auto task = [fnc] (std::vector<Data>& in) {
             return Data{make_safe_void_ptr(apply_args(in, fnc))};
         };
@@ -50,7 +50,7 @@ struct Future<T> {
 
 template <typename T>
 auto ready(T val) {
-    return Future<T>{std::make_shared<Ready>(val)};
+    return Future<T>{std::make_shared<Ready>(std::move(val))};
 }
 
 template <typename F>

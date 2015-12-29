@@ -19,11 +19,11 @@
 
 #define MATIDX(r,c,n) (c) * (n) + (r)
 
-using namespace taskloaf;
+namespace tsk = taskloaf;
 
 typedef std::vector<double> Matrix;
 typedef std::vector<Matrix> Blocks;
-typedef std::vector<Future<Matrix>> FutureList;
+typedef std::vector<tsk::Future<Matrix>> FutureList;
 typedef std::vector<FutureList> FutureListList;
 
 Matrix random_spd_matrix(size_t n) 
@@ -177,7 +177,7 @@ FutureList submit_input_data(Blocks& blocks)
 {
     FutureList out;
     for (size_t i = 0; i < blocks.size(); i++) {
-        out.push_back(ready(std::move(blocks[i])));
+        out.push_back(tsk::ready(std::move(blocks[i])));
     }
     return out;
 }
@@ -241,7 +241,7 @@ void run(int n, int n_blocks)
     auto correct = A;
 
     TIC
-    // correct = dpotrf_task(correct);
+    correct = dpotrf_task(correct);
     TOC("Direct");
 
     auto block_A = to_blocks(A, n_blocks);
@@ -249,9 +249,11 @@ void run(int n, int n_blocks)
 
     TIC2
     auto inputs = submit_input_data(block_A);
-    launch(1, [=] () {
+    tsk::launch(4, [=] () {
         auto block_futures = cholesky_plan(inputs);
-        return block_futures.back().then([] (auto x) { (void)x; return shutdown(); });
+        return block_futures.back().then([] (auto x) {
+            (void)x; return tsk::shutdown(); 
+        });
     });
     TOC("Taskloaf");
 

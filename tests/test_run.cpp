@@ -2,7 +2,7 @@
 
 #include "taskloaf/run.hpp"
 
-#include <thread>
+#include <iostream>
 
 using namespace taskloaf;
 
@@ -28,9 +28,9 @@ TEST_CASE("Run when all") {
     auto plan = when_all(
         ready(10), ready(20)
     ).then([] (int x, int y) {
-        return x * y; 
-    }).then([] (int z) {
-        REQUIRE(z == 200);
+        return x < y; 
+    }).then([] (bool z) {
+        REQUIRE(z);
         return shutdown();
     });
     run(plan);
@@ -58,5 +58,24 @@ TEST_CASE("Run tree once") {
     run(tasks);
 
     REQUIRE(x == 1);
+}
+
+auto move_string(auto in, int count) {
+    count--;
+    if(count <= 0) {
+        return in;
+    }
+    auto tasks = in.then([] (std::string& val) {
+        return std::move(val);
+    });
+    return move_string(tasks, count);
+}
+
+TEST_CASE("Pass by reference") {
+    auto tasks = move_string(ready<std::string>("hello"), 200);
+    auto runme = tasks.then([] (std::string& val) {
+        (void)val; return shutdown();   
+    });
+    run(runme);
 }
 

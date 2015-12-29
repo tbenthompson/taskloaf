@@ -23,6 +23,7 @@ int totient(int index) {
     return result;
 }
 
+//TODO: Needs reduce skeleton
 Future<int> sum_totient(int lower, int upper) {
     if (lower == upper) {
         return async([=] () { return totient(lower); });

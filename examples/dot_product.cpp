@@ -6,6 +6,7 @@
 
 using namespace taskloaf;
 
+// TODO: Needs reduce skeleton
 Future<double> sum(int lower, int upper, const std::vector<Future<double>>& vals) {
     if (lower == upper) {
         return vals[lower];
