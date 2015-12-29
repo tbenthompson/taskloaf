@@ -93,20 +93,20 @@ bool CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks)
                 friends.insert({their_addr, actor_from_sender(comm)});
             },
             [&] (steal_atom, size_t n_remote_tasks) {
-                if (tasks.allow_stealing(n_remote_tasks)) {
-                    (*comm)->send(actor_from_sender(comm), steal_atom::value,
-                        std::move(tasks.steal())
-                    );
-                } else {
-                    (*comm)->send(actor_from_sender(comm), steal_fail_atom::value);
+                auto n_steals = tasks.steal_count(n_remote_tasks);
+                std::vector<TaskT> steals;
+                for (size_t i = 0; i < n_steals; i++) {
+                    steals.push_back(std::move(tasks.steal()));
                 }
+                (*comm)->send(actor_from_sender(comm),
+                    steal_atom::value, std::move(steals)
+                );
             },
-            [&] (steal_fail_atom) {
+            [&] (steal_atom, std::vector<TaskT> stolen_tasks) {
                 stealing = false;
-            },
-            [&] (steal_atom, TaskT t) {
-                stealing = false;
-                tasks.stolen_task(std::move(t));
+                for (auto& t: stolen_tasks) {
+                    tasks.stolen_task(std::move(t));
+                }
             },
             [&] (inc_ref_atom, Address owner, size_t id) {
                 assert(owner == my_addr);

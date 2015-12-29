@@ -3,9 +3,6 @@
 #include "task_collection.hpp"
 #include "ivar_tracker.hpp"
 
-//TODO: At some point when things are settled, pimpl this so that users
-//don't need to include info about the internals.
-
 namespace taskloaf { 
 
 struct CommunicatorI;

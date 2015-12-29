@@ -65,14 +65,14 @@ void Worker::inc_ref(const IVarRef& iv) {
 }
 
 void Worker::dec_ref(const IVarRef& iv) {
-    //TODO: This is sketchy... when the Worker destructor is called, the
-    //IVarRef destructors for any of the contained things is called and
-    //there is a reference loop via the cur_worker global variable.
-    if (stop) {
-        return;
-    }
     if (iv.owner != comm->get_addr()) {
         comm->send_dec_ref(iv);
+        return;
+    }
+    // If the worker is shutting down, there is no need to dec-ref on a 
+    // IVarRef destructor call. In fact, if we don't stop here, there will
+    // be an infinite recursion.
+    if (stop) {
         return;
     }
     ivars.dec_ref(iv);

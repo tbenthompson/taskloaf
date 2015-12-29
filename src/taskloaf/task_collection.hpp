@@ -11,7 +11,7 @@ struct TaskCollection {
     std::deque<TaskT> tasks;
 
     size_t size() const;
-    bool allow_stealing(size_t n_remote_tasks) const;
+    size_t steal_count(size_t n_remote_tasks) const;
     void stolen_task(TaskT f);
     void add_task(TaskT f);
     TaskT next();

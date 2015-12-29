@@ -7,25 +7,25 @@
 using namespace taskloaf;
 
 TEST_CASE("Run ready then") {
-    auto out = ready(10).then([] (int x) {
+    auto plan = ready(10).then([] (int x) {
         REQUIRE(x == 10);
         return shutdown();
     });
-    run(out);
+    run(plan);
 }
 
 TEST_CASE("Run async") {
-    auto out = async([] () {
+    auto plan = async([] () {
         return 20;
     }).then([] (int x) {
         REQUIRE(x == 20);   
         return shutdown();
     });
-    run(out);
+    run(plan);
 }
 
 TEST_CASE("Run when all") {
-    auto out = when_all(
+    auto plan = when_all(
         ready(10), ready(20)
     ).then([] (int x, int y) {
         return x * y; 
@@ -33,11 +33,11 @@ TEST_CASE("Run when all") {
         REQUIRE(z == 200);
         return shutdown();
     });
-    run(out);
+    run(plan);
 }
 
 TEST_CASE("Run unwrap") {
-    auto out = ready(10).then([] (int x) {
+    auto plan = ready(10).then([] (int x) {
         if (x < 20) {
             return ready(5);
         } else {
@@ -47,5 +47,16 @@ TEST_CASE("Run unwrap") {
         REQUIRE(y == 5);
         return shutdown();
     });
-    run(out);
+    run(plan);
 }
+
+TEST_CASE("Run tree once") {
+    int x = 0;
+    auto once_task = async([&] () { x++; return 0; });
+    auto shutdown_task = async([&] () { return shutdown();});
+    auto tasks = when_all(shutdown_task, once_task, once_task);
+    run(tasks);
+
+    REQUIRE(x == 1);
+}
+

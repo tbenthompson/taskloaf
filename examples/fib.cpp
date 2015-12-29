@@ -23,8 +23,8 @@ Future<int> fib(int index, int grouping = 3) {
 
 int main() {
     TIC;
-    fib(45, 30);
-    TOC("START");
+    fib_serial(45);
+    TOC("serial");
     for (int n_workers = 1; n_workers <= 4; n_workers++) {
         TIC2;
         launch(n_workers, [] () {
@@ -33,6 +33,6 @@ int main() {
                 return shutdown();
             });
         });
-        TOC("Parallel fib " + std::to_string(n_workers));
+        TOC("parallel fib " + std::to_string(n_workers));
     }
 }

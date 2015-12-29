@@ -12,13 +12,13 @@ struct Future {
     std::shared_ptr<FutureNode> data;
 
     template <typename F>
-    auto then(F fnc) {
+    auto then(F f) const {
+        typedef std::result_of_t<F(Ts...)> Return;
+        std::function<Return(Ts...)> fnc(std::move(f));
         auto task = [fnc] (std::vector<Data>& in) {
             return Data{make_safe_void_ptr(apply_args(in, fnc))};
         };
-        return Future<std::result_of_t<F(Ts...)>>{
-            std::make_shared<Then>(data, task)
-        };
+        return Future<Return>{std::make_shared<Then>(data, task)};
     }
 };
 
@@ -29,16 +29,16 @@ struct Future<T> {
     std::shared_ptr<FutureNode> data;
 
     template <typename F>
-    auto then(F fnc) {
+    auto then(F f) const {
+        typedef std::result_of_t<F(T&)> Return;
+        std::function<std::result_of_t<F(T&)>(T&)> fnc(std::move(f));
         auto task = [fnc] (std::vector<Data>& in) {
             return Data{make_safe_void_ptr(apply_args(in, fnc))};
         };
-        return Future<std::result_of_t<F(T)>>{
-            std::make_shared<Then>(data, task)
-        };
+        return Future<Return>{std::make_shared<Then>(data, task)};
     }
     
-    auto unwrap() {
+    auto unwrap() const {
         auto unwrapper = [] (std::vector<Data>& in) {
             return Data{make_safe_void_ptr(in[0].get_as<T>().data)};
         };

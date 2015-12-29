@@ -27,19 +27,6 @@ ExternalProject_Add(
 )
 
 ################################################################################
-#                              Grab spdlog
-################################################################################
-
-ExternalProject_Add(
-    spdlog 
-    DOWNLOAD_COMMAND git clone --depth 1 git@github.com:gabime/spdlog.git
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    UPDATE_COMMAND ""
-    INSTALL_COMMAND ""
-)
-
-################################################################################
 #                              Grab Catch
 ################################################################################
 
@@ -68,9 +55,8 @@ add_library(taskloaf SHARED
 
 target_include_directories(taskloaf PRIVATE
     ${CAF_INCLUDE_DIRS} 
-    ${SPDLOG_INCLUDE_DIRS}
     ${TASKLOAF_INCLUDE_DIR})
-add_dependencies(taskloaf actor-framework spdlog )
+add_dependencies(taskloaf actor-framework)
 target_link_libraries(taskloaf ${CAF_LIBRARIES})
 
 ################################################################################
@@ -112,3 +98,5 @@ endmacro()
 taskloaf_example(fib examples/fib.cpp)
 taskloaf_example(totient examples/totient.cpp)
 taskloaf_example(dot_product examples/dot_product.cpp)
+taskloaf_example(cholesky examples/cholesky.cpp)
+target_link_libraries(cholesky openblas)

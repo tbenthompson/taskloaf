@@ -5,9 +5,6 @@
 namespace taskloaf {
 
 struct Address {
-    //TODO: Consider changing std::string to something else for optimization.
-    //Maybe some kind of hashing that's consistent across nodes? Give each 
-    //node a random ID?
     std::string hostname;
     uint16_t port;
 };

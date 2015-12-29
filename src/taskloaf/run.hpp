@@ -13,8 +13,8 @@ void launch(int n_workers, F f) {
     launch_helper(n_workers, t.data);
 }
 
-template <typename T>
-void run(const Future<T>& fut) {
+template <typename... Ts>
+void run(const Future<Ts...>& fut) {
     run_helper(*fut.data);
 }
 
