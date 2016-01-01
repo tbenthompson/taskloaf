@@ -69,37 +69,24 @@ Blocks to_blocks(const Matrix& A, size_t n_blocks)
     return block_A;
 }
 
-void check_error(const Matrix& correct,
-    const Blocks& blocks)
+double check_error(const Matrix& correct, const Matrix& estimate)
 {
     auto n = std::sqrt(correct.size());
-    auto n_blocks = std::sqrt(blocks.size());
-    auto n_per_block = n / n_blocks;
-    for (size_t b_r = 0; b_r < n_blocks; b_r++)
+    double sum = 0;
+    for (size_t i = 0; i < n; i++)
     {
-        for (size_t b_c = 0; b_c < n_blocks; b_c++)
+        for (size_t j = 0; j < n; j++)
         {
-            double sum = 0;
-            auto block_idx = MATIDX(b_r,b_c,n_blocks);
-            for (size_t i = 0; i < n_per_block; i++)
-            {
-                for (size_t j = 0; j < n_per_block; j++)
-                {
-                    auto full_row_idx = b_r * n_per_block + i;
-                    auto full_col_idx = b_c * n_per_block + j;
-                    if (full_col_idx > full_row_idx) {
-                        continue; 
-                    }
-                    auto entry_idx = MATIDX(i,j,n_per_block);
-                    auto orig_idx = MATIDX(full_row_idx, full_col_idx, n);
-                    auto diff = blocks[block_idx][entry_idx] - correct[orig_idx];
-                    sum += diff * diff;
-                }
+            if (j > i) {
+                continue; 
             }
-            auto error = std::sqrt(sum) / (n * n);
-            std::cout << b_r << ", " << b_c << ", " << error << std::endl;
+            auto idx = MATIDX(i,j,n);
+            auto diff = correct[idx] - estimate[idx];
+            sum += diff * diff;
         }
     }
+    auto error = std::sqrt(sum) / (n * n);
+    return error;
 }
 
 extern "C" void dpotrf_(char* UPLO, int* N, double* A, int* LDA, int* INFO);
@@ -244,19 +231,37 @@ void run(int n, int n_blocks, int n_workers) {
     TOC("Direct");
 
     auto block_A = to_blocks(A, n_blocks);
-
+    auto block_correct = to_blocks(correct, n_blocks);
+    auto correct_futures = submit_input_data(block_correct);
 
     TIC2
-    auto inputs = submit_input_data(block_A);
+    auto input_futures = submit_input_data(block_A);
     tsk::launch(n_workers, [=] () {
-        auto block_futures = cholesky_plan(inputs);
-        return block_futures.back().then([] (auto x) {
-            (void)x; return tsk::shutdown(); 
+        auto result_futures = cholesky_plan(input_futures);
+        // return result_futures.back().then([] (auto x) {
+        //     (void)x; return tsk::shutdown(); 
+        // });
+        auto total_error = tsk::ready<double>(0.0);
+        for (int i = 0; i < n_blocks; i++) {
+            for (int j = 0; j < n_blocks; j++) {
+                if (j > i) {
+                    continue;
+                }
+                auto idx = MATIDX(i, j, n_blocks);
+                auto block_error = when_all(
+                    correct_futures[idx], result_futures[idx]
+                ).then(check_error);
+                total_error = when_all(
+                    block_error, total_error
+                ).then(std::plus<double>());
+            }
+        }
+        return total_error.then([] (double x) {
+            std::cout << x << std::endl;
+            return tsk::shutdown();
         });
     });
     TOC("Taskloaf");
-
-    // check_error(correct, blocks);
 }
 
 int main(int argc, char** argv) {
