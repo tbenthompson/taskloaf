@@ -1,61 +1,52 @@
 #include "ivar_tracker.hpp"
+#include "id.hpp"
 
 #include <iostream>
 
 namespace taskloaf {
 
-IVarTracker::IVarTracker():
-    next_ivar_id(0)
-{}
-
-bool IVarTracker::empty() {
-    return ivars.empty();
-}
-
-IVarRef IVarTracker::new_ivar(Address addr) {
-    auto id = next_ivar_id;
-    next_ivar_id++;
-    ivars.insert({id, {}});
-    return IVarRef(addr, id);
-}
-
-void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
-    assert(vals.size() > 0);
-    auto& ivar_data = ivars[iv.id];
-    assert(ivar_data.vals.size() == 0);
-
-    ivar_data.vals = std::move(vals);
-    for (auto& t: ivar_data.fulfill_triggers) {
-        t(ivar_data.vals);
+std::pair<IVarRef,bool> IVarTracker::new_ivar(Address addr, const ID& id) {
+    (void)id;
+    if (ref_counts.count(id) == 0) {
+        ref_counts.insert({id, 0});
+        return {IVarRef(addr, id), true};
     }
-    ivar_data.fulfill_triggers.clear();
+    return {IVarRef(addr, id), false};
+}
+
+void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
+    assert(vals.size() > 0);
+    assert(vals.count(iv.id) == 0);
+
+    for (auto& t: triggers[iv.id]) {
+        t(input);
+    }
+    triggers[iv.id].clear();
+    vals[iv.id] = std::move(input);
 }
 
 void IVarTracker::add_trigger(const IVarRef& iv, TriggerT trigger) {
-    auto& ivar_data = ivars[iv.id];
-    if (ivar_data.vals.size() > 0) {
-        trigger(ivar_data.vals);
+    if (vals.count(iv.id) > 0) {
+        trigger(vals[iv.id]);
     } else {
-        ivar_data.fulfill_triggers.push_back(std::move(trigger));
+        triggers[iv.id].push_back(std::move(trigger));
     }
 }
 
 void IVarTracker::inc_ref(const IVarRef& iv) {
     assert(ivars.count(iv.id) > 0);
-    // std::cout << "start incref(" << iv.id << ") from " << ivars[iv.id].ref_count << std::endl;
-    ivars[iv.id].ref_count++;
-    // std::cout << "end incref(" << iv.id << ") to " << ivars[iv.id].ref_count << std::endl;
+    ref_counts[iv.id]++;
 }
 
 void IVarTracker::dec_ref(const IVarRef& iv) {
     assert(ivars.count(iv.id) > 0);
-    // std::cout << "start decref(" << iv.id << ") from " << ivars[iv.id].ref_count << std::endl;
-    auto& ref_count = ivars[iv.id].ref_count;
+    auto& ref_count = ref_counts[iv.id];
     ref_count--;
-    // std::cout << "end decref(" << iv.id << ") to " << ivars[iv.id].ref_count << std::endl;
     if (ref_count <= 0) {
         // std::cout << "erasing " << iv.id << std::endl;
-        ivars.erase(iv.id);
+        triggers.erase(iv.id);
+        vals.erase(iv.id);
+        ref_counts.erase(iv.id);
     }
 }
 

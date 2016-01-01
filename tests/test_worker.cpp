@@ -2,6 +2,7 @@
 
 #include "taskloaf/worker.hpp"
 #include "taskloaf/communicator.hpp"
+#include "taskloaf/id.hpp"
 
 #include <iostream>
 
@@ -40,7 +41,7 @@ TEST_CASE("Task collection steals from oldest tasks") {
 TEST_CASE("IVar trigger before fulfill") {
     Worker w;
     cur_worker = &w;
-    auto ivar = w.new_ivar();
+    auto ivar = w.new_ivar(new_id()).first;
     int x = 0;
     w.add_trigger(ivar, [&] (std::vector<Data>& val) {
         x = val[0].get_as<int>(); 
@@ -53,7 +54,7 @@ TEST_CASE("IVar trigger before fulfill") {
 TEST_CASE("Trigger after fulfill") {
     Worker w;
     cur_worker = &w;
-    auto ivar = w.new_ivar();
+    auto ivar = w.new_ivar(new_id()).first;
     int x = 0;
     Data d{make_safe_void_ptr(10)};
     w.fulfill(ivar, {d});
@@ -66,9 +67,9 @@ TEST_CASE("Trigger after fulfill") {
 TEST_CASE("Dec ref deletes") {
     Worker w; 
     cur_worker = &w;
-    auto ivarref = w.new_ivar();
+    auto ivarref = w.new_ivar(new_id()).first;
     w.dec_ref(ivarref);
-    REQUIRE(w.ivars.ivars.size() == 0);
+    REQUIRE(w.ivars.ref_counts.size() == 0);
     ivarref.owner.hostname = "";
 }
 
@@ -76,10 +77,10 @@ TEST_CASE("Inc ref preserves") {
     Worker w;
     cur_worker = &w;
     {
-        auto ivarref = w.new_ivar();
+        auto ivarref = w.new_ivar(new_id()).first;
         w.inc_ref(ivarref);
     }
-    REQUIRE(w.ivars.ivars.size() == 1);
+    REQUIRE(w.ivars.ref_counts.size() == 1);
 }
 
 //TODO: Refactor these multi worker tests.
@@ -127,17 +128,18 @@ TEST_CASE("Remote reference counting") {
     Worker w2;
     {
         cur_worker = &w2;
-        auto unused = w2.new_ivar(); (void)unused;
+        auto id = new_id();
+        auto unused = w2.new_ivar(id); (void)unused;
         cur_worker = &w1;
-        IVarRef iv(w2.get_addr(), 0);
+        IVarRef iv(w2.get_addr(), id);
         cur_worker = &w2;
         w2.comm->handle_messages(w2.ivars, w2.tasks);
-        REQUIRE(w2.ivars.ivars.size() == 1);
+        REQUIRE(w2.ivars.ref_counts.size() == 1);
         cur_worker = &w1;
     }
     cur_worker = &w2;
     w2.comm->handle_messages(w2.ivars, w2.tasks);
-    REQUIRE(w2.ivars.ivars.size() == 0);
+    REQUIRE(w2.ivars.ref_counts.size() == 0);
 }
 
 TEST_CASE("Remote reference counting change location") {
@@ -145,14 +147,15 @@ TEST_CASE("Remote reference counting change location") {
     Worker w2;
     {
         cur_worker = &w2;
-        auto unused = w2.new_ivar(); (void)unused;
-        IVarRef iv(w2.get_addr(), 0);
-        REQUIRE(w2.ivars.ivars.size() == 1);
+        auto id = new_id();
+        auto unused = w2.new_ivar(id); (void)unused;
+        IVarRef iv(w2.get_addr(), id);
+        REQUIRE(w2.ivars.ref_counts.size() == 1);
         cur_worker = &w1;
     }
     cur_worker = &w2;
     w2.comm->handle_messages(w2.ivars, w2.tasks);
-    REQUIRE(w2.ivars.ivars.size() == 0);
+    REQUIRE(w2.ivars.ref_counts.size() == 0);
 }
 
 TEST_CASE("Remote fulfill") {
@@ -161,7 +164,7 @@ TEST_CASE("Remote fulfill") {
     int x = 0;
 
     cur_worker = &w2;
-    auto iv = w2.new_ivar();
+    auto iv = w2.new_ivar(new_id()).first;
     w2.add_trigger(iv, [&] (std::vector<Data>& vals) {
         x = vals[0].get_as<int>(); 
     });
@@ -183,7 +186,7 @@ TEST_CASE("Remote add trigger") {
     int x = 0;
 
     cur_worker = &w2;
-    auto iv = w2.new_ivar();
+    auto iv = w2.new_ivar(new_id()).first;
 
     cur_worker = &w1;
     w1.add_trigger(iv, [&] (std::vector<Data>& vals) {

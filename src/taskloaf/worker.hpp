@@ -24,7 +24,7 @@ struct Worker {
 
     void add_task(TaskT f);
 
-    IVarRef new_ivar(); 
+    std::pair<IVarRef,bool> new_ivar(const ID& id); 
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void inc_ref(const IVarRef& ivar);

@@ -4,7 +4,7 @@
 
 namespace taskloaf {
 
-IVarRef::IVarRef(Address owner, size_t id):
+IVarRef::IVarRef(Address owner, ID id):
     owner(std::move(owner)), id(id)
 {
     cur_worker->inc_ref(*this);

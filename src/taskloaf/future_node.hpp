@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "data.hpp"
+#include "id.hpp"
 
 namespace taskloaf {
 
@@ -15,6 +16,11 @@ enum FutureNodeType {
 
 struct FutureNode {
     FutureNodeType type;
+    ID id;
+
+    FutureNode():
+        id(new_id())
+    {}
 
     virtual ~FutureNode() {}
 };

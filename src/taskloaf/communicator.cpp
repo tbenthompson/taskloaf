@@ -108,22 +108,22 @@ bool CAFCommunicator::handle_messages(IVarTracker& ivars, TaskCollection& tasks)
                     tasks.stolen_task(std::move(t));
                 }
             },
-            [&] (inc_ref_atom, Address owner, size_t id) {
+            [&] (inc_ref_atom, Address owner, ID id) {
                 assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.inc_ref(which);
             },
-            [&] (dec_ref_atom, Address owner, size_t id) {
+            [&] (dec_ref_atom, Address owner, ID id) {
                 assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.dec_ref(which);
             },
-            [&] (fulfill_atom, Address owner, size_t id, std::vector<Data> vals) {
+            [&] (fulfill_atom, Address owner, ID id, std::vector<Data> vals) {
                 assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.fulfill(which, std::move(vals));
             },
-            [&] (add_trigger_atom, Address owner, size_t id, TriggerT trigger) {
+            [&] (add_trigger_atom, Address owner, ID id, TriggerT trigger) {
                 assert(owner == my_addr);
                 IVarRef which(owner, id);
                 ivars.add_trigger(which, std::move(trigger));

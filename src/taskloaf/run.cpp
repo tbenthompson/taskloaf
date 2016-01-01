@@ -44,38 +44,33 @@ void whenall_child(std::queue<IVarRef> child_results,
     }
 }
 
+struct Program {
+    IVarRef out_future;
+    TaskT task;
+};
+
 struct Planner {
     std::unordered_map<uintptr_t,IVarRef> done_nodes;
 
-    std::pair<bool,IVarRef> new_ivar(const void* void_node_ptr) {
-        auto node_ptr = reinterpret_cast<uintptr_t>(void_node_ptr);
-        if (done_nodes.count(node_ptr) > 0) {
-            return {false, done_nodes.at(node_ptr)};
-        }
-        auto ivref = cur_worker->new_ivar();
-        done_nodes.insert({node_ptr, ivref});
-        return {true, ivref};
-    }
-
     IVarRef plan(FutureNode& data) {
-        auto result = new_ivar(&data);
-        if (!result.first) {
-            return result.second;
+        auto result = cur_worker->new_ivar(data.id);
+        if (!result.second) {
+            return result.first;
         }
 
         if (data.type == ThenType) {
-            plan_then(reinterpret_cast<Then&>(data), result.second);
+            plan_then(reinterpret_cast<Then&>(data), result.first);
         } else if (data.type == UnwrapType) {
-            plan_unwrap(reinterpret_cast<Unwrap&>(data), result.second);
+            plan_unwrap(reinterpret_cast<Unwrap&>(data), result.first);
         } else if (data.type == AsyncType) {
-            plan_async(reinterpret_cast<Async&>(data), result.second);
+            plan_async(reinterpret_cast<Async&>(data), result.first);
         } else if (data.type == ReadyType) {
-            plan_ready(reinterpret_cast<Ready&>(data), result.second);
+            plan_ready(reinterpret_cast<Ready&>(data), result.first);
         } else if (data.type == WhenAllType) {
-            plan_whenall(reinterpret_cast<WhenAll&>(data), result.second);
+            plan_whenall(reinterpret_cast<WhenAll&>(data), result.first);
         }
 
-        return result.second;
+        return result.first;
     }
 
     void plan_then(Then& then, const IVarRef& out_future) {

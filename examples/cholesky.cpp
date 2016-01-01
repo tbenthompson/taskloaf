@@ -221,45 +221,50 @@ FutureList cholesky_plan(const FutureList& inputs)
     return full_out;
 }
 
-void run(int n, int n_blocks, int n_workers) {
+void run(int n, int n_blocks, int n_workers, bool run_blas) {
     auto A = random_spd_matrix(n);
 
     auto correct = A;
 
-    TIC
-    correct = dpotrf_task(correct);
-    TOC("Direct");
+    if (run_blas) {
+        TIC
+        correct = dpotrf_task(correct);
+        TOC("BLAS");
+    }
 
     auto block_A = to_blocks(A, n_blocks);
     auto block_correct = to_blocks(correct, n_blocks);
     auto correct_futures = submit_input_data(block_correct);
 
-    TIC2
+    TIC
     auto input_futures = submit_input_data(block_A);
     tsk::launch(n_workers, [=] () {
         auto result_futures = cholesky_plan(input_futures);
-        // return result_futures.back().then([] (auto x) {
-        //     (void)x; return tsk::shutdown(); 
-        // });
-        auto total_error = tsk::ready<double>(0.0);
-        for (int i = 0; i < n_blocks; i++) {
-            for (int j = 0; j < n_blocks; j++) {
-                if (j > i) {
-                    continue;
+        if (run_blas) {
+            auto total_error = tsk::ready<double>(0.0);
+            for (int i = 0; i < n_blocks; i++) {
+                for (int j = 0; j < n_blocks; j++) {
+                    if (j > i) {
+                        continue;
+                    }
+                    auto idx = MATIDX(i, j, n_blocks);
+                    auto block_error = when_all(
+                        correct_futures[idx], result_futures[idx]
+                    ).then(check_error);
+                    total_error = when_all(
+                        block_error, total_error
+                    ).then(std::plus<double>());
                 }
-                auto idx = MATIDX(i, j, n_blocks);
-                auto block_error = when_all(
-                    correct_futures[idx], result_futures[idx]
-                ).then(check_error);
-                total_error = when_all(
-                    block_error, total_error
-                ).then(std::plus<double>());
             }
+            return total_error.then([] (double x) {
+                std::cout << x << std::endl;
+                return tsk::shutdown();
+            });
+        } else {
+            return result_futures.back().then([] (auto x) {
+                (void)x; return tsk::shutdown(); 
+            });
         }
-        return total_error.then([] (double x) {
-            std::cout << x << std::endl;
-            return tsk::shutdown();
-        });
     });
     TOC("Taskloaf");
 }
@@ -269,5 +274,6 @@ int main(int argc, char** argv) {
     int n = std::stoi(std::string(argv[1]));
     size_t n_blocks = std::stoi(std::string(argv[2]));
     int n_workers = std::stoi(std::string(argv[3]));
-    run(n, n_blocks, n_workers);
+    bool run_blas = std::string(argv[4]) == "true";
+    run(n, n_blocks, n_workers, run_blas);
 }

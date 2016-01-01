@@ -2,6 +2,7 @@
 
 #include "address.hpp"
 #include "fnc.hpp"
+#include "id.hpp"
 
 #include <vector>
 
@@ -9,18 +10,12 @@ namespace taskloaf {
 
 typedef Function<void(std::vector<Data>& val)> TriggerT;
 
-struct IVarData {
-    std::vector<Data> vals;
-    std::vector<TriggerT> fulfill_triggers;
-    int ref_count = 0;
-};
-
 // A reference counting "pointer" to an IVar
 struct IVarRef {
     Address owner;
-    size_t id;
+    ID id;
 
-    IVarRef(Address owner, size_t id);
+    IVarRef(Address owner, ID id);
     IVarRef(const IVarRef&);
     IVarRef(IVarRef&&);
     IVarRef& operator=(IVarRef&&) = delete;

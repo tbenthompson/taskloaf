@@ -39,8 +39,8 @@ void Worker::add_task(TaskT f) {
     tasks.add_task(std::move(f));
 }
 
-IVarRef Worker::new_ivar() {
-    return ivars.new_ivar(comm->get_addr());
+std::pair<IVarRef,bool> Worker::new_ivar(const ID& id) {
+    return ivars.new_ivar(comm->get_addr(), id);
 }
 
 void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {

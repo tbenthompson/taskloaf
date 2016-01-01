@@ -50,37 +50,31 @@ auto initial_conditions(const Parameters& p) {
 auto update(const Parameters& p, int chunk_index, const std::vector<double>& temp,
     double left, double right) 
 {
+    auto size = temp.size();
     std::vector<double> out = temp;
-    size_t start = 0;
-    size_t end = temp.size();
-    if (chunk_index == 0) {
-        start++; 
-    }
-    if (chunk_index == p.n_chunks - 1) {
-        end--;
-    }
-    for (size_t cell_idx = start; cell_idx < end; cell_idx++) {
 
-        double to_left = left;
-        if(cell_idx > 0) {
-            to_left = temp[cell_idx - 1];
-        }
-        double to_right = right;
-        if (cell_idx < temp.size() - 1) { 
-            to_right = temp[cell_idx + 1];
-        }
-
+    if (chunk_index != 0) {
+        out.front() += p.coeff * (left - 2 * temp[0] + temp[1]);
+    }
+    for (size_t cell_idx = 1; cell_idx < temp.size() - 1; cell_idx++) {
         out[cell_idx] += p.coeff * (
-            to_left - 2 * temp[cell_idx] + to_right
+            temp[cell_idx - 1] - 2 * temp[cell_idx] + temp[cell_idx + 1]
         );
     }
+    if (chunk_index != p.n_chunks - 1) {
+        out.back() += p.coeff * (temp[size - 2] - 2 * temp[size - 1] + right);
+    }
+
     return out;
 }
 
 auto timestep(const Parameters& p, int step_idx,
     const std::vector<tsk::Future<std::vector<double>>>& temp) 
 {
-    (void)step_idx;
+    if (step_idx >= p.n_steps) {
+        return temp;
+    }
+
     std::vector<tsk::Future<double>> left_ghosts(p.n_chunks);
     std::vector<tsk::Future<double>> right_ghosts(p.n_chunks);
     for (int i = 0; i < p.n_chunks; i++) {
@@ -112,7 +106,7 @@ auto timestep(const Parameters& p, int step_idx,
             }
         );
     }
-    return new_temp;
+    return timestep(p, step_idx + 1, new_temp);
 }
 
 void diffusion(int n_workers, int n_cells, int time_steps) {
@@ -123,9 +117,7 @@ void diffusion(int n_workers, int n_cells, int time_steps) {
     tsk::launch(n_workers, [=] () {
         auto temp = initial_conditions(p);
 
-        for (int step = 0; step < time_steps; step++) {
-            temp = timestep(p, step, temp);
-        }
+        temp = timestep(p, 0, temp);
 
         auto tasks = temp.back().then([] (const std::vector<double>& temp) {
             std::cout << temp.front() << std::endl;
