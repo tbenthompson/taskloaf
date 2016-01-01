@@ -1,7 +1,10 @@
 #include "worker.hpp"
 #include "communicator.hpp"
 
+//TODO: Remove
 #include <iostream>
+#include <sstream>
+#include <chrono>
 
 namespace taskloaf {
 
@@ -80,17 +83,32 @@ void Worker::dec_ref(const IVarRef& iv) {
 
 void Worker::run() {
     int n_tasks = 0;
+
+    typedef std::chrono::high_resolution_clock::time_point Time;
+    auto now = [] () { return std::chrono::high_resolution_clock::now(); };
+    auto since = [] (Time from) { 
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now() - from
+        ).count();
+    };
+
+    Time start = now();
+    int idle = 0;
+
     cur_worker = this;
     while (!stop) {
         comm->steal(tasks.size());
+        stop = stop || comm->handle_messages(ivars, tasks);
         if (tasks.size() > 0) {
-            // std::cout << "n(" << core_id << "): " << n_tasks 
-            //           << " " << tasks.size() << std::endl;
+            idle += since(start);
             tasks.next()();
+            start = now();
             n_tasks++;
         }
-        stop = stop || comm->handle_messages(ivars, tasks);
     }
+    std::stringstream buf;
+    buf << "n(" << core_id << "): " << n_tasks << " idle: " << idle << std::endl;
+    std::cout << buf.rdbuf();
 }
 
 void Worker::set_core_affinity(int core_id) {

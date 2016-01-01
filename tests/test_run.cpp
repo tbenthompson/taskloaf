@@ -70,12 +70,3 @@ auto move_string(auto in, int count) {
     });
     return move_string(tasks, count);
 }
-
-TEST_CASE("Pass by reference") {
-    auto tasks = move_string(ready<std::string>("hello"), 200);
-    auto runme = tasks.then([] (std::string& val) {
-        (void)val; return shutdown();   
-    });
-    run(runme);
-}
-

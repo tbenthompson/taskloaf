@@ -1,27 +1,11 @@
 #include "taskloaf.hpp"
 #include "timing.hpp"
+#include "patterns.hpp"
 
 #include <random>
 #include <iostream>
 
 using namespace taskloaf;
-
-// TODO: Needs reduce skeleton
-Future<double> sum(int lower, int upper, const std::vector<Future<double>>& vals) {
-    if (lower == upper) {
-        return vals[lower];
-    } else {
-        auto middle = (lower + upper) / 2;
-        return when_all(
-            sum(lower, middle, vals),
-            sum(middle + 1, upper, vals)
-        ).then([] (double a, double b) { return a + b; });
-    }
-}
-
-Future<double> sum(const std::vector<Future<double>>& vals) {
-    return sum(0, vals.size() - 1, vals);
-}
 
 double random(double a, double b) {
     thread_local std::random_device rd;
@@ -55,7 +39,7 @@ int main() {
                     return out;
                 }));
             }
-            return sum(chunks).then([] (double result) {
+            return reduce(chunks, std::plus<double>()).then([] (double result) {
                 std::cout << result << std::endl;   
                 return shutdown();
             });

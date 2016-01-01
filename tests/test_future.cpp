@@ -44,3 +44,14 @@ std::string make_sound(int x) { return "llamasound" + std::to_string(x); }
 TEST_CASE("Then fnc") {
     auto out = ready(2).then(make_sound);
 }
+
+TEST_CASE("Then member fnc") {
+    struct ABC {
+        ABC() {
+            auto val = ready(*this).then(std::mem_fn(&ABC::rocks)); 
+        }
+
+        std::string rocks() { return "jump!"; }
+    };
+    ABC abc;
+}

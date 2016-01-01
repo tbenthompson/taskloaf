@@ -7,46 +7,27 @@
 
 namespace taskloaf {
 
-template <typename... Ts>
-struct Future {
-    std::shared_ptr<FutureNode> data;
+template <typename... Ts> struct Future;
 
-    template <typename F>
-    auto then(F f) const {
-        typedef std::result_of_t<F(Ts&...)> Return;
-        std::function<Return(Ts&...)> fnc(std::move(f));
-        auto task = [fnc] (std::vector<Data>& in) {
-            return Data{make_safe_void_ptr(apply_args(in, fnc))};
-        };
-        return Future<Return>{std::make_shared<Then>(data, task)};
-    }
-};
+template <typename F, typename... Ts>
+auto then(const Future<Ts...>& fut, F fnc) {
+    typedef std::result_of_t<F(Ts&...)> Return;
+    std::function<Return(Ts&...)> container_fnc(std::move(fnc));
+    auto task = [container_fnc] (std::vector<Data>& in) {
+        return Data{make_safe_void_ptr(apply_args(in, container_fnc))};
+    };
+    return Future<Return>{std::make_shared<Then>(fut.data, task)};
+}
 
 template <typename T>
-struct Future<T> {
-    using type = T;
-
-    std::shared_ptr<FutureNode> data;
-
-    template <typename F>
-    auto then(F f) const {
-        typedef std::result_of_t<F(T&)> Return;
-        std::function<std::result_of_t<F(T&)>(T&)> fnc(std::move(f));
-        auto task = [fnc] (std::vector<Data>& in) {
-            return Data{make_safe_void_ptr(apply_args(in, fnc))};
-        };
-        return Future<Return>{std::make_shared<Then>(data, task)};
-    }
-    
-    auto unwrap() const {
-        auto unwrapper = [] (std::vector<Data>& in) {
-            return Data{make_safe_void_ptr(in[0].get_as<T>().data)};
-        };
-        return Future<typename T::type>{
-            std::make_shared<Unwrap>(data, unwrapper)
-        };
-    }
-};
+auto unwrap(const Future<T>& fut) {
+    auto unwrapper = [] (std::vector<Data>& in) {
+        return Data{make_safe_void_ptr(in[0].get_as<T>().data)};
+    };
+    return Future<typename T::type>{
+        std::make_shared<Unwrap>(fut.data, unwrapper)
+    };
+}
 
 template <typename T>
 auto ready(T val) {
@@ -71,5 +52,32 @@ auto when_all(const Future<Ts>&... args) {
         std::make_shared<WhenAll>(std::move(data))
     };
 }
+
+
+template <typename... Ts>
+struct Future {
+    std::shared_ptr<FutureNode> data;
+
+    template <typename F>
+    auto then(F f) const {
+        return taskloaf::then(*this, f);
+    }
+};
+
+template <typename T>
+struct Future<T> {
+    using type = T;
+
+    std::shared_ptr<FutureNode> data;
+
+    template <typename F>
+    auto then(F f) const {
+        return taskloaf::then(*this, f);
+    }
+    
+    auto unwrap() const {
+        return taskloaf::unwrap(*this);
+    }
+};
 
 } //end namespace taskloaf
