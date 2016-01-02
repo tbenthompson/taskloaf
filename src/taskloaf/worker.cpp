@@ -106,9 +106,9 @@ void Worker::run() {
             n_tasks++;
         }
     }
-    std::stringstream buf;
-    buf << "n(" << core_id << "): " << n_tasks << " idle: " << idle << std::endl;
-    std::cout << buf.rdbuf();
+    // std::stringstream buf;
+    // buf << "n(" << core_id << "): " << n_tasks << " idle: " << idle << std::endl;
+    // std::cout << buf.rdbuf();
 }
 
 void Worker::set_core_affinity(int core_id) {
