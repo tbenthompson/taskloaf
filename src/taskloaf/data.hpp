@@ -39,4 +39,9 @@ struct Data {
     }
 };
 
+template <typename T>
+Data make_data(T value) {
+    return Data{make_safe_void_ptr(std::move(value))};
+}
+
 } //end namespace taskloaf
