@@ -28,16 +28,19 @@ std::ostream& operator<<(std::ostream& os, const ID& id)
     return os;
 }
 
-ID new_id()
-{
+size_t random_sizet() {
     thread_local std::random_device rd;
     thread_local std::mt19937_64 gen(rd());
 
     std::uniform_int_distribution<size_t> distribution(
         0, std::numeric_limits<size_t>::max()
     );
+    return distribution(gen);
+}
 
-    return {distribution(gen), distribution(gen)};
+ID new_id()
+{
+    return {random_sizet(), random_sizet()};
 }
 
 std::vector<ID> new_ids(size_t count)

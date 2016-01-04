@@ -31,6 +31,8 @@ const Address& CAFComm::get_addr() {
 
 void CAFComm::send(const Address& dest, Msg msg) {
     if (impl->other_ends.count(dest) == 0) {
+        //TODO: An asynchronous remote_actor function would be really helpful
+        //in having very very fast startup and teardown times for taskloaf.
         auto connection = caf::io::remote_actor(dest.hostname, dest.port);
         impl->other_ends[dest] = connection;
     }
