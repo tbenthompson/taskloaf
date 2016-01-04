@@ -53,7 +53,7 @@ add_library(taskloaf SHARED
     src/taskloaf/ivar_tracker.cpp
     src/taskloaf/id.cpp
     src/taskloaf/ring.cpp
-    src/taskloaf/comm.cpp
+    src/taskloaf/caf_comm.cpp
     )
 
 target_include_directories(taskloaf PRIVATE

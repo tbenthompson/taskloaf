@@ -42,7 +42,9 @@ void CAFCommunicator::meet(Address their_addr) {
     if (friends.count(their_addr) > 0) {
         return;
     }
-    friends.insert({their_addr, connect((*comm).get(), their_addr)});
+
+    auto connection = caf::io::remote_actor(their_addr.hostname, their_addr.port);
+    friends.insert({their_addr, connection});
 
     (*comm)->send(friends[their_addr], meet_atom::value, my_addr);
 }

@@ -1,6 +1,6 @@
 #include "catch.hpp"
 
-#include "taskloaf/comm.hpp"
+#include "taskloaf/caf_comm.hpp"
 
 using namespace taskloaf;
 
@@ -31,4 +31,11 @@ TEST_CASE("Two handlers") {
     p2.add_handler(1, [&] (Data d) { x = d.get_as<int>(); });
     p2.recv();
     REQUIRE(x == 11);
+}
+
+TEST_CASE("Skip unhandled message") {
+    CAFComm p1;
+    CAFComm p2;
+    p1.send(p2.get_addr(), Msg{1, make_data(11)});
+    p2.recv();
 }
