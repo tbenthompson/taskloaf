@@ -1,7 +1,7 @@
 #pragma once
+#include "data.hpp"
 
 #include <functional>
-#include "data.hpp"
 
 namespace taskloaf {
 
@@ -32,6 +32,8 @@ struct Address;
 struct Comm {
     virtual const Address& get_addr() = 0;
     virtual void send(const Address& dest, Msg msg) = 0;
+    virtual void send_all(Msg msg) = 0;
+    virtual void send_random(Msg msg) = 0;
     virtual void recv() = 0;
     virtual void add_handler(int msg_type, std::function<void(Data)> handler) = 0; 
 

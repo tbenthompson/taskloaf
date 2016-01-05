@@ -6,7 +6,7 @@
 
 using namespace taskloaf;
 
-TEST_CASE("Run ready then") {
+TEST_CASE("Run ready then", "[run]") {
     auto plan = ready(10).then([] (int x) {
         REQUIRE(x == 10);
         return shutdown();
@@ -14,7 +14,7 @@ TEST_CASE("Run ready then") {
     run(plan);
 }
 
-TEST_CASE("Run async") {
+TEST_CASE("Run async", "[run]") {
     auto plan = async([] () {
         return 20;
     }).then([] (int x) {
@@ -24,7 +24,7 @@ TEST_CASE("Run async") {
     run(plan);
 }
 
-TEST_CASE("Run when all") {
+TEST_CASE("Run when all", "[run]") {
     auto plan = when_all(
         ready(10), ready(20)
     ).then([] (int x, int y) {
@@ -36,7 +36,7 @@ TEST_CASE("Run when all") {
     run(plan);
 }
 
-TEST_CASE("Run unwrap") {
+TEST_CASE("Run unwrap", "[run]") {
     auto plan = ready(10).then([] (int x) {
         if (x < 20) {
             return ready(5);
@@ -50,23 +50,15 @@ TEST_CASE("Run unwrap") {
     run(plan);
 }
 
-TEST_CASE("Run tree once") {
+TEST_CASE("Run tree once", "[run]") {
     int x = 0;
-    auto once_task = async([&] () { x++; return 0; });
+    auto once_task = async([&] () { 
+        x++;
+        return 0; 
+    });
     auto shutdown_task = async([&] () { return shutdown();});
     auto tasks = when_all(shutdown_task, once_task, once_task);
     run(tasks);
 
     REQUIRE(x == 1);
-}
-
-auto move_string(auto in, int count) {
-    count--;
-    if(count <= 0) {
-        return in;
-    }
-    auto tasks = in.then([] (std::string& val) {
-        return std::move(val);
-    });
-    return move_string(tasks, count);
 }

@@ -5,33 +5,30 @@
 
 namespace taskloaf { 
 
-struct CommunicatorI;
-
+struct Comm;
 struct Worker {
+    std::unique_ptr<Comm> comm;
     TaskCollection tasks;
-    IVarTracker ivars;
-    std::unique_ptr<CommunicatorI> comm;
-    int core_id;
-    bool stop;
+    IVarTracker ivar_tracker;
+    int core_id = -1;
+    bool stealing = false;
+    bool stop = false;
 
     Worker();
     Worker(Worker&&);
     ~Worker();
 
     void shutdown();
-    void meet(Address addr);
-    Address get_addr();
-
+    void introduce(Address addr);
+    const Address& get_addr();
     void add_task(TaskT f);
-
     std::pair<IVarRef,bool> new_ivar(const ID& id); 
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
-
+    void recv();
     void run();
-
     void set_core_affinity(int core_id);
 };
 

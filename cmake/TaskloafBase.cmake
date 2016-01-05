@@ -20,8 +20,8 @@ set(CMAKE_THREAD_LIBS_INIT -lpthread)
 ################################################################################
 
 set(warnings "-Wall -Wextra -Werror -Wno-parentheses -Wno-deprecated-declarations")
-set(opt "-O3 -g -DDEBUG")
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+set(opt "-O3 -g") 
+if (BUILD_TYPE STREQUAL "Debug")
     set(opt "-O0 -g -DSPDLOG_TRACE_ON")
 endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${warnings} ${opt}")
@@ -34,6 +34,7 @@ else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support.
                     Please use a different C++ compiler.")
 endif() 
+MESSAGE(${CMAKE_CXX_FLAGS})
 
 ################################################################################
 #                              includes

@@ -1,5 +1,6 @@
 #pragma once
 #include "comm.hpp"
+
 #include <memory>
 
 namespace taskloaf {
@@ -13,6 +14,9 @@ struct CAFComm: public Comm {
 
     const Address& get_addr() override;
     void send(const Address& dest, Msg msg) override;
+    //TODO: Better architecture for these send_ functions?
+    void send_all(Msg msg) override;
+    void send_random(Msg msg) override;
     void recv() override;
     void add_handler(int msg_type, std::function<void(Data)> handler) override;
 };

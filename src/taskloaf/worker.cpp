@@ -1,5 +1,6 @@
 #include "worker.hpp"
-#include "communicator.hpp"
+#include "caf_comm.hpp"
+#include "protocol.hpp"
 
 //TODO: Remove
 #include <iostream>
@@ -11,27 +12,32 @@ namespace taskloaf {
 thread_local Worker* cur_worker;
 
 Worker::Worker():
-    comm(std::make_unique<CAFCommunicator>()),
-    core_id(-1),
-    stop(false)
-{}
+    comm(std::make_unique<CAFComm>()),
+    tasks(*comm),
+    ivar_tracker(*comm)
+{
+    comm->add_handler(Protocol::Shutdown, [&] (Data) {
+        stop = true;
+    });
+}
 
 Worker::Worker(Worker&&) = default;
 
 Worker::~Worker() {
     cur_worker = this;
-}
-
-void Worker::shutdown() {
-    comm->send_shutdown();
     stop = true;
 }
 
-void Worker::meet(Address addr) {
-    comm->meet(addr);
+void Worker::shutdown() {
+    comm->send_all(Msg(Protocol::Shutdown, make_data(10)));
+    stop = true;
 }
 
-Address Worker::get_addr() {
+void Worker::introduce(Address addr) {
+    ivar_tracker.introduce(addr);
+}
+
+const Address& Worker::get_addr() {
     return comm->get_addr();
 }
 
@@ -40,45 +46,33 @@ void Worker::add_task(TaskT f) {
 }
 
 std::pair<IVarRef,bool> Worker::new_ivar(const ID& id) {
-    return ivars.new_ivar(comm->get_addr(), id);
+    return ivar_tracker.new_ivar(id);
 }
 
 void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
-    if (iv.owner != comm->get_addr()) {
-        comm->send_fulfill(iv, std::move(vals));
-        return;
-    }
-    ivars.fulfill(iv, std::move(vals));
+    ivar_tracker.fulfill(iv, std::move(vals));
 }
 
 void Worker::add_trigger(const IVarRef& iv, TriggerT trigger) {
-    if (iv.owner != comm->get_addr()) {
-        comm->send_add_trigger(iv, std::move(trigger));
-        return;
-    }
-    ivars.add_trigger(iv, std::move(trigger));
+    ivar_tracker.add_trigger(iv, std::move(trigger));
 }
 
 void Worker::inc_ref(const IVarRef& iv) {
-    if (iv.owner != comm->get_addr()) {
-        comm->send_inc_ref(iv);
-        return;
-    }
-    ivars.inc_ref(iv);
+    ivar_tracker.inc_ref(iv);
 }
 
 void Worker::dec_ref(const IVarRef& iv) {
-    if (iv.owner != comm->get_addr()) {
-        comm->send_dec_ref(iv);
-        return;
-    }
     // If the worker is shutting down, there is no need to dec-ref on a 
     // IVarRef destructor call. In fact, if we don't stop here, there will
     // be an infinite recursion.
     if (stop) {
         return;
     }
-    ivars.dec_ref(iv);
+    ivar_tracker.dec_ref(iv);
+}
+
+void Worker::recv() {
+    comm->recv();
 }
 
 void Worker::run() {
@@ -97,8 +91,9 @@ void Worker::run() {
 
     cur_worker = this;
     while (!stop) {
-        comm->steal(tasks.size());
-        stop = stop || comm->handle_messages(ivars, tasks);
+        // TODO: this causes an infinite loop? tasks.steal();
+        recv();
+        // comm->steal(tasks.size());
         if (tasks.size() > 0) {
             idle += since(start);
             tasks.next()();

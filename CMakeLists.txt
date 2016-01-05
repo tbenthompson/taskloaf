@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-set(CMAKE_BUILD_TYPE Release)
+set(BUILD_TYPE Release)
 include(ExternalProject)
 
 set(TASKLOAF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -47,7 +47,6 @@ add_library(taskloaf SHARED
     src/taskloaf/start.cpp
     src/taskloaf/run.cpp
     src/taskloaf/ivar.cpp
-    src/taskloaf/communicator.cpp
     src/taskloaf/worker.cpp
     src/taskloaf/task_collection.cpp
     src/taskloaf/ivar_tracker.cpp
@@ -107,4 +106,3 @@ taskloaf_example(dot_product examples/dot_product.cpp)
 taskloaf_example(cholesky examples/cholesky.cpp)
 target_link_libraries(cholesky openblas)
 taskloaf_example(diffusion examples/diffusion.cpp)
-taskloaf_example(ring_stress examples/ring_stress.cpp)

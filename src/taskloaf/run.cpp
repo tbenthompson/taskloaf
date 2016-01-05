@@ -1,6 +1,7 @@
 #include "run.hpp"
 #include "worker.hpp"
 
+#include <unordered_map>
 #include <vector>
 #include <queue>
 #include <thread>
@@ -50,8 +51,6 @@ struct Program {
 };
 
 struct Planner {
-    std::unordered_map<uintptr_t,IVarRef> done_nodes;
-
     IVarRef plan(FutureNode& data) {
         auto result = cur_worker->new_ivar(data.id);
         if (!result.second) {
@@ -146,7 +145,7 @@ void launch_helper(int n_workers, std::shared_ptr<FutureNode> f) {
                 addrs[i] = w.get_addr();
                 spawn_next = true;
                 for (int j = 0; j < i; j++) {
-                    w.meet(addrs[j]); 
+                    w.introduce(addrs[j]); 
                 }
                 if (i == n_workers - 1) {
                     Planner planner;

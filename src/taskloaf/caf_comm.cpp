@@ -39,6 +39,22 @@ void CAFComm::send(const Address& dest, Msg msg) {
     impl->actor->send(impl->other_ends[dest], std::move(msg));
 }
 
+void CAFComm::send_all(Msg msg) {
+    for (auto& endpt: impl->other_ends) {
+        send(endpt.first, msg); 
+    }
+}
+
+void CAFComm::send_random(Msg msg) {
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, impl->other_ends.size() - 1);
+    auto item = impl->other_ends.begin();
+    auto count = dis(gen);
+    std::advance(item, count); 
+    send(item->first, std::move(msg));
+}
+
 void CAFComm::recv() {
     std::vector<Msg> msgs;
     while (impl->actor->has_next_message()) {

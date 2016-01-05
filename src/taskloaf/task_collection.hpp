@@ -7,15 +7,18 @@ namespace taskloaf {
 
 typedef Function<void()> TaskT;
 
+struct Comm;
 struct TaskCollection {
     std::deque<TaskT> tasks;
+    Comm& comm;
+    bool stealing;
+
+    TaskCollection(Comm& comm);
 
     size_t size() const;
-    size_t steal_count(size_t n_remote_tasks) const;
-    void stolen_task(TaskT f);
     void add_task(TaskT f);
     TaskT next();
-    TaskT steal();
+    void steal();
 };
 
 } //end namespace taskloaf

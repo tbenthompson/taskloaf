@@ -2,27 +2,29 @@
 #include "run.hpp"
 #include "worker.hpp"
 
+#include <iostream>
+
 namespace taskloaf {
 
-IVarRef::IVarRef(Address owner, ID id):
-    owner(std::move(owner)), id(id)
+IVarRef::IVarRef(ID id):
+    id(id)
 {
     cur_worker->inc_ref(*this);
 }
 
 IVarRef::~IVarRef() {
-    if (!owner.hostname.empty()) {
+    if (!moved) {
         cur_worker->dec_ref(*this);
     }
 }
 
 IVarRef::IVarRef(IVarRef&& ref) {
-    owner = std::move(ref.owner);
     id = std::move(ref.id);
+    ref.moved = true;
 }
 
 IVarRef::IVarRef(const IVarRef& ref):
-    IVarRef(ref.owner, ref.id)
+    IVarRef(ref.id)
 {}
 
 } //end namespace taskloaf

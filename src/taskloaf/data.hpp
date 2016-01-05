@@ -44,4 +44,8 @@ Data make_data(T value) {
     return Data{make_safe_void_ptr(std::move(value))};
 }
 
+inline Data empty_data() {
+    return Data{{nullptr}};
+}
+
 } //end namespace taskloaf

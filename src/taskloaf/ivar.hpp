@@ -12,10 +12,10 @@ typedef Function<void(std::vector<Data>& val)> TriggerT;
 
 // A reference counting "pointer" to an IVar
 struct IVarRef {
-    Address owner;
     ID id;
+    bool moved = false;
 
-    IVarRef(Address owner, ID id);
+    IVarRef(ID id);
     IVarRef(const IVarRef&);
     IVarRef(IVarRef&&);
     IVarRef& operator=(IVarRef&&) = delete;

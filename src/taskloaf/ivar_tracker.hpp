@@ -1,24 +1,30 @@
 #pragma once
 
 #include "ivar.hpp"
-#include "id.hpp"
-
-#include <unordered_map>
 
 namespace taskloaf {
 
 struct ID;
+struct Data;
+struct Comm;
 
+struct IVarTrackerImpl;
 struct IVarTracker {
-    std::unordered_map<ID,int> ref_counts;
-    std::unordered_map<ID,std::vector<Data>> vals;
-    std::unordered_map<ID,std::vector<TriggerT>> triggers;
+    std::unique_ptr<IVarTrackerImpl> impl;
 
-    std::pair<IVarRef,bool> new_ivar(Address addr, const ID& id); 
+    IVarTracker(Comm& comm);
+    IVarTracker(IVarTracker&&);
+    ~IVarTracker();
+
+    std::pair<IVarRef,bool> new_ivar(const ID& id); 
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
+
+    void introduce(Address addr);
+    size_t n_owned() const;
+    const std::vector<ID>& get_ring_locs() const;
 };
 
 } //end namespace taskloaf
