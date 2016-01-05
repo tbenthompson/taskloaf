@@ -11,7 +11,7 @@
 namespace taskloaf {
 
 struct IVarOwnership {
-    int ref_count;
+    int ref_count = 0;
     //TODO: Also store value size in bytes. For greedy memory transfer.
     std::unique_ptr<Address> val_loc;
     //TODO: Also store trigger sizes in bytes. For greedy memory transfer.
@@ -34,71 +34,68 @@ struct IVarTrackerImpl {
     ~IVarTrackerImpl() {
     }
 
-    void set_val_loc(const ID& id, const Address& loc) {
-        assert(ownership[id].val_loc == nullptr);
-        ownership[id].val_loc = std::make_unique<Address>(loc);
+    void set_val_loc(const IVarRef& iv, const Address& loc) {
+        assert(ownership[iv.id].val_loc == nullptr);
+        ownership[iv.id].val_loc = std::make_unique<Address>(loc);
     }
 
-    void add_trigger_loc(const ID& id, const Address& loc) {
-        ownership[id].trigger_locs.insert(loc);
+    void add_trigger_loc(const IVarRef& iv, const Address& loc) {
+        ownership[iv.id].trigger_locs.insert(loc);
     }
 
-    bool is_fulfilled(const ID& id) {
-        return ownership[id].val_loc != nullptr;
+    bool is_fulfilled(const IVarRef& iv) {
+        return ownership[iv.id].val_loc != nullptr;
     }
 
     void setup_handlers() {
         // On the owner
         comm.add_handler(Protocol::IncRef, [&] (Data d) {
-            auto id = d.get_as<ID>();
-            local_inc_ref(id);
+            auto iv = IVarRef(d.get_as<ID>());
+            local_inc_ref(iv);
         });
         comm.add_handler(Protocol::DecRef, [&] (Data d) {
-            auto id = d.get_as<ID>();
-            local_dec_ref(id);
-        });
-        comm.add_handler(Protocol::NewIVar, [&] (Data d) {
-            auto id = d.get_as<ID>();
-            local_new_ivar(id);
+            auto iv = IVarRef(d.get_as<ID>());
+            local_dec_ref(iv);
         });
         comm.add_handler(Protocol::Fulfill, [&] (Data d) {
-            auto p = d.get_as<std::pair<ID,Address>>();
-            auto id = p.first;
+            auto p = d.get_as<std::pair<IVarRef,Address>>();
+            auto iv = p.first;
 
-            set_val_loc(id, p.second);
+            set_val_loc(iv, p.second);
 
+            auto& trigger_locs = ownership[iv.id].trigger_locs;
             comm.send(p.second, Msg(Protocol::TriggerLocs, make_data(
-                std::make_pair(id, std::move(ownership[id].trigger_locs))
+                std::make_pair(std::move(iv), std::move(trigger_locs))
             )));
         });
         comm.add_handler(Protocol::AddTrigger, [&] (Data d) {
-            auto p = d.get_as<std::pair<ID,Address>>();
-            auto id = p.first;
+            auto p = d.get_as<std::pair<IVarRef,Address>>();
+            auto iv = p.first;
 
-            if (is_fulfilled(id)) {
-                assert(ownership[id].trigger_locs.size() == 0);
-                auto val_loc = *ownership[id].val_loc;
+            if (is_fulfilled(iv)) {
+                assert(ownership[iv.id].trigger_locs.size() == 0);
+                auto val_loc = *ownership[iv.id].val_loc;
                 comm.send(val_loc, Msg(Protocol::TriggerLocs, make_data(
-                    std::make_pair(id, std::set<Address>{p.second})
+                    std::make_pair(std::move(iv), std::set<Address>{p.second})
                 )));
             } else {
-                add_trigger_loc(id, p.second);
+                add_trigger_loc(iv, p.second);
             }
         });
 
         // On the fulfiller
         comm.add_handler(Protocol::TriggerLocs, [&] (Data d) {
-            auto p = d.get_as<std::pair<ID,std::set<Address>>>();
-            auto id = p.first;
-            assert(vals.count(id) > 0);
-            fulfill_triggers(id, p.second);
+            auto p = d.get_as<std::pair<IVarRef,std::set<Address>>>();
+            auto iv = p.first;
+            assert(vals.count(iv.id) > 0);
+            fulfill_triggers(iv, p.second);
         });
         comm.add_handler(Protocol::RecvTriggers, [&] (Data d) {
-            auto p = d.get_as<std::pair<ID,std::vector<TriggerT>>>();
-            auto id = p.first;
-            assert(vals.count(id) > 0);
+            auto p = d.get_as<std::pair<IVarRef,std::vector<TriggerT>>>();
+            auto iv = p.first;
+            assert(vals.count(iv.id) > 0);
             for (auto& t: p.second) {
-                t(vals[id]);
+                t(vals[iv.id]);
             }
         });
         comm.add_handler(Protocol::DeleteVals, [&] (Data d) {
@@ -109,10 +106,11 @@ struct IVarTrackerImpl {
         
         // On where add_trigger was called.
         comm.add_handler(Protocol::GetTriggers, [&] (Data d) {
-            auto p = d.get_as<std::pair<ID,Address>>();
-            auto id = p.first;
+            auto p = d.get_as<std::pair<IVarRef,Address>>();
+            auto iv = p.first;
+            auto& trigs_to_send = triggers[iv.id];
             comm.send(p.second, Msg(Protocol::RecvTriggers, make_data(
-                std::make_pair(id, std::move(triggers[id]))
+                std::make_pair(std::move(iv), std::move(trigs_to_send))
             )));
         });
         comm.add_handler(Protocol::DeleteTriggers, [&] (Data d) {
@@ -122,9 +120,9 @@ struct IVarTrackerImpl {
         });
     }
 
-    void local_inc_ref(const ID& id) {
-        assert(ownership.count(id) > 0);
-        ownership[id].ref_count++;
+    void local_inc_ref(const IVarRef& iv) {
+        // inc ref can double as an initializer for an IVar.
+        ownership[iv.id].ref_count++;
     }
 
     void erase(const ID& id) {
@@ -146,62 +144,58 @@ struct IVarTrackerImpl {
         ownership.erase(id);
     }
 
-    void local_dec_ref(const ID& id) {
-        assert(ownership.count(id) > 0);
-        auto& rc = ownership[id].ref_count;
+    void local_dec_ref(const IVarRef& iv) {
+        assert(ownership.count(iv.id) > 0);
+        auto& rc = ownership[iv.id].ref_count;
         rc--;
         if (rc <= 0) {
-            erase(id);
+            erase(iv.id);
         }
     }
 
-    std::pair<IVarRef,bool> local_new_ivar(const ID& id) {
-        if (ownership.count(id) == 0) {
-            ownership.insert(std::make_pair(id, IVarOwnership{0, nullptr, {}}));
-            return {IVarRef(id), true};
-        }
-        return {IVarRef(id), false};
-    }
-
-    void local_run_triggers(const ID& id, std::vector<Data>& input) {
+    void local_run_triggers(const IVarRef& iv, std::vector<Data>& input) {
         // We can't just do a for loop over the currently present triggers
         // because a trigger on a given IVar could add another trigger on
         // the same IVar.
-        while (triggers[id].size() > 0) {
-            auto t = std::move(triggers[id].back());
-            triggers[id].pop_back();
+        while (triggers[iv.id].size() > 0) {
+            auto t = std::move(triggers[iv.id].back());
+            triggers[iv.id].pop_back();
             t(input);
         }
-        triggers[id].clear();
+        triggers[iv.id].clear();
     }
 
-    void fulfill_triggers(const ID& id, const std::set<Address>& trigger_locs) {
+    void fulfill_triggers(const IVarRef& iv, const std::set<Address>& trigger_locs) {
         for (auto& t_loc: trigger_locs) {
             if (is_local(t_loc)) {
-                local_run_triggers(id, vals[id]);
+                local_run_triggers(iv, vals[iv.id]);
             } else {
                 comm.send(t_loc, Msg(Protocol::GetTriggers, make_data(
-                    std::make_pair(id, comm.get_addr())
+                    std::make_pair(iv, comm.get_addr())
                 )));
             }
         }
     }
 
-    void local_fulfill(const ID& id) {
-        set_val_loc(id, comm.get_addr());
-        fulfill_triggers(id, ownership[id].trigger_locs);
-        ownership[id].trigger_locs.clear();
+    void local_fulfill(const IVarRef& iv) {
+        set_val_loc(iv, comm.get_addr());
+        fulfill_triggers(iv, ownership[iv.id].trigger_locs);
+        ownership[iv.id].trigger_locs.clear();
     }
 
-    void local_add_trigger(const ID& id) {
-        if (!is_fulfilled(id)) {
-            add_trigger_loc(id, comm.get_addr());
+    void local_add_trigger(const IVarRef& iv) {
+        if (!is_fulfilled(iv)) {
+            add_trigger_loc(iv, comm.get_addr());
             return;
         }
-        if (is_local(*ownership[id].val_loc)) {
-            local_run_triggers(id, vals[id]);
+
+        auto& val_loc = *ownership[iv.id].val_loc;
+        if (is_local(val_loc)) {
+            local_run_triggers(iv, vals[iv.id]);
         } else {
-            std::cout << "REMOTEFULFILL_LATERTRIGGER" << std::endl;
+            comm.send(val_loc, Msg(Protocol::RecvTriggers, make_data(
+                std::make_pair(iv, std::move(triggers[iv.id]))
+            )));
         }
     }
 
@@ -222,13 +216,7 @@ IVarTracker::IVarTracker(IVarTracker&&) = default;
 IVarTracker::~IVarTracker() = default;
 
 std::pair<IVarRef,bool> IVarTracker::new_ivar(const ID& id) {
-    auto owner = impl->ring.get_owner(id);
-    if (impl->is_local(owner)) {
-        return impl->local_new_ivar(id);
-    } else {
-        impl->comm.send(owner, Msg(Protocol::NewIVar, make_data(id)));
-        return {IVarRef(id), true};
-    }
+    return {IVarRef(id), true};
 }
 
 void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
@@ -238,10 +226,10 @@ void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
 
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
-        impl->local_fulfill(iv.id);
+        impl->local_fulfill(iv);
     } else {
         impl->comm.send(owner, Msg(Protocol::Fulfill, make_data(
-            std::make_pair(iv.id, impl->comm.get_addr())
+            std::make_pair(iv, impl->comm.get_addr())
         )));
     }
 }
@@ -250,10 +238,10 @@ void IVarTracker::add_trigger(const IVarRef& iv, TriggerT trigger) {
     impl->triggers[iv.id].push_back(std::move(trigger));
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
-        impl->local_add_trigger(iv.id);
+        impl->local_add_trigger(iv);
     } else {
         impl->comm.send(owner, Msg(Protocol::AddTrigger, make_data(
-            std::make_pair(iv.id, impl->comm.get_addr())
+            std::make_pair(iv, impl->comm.get_addr())
         )));
     }
 }
@@ -261,7 +249,7 @@ void IVarTracker::add_trigger(const IVarRef& iv, TriggerT trigger) {
 void IVarTracker::inc_ref(const IVarRef& iv) {
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
-        impl->local_inc_ref(iv.id);
+        impl->local_inc_ref(iv);
     } else {
         impl->comm.send(owner, Msg(Protocol::IncRef, make_data(iv.id)));
     }
@@ -270,7 +258,7 @@ void IVarTracker::inc_ref(const IVarRef& iv) {
 void IVarTracker::dec_ref(const IVarRef& iv) {
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
-        impl->local_dec_ref(iv.id);
+        impl->local_dec_ref(iv);
     } else {
         impl->comm.send(owner, Msg(Protocol::DecRef, make_data(iv.id)));
     }

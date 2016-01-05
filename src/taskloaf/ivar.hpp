@@ -15,7 +15,8 @@ struct IVarRef {
     ID id;
     bool moved = false;
 
-    IVarRef(ID id);
+
+    explicit IVarRef(ID id);
     IVarRef(const IVarRef&);
     IVarRef(IVarRef&&);
     IVarRef& operator=(IVarRef&&) = delete;

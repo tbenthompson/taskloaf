@@ -91,8 +91,8 @@ void Worker::run() {
 
     cur_worker = this;
     while (!stop) {
-        tasks.steal();
         recv();
+        tasks.steal();
         if (tasks.size() > 0) {
             idle += since(start);
             tasks.next()();
@@ -100,9 +100,11 @@ void Worker::run() {
             n_tasks++;
         }
     }
-    // std::stringstream buf;
-    // buf << "n(" << core_id << "): " << n_tasks << " idle: " << idle << std::endl;
-    // std::cout << buf.rdbuf();
+
+    idle += since(start);
+    std::stringstream buf;
+    buf << "n(" << core_id << "): " << n_tasks << " idle: " << idle << std::endl;
+    std::cout << buf.rdbuf();
 }
 
 void Worker::set_core_affinity(int core_id) {

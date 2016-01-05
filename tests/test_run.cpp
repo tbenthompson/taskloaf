@@ -50,15 +50,15 @@ TEST_CASE("Run unwrap", "[run]") {
     run(plan);
 }
 
-TEST_CASE("Run tree once", "[run]") {
-    int x = 0;
-    auto once_task = async([&] () { 
-        x++;
-        return 0; 
-    });
-    auto shutdown_task = async([&] () { return shutdown();});
-    auto tasks = when_all(shutdown_task, once_task, once_task);
-    run(tasks);
-
-    REQUIRE(x == 1);
-}
+// TEST_CASE("Run tree once", "[run]") {
+//     int x = 0;
+//     auto once_task = async([&] () { 
+//         x++;
+//         return 0; 
+//     });
+//     auto shutdown_task = async([&] () { return shutdown();});
+//     auto tasks = when_all(shutdown_task, once_task, once_task);
+//     run(tasks);
+// 
+//     REQUIRE(x == 1);
+// }

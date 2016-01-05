@@ -65,22 +65,6 @@ TEST_CASE("Inc ref preserves") {
     REQUIRE(w.ivar_tracker.n_owned() == 1);
 }
 
-std::vector<Worker> workers() {
-    std::vector<Worker> ws;
-    ws.emplace_back();
-    ws.emplace_back();
-    ws[1].introduce(ws[0].get_addr());
-    ws[0].recv();
-    ws[1].recv();
-    return std::move(ws);
-}
-
-ID id_on_worker(const Worker& w) {
-    auto id = w.ivar_tracker.get_ring_locs()[0];
-    id.secondhalf--;
-    return id;
-}
-
 void settle(std::vector<Worker>& ws) {
     for (int i = 0; i < 3; i++) {
         for (size_t j = 0; j < ws.size(); j++) {
@@ -90,8 +74,26 @@ void settle(std::vector<Worker>& ws) {
     }
 }
 
+std::vector<Worker> workers(int n_workers) {
+    std::vector<Worker> ws;
+    for (int i = 0; i < n_workers; i++) {
+        ws.emplace_back();
+        if (i != 0) {
+            ws[i].introduce(ws[0].get_addr());
+        }
+        settle(ws);
+    }
+    return std::move(ws);
+}
+
+ID id_on_worker(const Worker& w) {
+    auto id = w.ivar_tracker.get_ring_locs()[0];
+    id.secondhalf--;
+    return id;
+}
+
 TEST_CASE("Remote reference counting") {
-    auto ws = workers();
+    auto ws = workers(2);
     {
         auto id = id_on_worker(ws[1]);
         cur_worker = &ws[0];
@@ -109,14 +111,13 @@ TEST_CASE("Remote reference counting") {
         cur_worker = &ws[1];
     }
     cur_worker = &ws[1];
-    ws[1].recv();
-    ws[0].recv();
+    settle(ws);
     REQUIRE(ws[0].ivar_tracker.n_vals_here() == 0);
     REQUIRE(ws[1].ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting change location") {
-    auto ws = workers();
+    auto ws = workers(2);
     {
         auto id = id_on_worker(ws[1]);
 
@@ -133,16 +134,17 @@ TEST_CASE("Remote reference counting change location") {
         REQUIRE(ws[1].ivar_tracker.n_owned() == 1);
         cur_worker = &ws[1];
     }
-    ws[0].recv();
+    settle(ws);
     REQUIRE(ws[0].ivar_tracker.n_triggers_here() == 0);
     REQUIRE(ws[1].ivar_tracker.n_triggers_here() == 0);
     REQUIRE(ws[1].ivar_tracker.n_owned() == 0);
 }
 
-void remote(int owner_worker, int fulfill_worker,
+void remote(int n_workers, int owner_worker, int fulfill_worker,
     int trigger_worker, bool trigger_first) 
 {
-    auto ws = workers();
+    std::cout << n_workers << " " << owner_worker << " " << fulfill_worker << " " << trigger_worker << " " << trigger_first << std::endl;
+    auto ws = workers(n_workers);
     int x = 0;
 
     auto id = id_on_worker(ws[owner_worker]);
@@ -159,52 +161,25 @@ void remote(int owner_worker, int fulfill_worker,
 
     cur_worker = &ws[fulfill_worker];
     ws[fulfill_worker].fulfill(iv, {Data{make_safe_void_ptr(1)}});
+    settle(ws);
 
     if (!trigger_first) {
         cur_worker = &ws[trigger_worker];
         ws[trigger_worker].add_trigger(iv, [&] (std::vector<Data>& vals) {
             x = vals[0].get_as<int>(); 
         });
-    }
-
-    if (owner_worker == fulfill_worker && fulfill_worker == trigger_worker) {
-        REQUIRE(x == 1);
-        return;
-    } else {
-        REQUIRE(x == 0);
         settle(ws);
-        REQUIRE(x == 1);
     }
+
+    REQUIRE(x == 1);
 }
 
-TEST_CASE("remote fulfill remote pre-trigger") {
-    remote(0, 1, 1, true);
-}
-
-TEST_CASE("remote fulfill local pre-trigger") {
-    remote(0, 1, 1, true);
-}
-
-TEST_CASE("local fulfill remote pre-trigger") {
-    remote(0, 0, 1, true);
-}
-
-TEST_CASE("local fulfill local pre-trigger") {
-    remote(0, 0, 0, true);
-}
-
-TEST_CASE("remote fulfill remote post-trigger") {
-    remote(0, 1, 1, false);
-}
-
-TEST_CASE("remote fulfill local post-trigger") {
-    remote(0, 1, 1, false);
-}
-
-TEST_CASE("local fulfill remote post-trigger") {
-    remote(0, 0, 1, false);
-}
-
-TEST_CASE("local fulfill local post-trigger") {
-    remote(0, 0, 0, false);
+TEST_CASE("fulfill triggers") {
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 3; j++) {
+            for (int k = 0; k < 2; k++) {
+                remote(std::max(j + 1, 2), 0, i, j, k == 0);
+            }
+        }
+    }
 }

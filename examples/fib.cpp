@@ -22,11 +22,11 @@ Future<int> fib(int index, int grouping = 3) {
 }
 
 int main() {
-    int n = 39;
+    int n = 45;
     TIC;
-    fib_serial(n);
+    std::cout << fib_serial(n) << std::endl;
     TOC("serial");
-    for (int n_workers = 1; n_workers <= 4; n_workers++) {
+    for (int n_workers = 2; n_workers <= 3; n_workers++) {
         TIC2;
         launch(n_workers, [=] () {
             return fib(n, 30).then([] (int x) {

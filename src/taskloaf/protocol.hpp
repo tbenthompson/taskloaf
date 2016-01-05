@@ -7,7 +7,6 @@ enum class Protocol {
     StealResponse,
     IncRef,
     DecRef,
-    NewIVar,
     Fulfill,
     TriggerLocs,
     GetTriggers,
