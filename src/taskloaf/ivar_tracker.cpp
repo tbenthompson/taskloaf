@@ -101,6 +101,11 @@ struct IVarTrackerImpl {
                 t(vals[id]);
             }
         });
+        comm.add_handler(Protocol::DeleteVals, [&] (Data d) {
+            auto id = d.get_as<ID>();
+            assert(vals.count(id) > 0);
+            vals.erase(id);
+        });
         
         // On where add_trigger was called.
         comm.add_handler(Protocol::GetTriggers, [&] (Data d) {
@@ -110,6 +115,11 @@ struct IVarTrackerImpl {
                 std::make_pair(id, std::move(triggers[id]))
             )));
         });
+        comm.add_handler(Protocol::DeleteTriggers, [&] (Data d) {
+            auto id = d.get_as<ID>();
+            assert(triggers.count(id) > 0);
+            triggers.erase(id);
+        });
     }
 
     void local_inc_ref(const ID& id) {
@@ -117,14 +127,31 @@ struct IVarTrackerImpl {
         ownership[id].ref_count++;
     }
 
+    void erase(const ID& id) {
+        auto& info = ownership[id];
+        if (info.val_loc != nullptr) {
+            if (is_local(*info.val_loc)) {
+                vals.erase(id);
+            } else {
+                comm.send(*info.val_loc, Msg(Protocol::DeleteVals, make_data(id)));
+            }
+        }
+        for (auto& t_loc: info.trigger_locs) {
+            if (is_local(t_loc)) {
+                triggers.erase(id);
+            } else {
+                comm.send(t_loc, Msg(Protocol::DeleteTriggers, make_data(id)));
+            }
+        }
+        ownership.erase(id);
+    }
+
     void local_dec_ref(const ID& id) {
         assert(ownership.count(id) > 0);
         auto& rc = ownership[id].ref_count;
         rc--;
         if (rc <= 0) {
-            triggers.erase(id);
-            vals.erase(id);
-            ownership.erase(id);
+            erase(id);
         }
     }
 
@@ -257,8 +284,20 @@ size_t IVarTracker::n_owned() const {
     return impl->ownership.size();
 }
 
+size_t IVarTracker::n_triggers_here() const {
+    return impl->triggers.size();
+}
+
+size_t IVarTracker::n_vals_here() const {
+    return impl->vals.size();
+}
+
 const std::vector<ID>& IVarTracker::get_ring_locs() const {
     return impl->ring.get_locs();
+}
+
+size_t IVarTracker::ring_size() const {
+    return impl->ring.ring_size();
 }
 
 } //end namespace taskloaf

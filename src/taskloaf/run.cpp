@@ -143,10 +143,13 @@ void launch_helper(int n_workers, std::shared_ptr<FutureNode> f) {
                 Worker w;
                 cur_worker = &w;
                 addrs[i] = w.get_addr();
-                spawn_next = true;
                 for (int j = 0; j < i; j++) {
                     w.introduce(addrs[j]); 
                 }
+                while(w.ivar_tracker.ring_size() < (size_t)(i + 1)) {
+                    w.recv();
+                }
+                spawn_next = true;
                 if (i == n_workers - 1) {
                     Planner planner;
                     planner.plan(*f);

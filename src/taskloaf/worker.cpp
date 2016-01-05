@@ -91,9 +91,8 @@ void Worker::run() {
 
     cur_worker = this;
     while (!stop) {
-        // TODO: this causes an infinite loop? tasks.steal();
+        tasks.steal();
         recv();
-        // comm->steal(tasks.size());
         if (tasks.size() > 0) {
             idle += since(start);
             tasks.next()();

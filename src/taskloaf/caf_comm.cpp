@@ -48,6 +48,9 @@ void CAFComm::send_all(Msg msg) {
 void CAFComm::send_random(Msg msg) {
     thread_local std::random_device rd;
     thread_local std::mt19937 gen(rd());
+    if (impl->other_ends.size() == 0) {
+        return;
+    }
     std::uniform_int_distribution<> dis(0, impl->other_ends.size() - 1);
     auto item = impl->other_ends.begin();
     auto count = dis(gen);

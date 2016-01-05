@@ -101,11 +101,17 @@ TEST_CASE("Remote reference counting") {
         cur_worker = &ws[1];
         ws[1].recv();
 
+        ws[0].fulfill(iv.first, {make_data(1)});
+        REQUIRE(ws[0].ivar_tracker.n_vals_here() == 1);
+        ws[1].recv();
+
         REQUIRE(ws[1].ivar_tracker.n_owned() == 1);
         cur_worker = &ws[1];
     }
     cur_worker = &ws[1];
     ws[1].recv();
+    ws[0].recv();
+    REQUIRE(ws[0].ivar_tracker.n_vals_here() == 0);
     REQUIRE(ws[1].ivar_tracker.n_owned() == 0);
 }
 
@@ -116,13 +122,20 @@ TEST_CASE("Remote reference counting change location") {
 
         cur_worker = &ws[0];
         auto iv = ws[0].new_ivar(id);
-        (void)iv;
+
+        ws[1].add_trigger(iv.first, [] (std::vector<Data>&) {});
+        ws[0].add_trigger(iv.first, [] (std::vector<Data>&) {});
+        REQUIRE(ws[0].ivar_tracker.n_triggers_here() == 1);
+        REQUIRE(ws[1].ivar_tracker.n_triggers_here() == 1);
 
         ws[1].recv();
 
         REQUIRE(ws[1].ivar_tracker.n_owned() == 1);
         cur_worker = &ws[1];
     }
+    ws[0].recv();
+    REQUIRE(ws[0].ivar_tracker.n_triggers_here() == 0);
+    REQUIRE(ws[1].ivar_tracker.n_triggers_here() == 0);
     REQUIRE(ws[1].ivar_tracker.n_owned() == 0);
 }
 
@@ -164,11 +177,11 @@ void remote(int owner_worker, int fulfill_worker,
     }
 }
 
-TEST_CASE("remote fulfill local pre-trigger") {
+TEST_CASE("remote fulfill remote pre-trigger") {
     remote(0, 1, 1, true);
 }
 
-TEST_CASE("remote fulfill remote pre-trigger") {
+TEST_CASE("remote fulfill local pre-trigger") {
     remote(0, 1, 1, true);
 }
 
@@ -180,11 +193,11 @@ TEST_CASE("local fulfill local pre-trigger") {
     remote(0, 0, 0, true);
 }
 
-TEST_CASE("remote fulfill local post-trigger") {
+TEST_CASE("remote fulfill remote post-trigger") {
     remote(0, 1, 1, false);
 }
 
-TEST_CASE("remote fulfill remote post-trigger") {
+TEST_CASE("remote fulfill local post-trigger") {
     remote(0, 1, 1, false);
 }
 
@@ -195,5 +208,3 @@ TEST_CASE("local fulfill remote post-trigger") {
 TEST_CASE("local fulfill local post-trigger") {
     remote(0, 0, 0, false);
 }
-
-//TODO: Test for remote deleting of vals and triggers.

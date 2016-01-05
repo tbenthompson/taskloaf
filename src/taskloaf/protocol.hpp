@@ -12,7 +12,7 @@ enum class Protocol {
     TriggerLocs,
     GetTriggers,
     RecvTriggers,
-    AddTrigger
-    // DeleteTriggers,
-    // DeleteVals
+    AddTrigger,
+    DeleteTriggers,
+    DeleteVals
 };
