@@ -17,6 +17,7 @@ struct CAFComm: public Comm {
     //TODO: Better architecture for these send_ functions?
     void send_all(Msg msg) override;
     void send_random(Msg msg) override;
+    bool has_incoming() override;
     void recv() override;
     void add_handler(int msg_type, std::function<void(Data)> handler) override;
 };

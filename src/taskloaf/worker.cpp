@@ -76,34 +76,57 @@ void Worker::recv() {
 }
 
 void Worker::run() {
-    int n_tasks = 0;
+    struct Timer {
+        typedef std::chrono::high_resolution_clock::time_point Time;
+        Time t_start;
+        int time_ms = 0;
 
-    typedef std::chrono::high_resolution_clock::time_point Time;
-    auto now = [] () { return std::chrono::high_resolution_clock::now(); };
-    auto since = [] (Time from) { 
-        return std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::high_resolution_clock::now() - from
-        ).count();
+        void start() {
+            t_start = std::chrono::high_resolution_clock::now();
+        }
+        void stop() {
+            time_ms += std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::high_resolution_clock::now() - t_start
+            ).count();
+        }
     };
 
-    Time start = now();
-    int idle = 0;
+    int n_tasks = 0;
+    Timer t_comm;
+    Timer t_not_tasks;
+    Timer t_total;
+    t_not_tasks.start();
+    t_total.start();
 
     cur_worker = this;
     while (!stop) {
-        recv();
+        while (comm->has_incoming()) {
+            t_comm.start();
+            comm->recv();
+            t_comm.stop();
+        }
+
         tasks.steal();
         if (tasks.size() > 0) {
-            idle += since(start);
+
+            t_not_tasks.stop();
             tasks.next()();
-            start = now();
+            t_not_tasks.start();
+
             n_tasks++;
         }
     }
+    t_not_tasks.stop();
+    t_total.stop();
+    auto t_idle = t_not_tasks.time_ms - t_comm.time_ms;
+    auto t_tasks = t_total.time_ms - t_not_tasks.time_ms;
 
-    idle += since(start);
     std::stringstream buf;
-    buf << "n(" << core_id << "): " << n_tasks << " idle: " << idle << std::endl;
+    buf << "n(" << core_id << "): " << n_tasks
+        << " comm: " << t_comm.time_ms 
+        << " tasks: " << t_tasks
+        << " idle: " << t_idle
+        << " undeleted ivars " << ivar_tracker.n_owned() << std::endl;
     std::cout << buf.rdbuf();
 }
 

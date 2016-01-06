@@ -75,8 +75,7 @@ auto apply_args(std::vector<Data>& args, const CallableType& f)
 }
 
 
-
-//Modified from https://github.com/darabos/pinty/blob/master/pinty.h
+//Modified substantially from https://github.com/darabos/pinty/blob/master/pinty.h
 template <typename Return, typename Func, typename... Args>
 struct Caller {
     static Return Call(Data& data, Args... args) {
@@ -95,10 +94,11 @@ struct Function<Return(Args...)> {
     template <typename F>
     Function(F f):
         call(&Caller<Return,F,Args...>::Call),
-        closure({make_safe_void_ptr(std::move(f))})
-    {}
+        closure(make_data(std::move(f)))
+    {
+    }
 
-    Return operator()(Args... args) {
+    Return operator()(Args&&... args) {
         return call(closure, std::forward<Args>(args)...);
     }
 

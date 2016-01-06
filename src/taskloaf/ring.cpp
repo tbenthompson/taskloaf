@@ -5,6 +5,7 @@
 
 #include <map>
 #include <algorithm>
+#include <cassert>
 
 namespace taskloaf {
 
@@ -69,6 +70,7 @@ struct RingImpl {
     }
 
     void add_friend(const RingState& their_state) {
+        assert(their_state.addr != comm.get_addr());
         if (friends.count(their_state.addr) > 0) {
             return;
         }
@@ -110,11 +112,23 @@ Ring::Ring(Ring&&) = default;
 Ring::~Ring() = default;
 
 void Ring::introduce(const Address& their_addr) {
+    if (their_addr == impl->comm.get_addr()) {
+        return;
+    }
     impl->gossip(their_addr, true);
 }
 
 Address Ring::get_owner(const ID& id) {
     return impl->hash_ring.get_owner(id);
+}
+
+std::vector<Address> Ring::ring_members() const {
+    std::vector<Address> addrs;
+    for (auto& f: impl->friends) {
+        addrs.push_back(f.first);
+    }
+    addrs.push_back(impl->comm.get_addr());
+    return addrs;
 }
 
 size_t Ring::ring_size() const {

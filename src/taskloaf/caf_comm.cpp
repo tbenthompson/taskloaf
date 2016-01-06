@@ -58,20 +58,20 @@ void CAFComm::send_random(Msg msg) {
     send(item->first, std::move(msg));
 }
 
+bool CAFComm::has_incoming() {
+    return impl->actor->has_next_message();
+}
+
 void CAFComm::recv() {
-    std::vector<Msg> msgs;
-    while (impl->actor->has_next_message()) {
+    if (has_incoming()) {
         impl->actor->receive(
-            [&msgs] (Msg m) {
-                msgs.push_back(std::move(m));
+            [&] (Msg m) {
+                if (impl->handlers.count(m.msg_type) == 0) {
+                    return;
+                }
+                impl->handlers[m.msg_type](std::move(m.data));
             }
         );
-    }
-    for (auto& m: msgs) {
-        if (impl->handlers.count(m.msg_type) == 0) {
-            continue;
-        }
-        impl->handlers[m.msg_type](std::move(m.data));
     }
 }
 

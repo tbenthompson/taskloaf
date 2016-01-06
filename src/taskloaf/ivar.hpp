@@ -15,11 +15,10 @@ struct IVarRef {
     ID id;
     bool moved = false;
 
-
     explicit IVarRef(ID id);
-    IVarRef(const IVarRef&);
     IVarRef(IVarRef&&);
-    IVarRef& operator=(IVarRef&&) = delete;
+    IVarRef& operator=(IVarRef&&);
+    IVarRef(const IVarRef&);
     IVarRef& operator=(const IVarRef&) = delete;
     ~IVarRef();
 };

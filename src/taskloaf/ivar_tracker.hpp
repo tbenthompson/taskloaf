@@ -27,7 +27,7 @@ struct IVarTracker {
     size_t n_triggers_here() const;
     size_t n_vals_here() const;
     const std::vector<ID>& get_ring_locs() const;
-    size_t ring_size() const;
+    std::vector<Address> ring_members() const;
 };
 
 } //end namespace taskloaf

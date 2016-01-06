@@ -34,6 +34,7 @@ struct Comm {
     virtual void send(const Address& dest, Msg msg) = 0;
     virtual void send_all(Msg msg) = 0;
     virtual void send_random(Msg msg) = 0;
+    virtual bool has_incoming() = 0;
     virtual void recv() = 0;
     virtual void add_handler(int msg_type, std::function<void(Data)> handler) = 0; 
 

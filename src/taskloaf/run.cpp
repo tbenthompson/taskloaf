@@ -45,16 +45,11 @@ void whenall_child(std::queue<IVarRef> child_results,
     }
 }
 
-struct Program {
-    IVarRef out_future;
-    TaskT task;
-};
-
 struct Planner {
     IVarRef plan(FutureNode& data) {
         auto result = cur_worker->new_ivar(data.id);
         if (!result.second) {
-            return result.first;
+            return std::move(result.first);
         }
 
         if (data.type == ThenType) {
@@ -69,13 +64,13 @@ struct Planner {
             plan_whenall(reinterpret_cast<WhenAll&>(data), result.first);
         }
 
-        return result.first;
+        return std::move(result.first);
     }
 
     void plan_then(Then& then, const IVarRef& out_future) {
         auto inside = plan(*then.child.get());
         cur_worker->add_trigger(inside,
-            [out_future, fnc = PureTaskT(std::move(then.fnc))] 
+            [out_future = out_future, fnc = PureTaskT(std::move(then.fnc))] 
             (std::vector<Data>& vals) mutable {
                 cur_worker->add_task(
                     [
@@ -94,7 +89,7 @@ struct Planner {
     void plan_unwrap(Unwrap& unwrap, const IVarRef& out_future) {
         auto inside = plan(*unwrap.child.get());
         cur_worker->add_trigger(inside,
-            [out_future, fnc = PureTaskT(std::move(unwrap.fnc))]
+            [out_future = out_future, fnc = PureTaskT(std::move(unwrap.fnc))]
             (std::vector<Data>& vals) mutable {
                 auto out = fnc(vals);
                 auto future_data = out.get_as<std::shared_ptr<FutureNode>>();
@@ -112,7 +107,7 @@ struct Planner {
 
     void plan_async(Async& async, const IVarRef& out_future) {
         cur_worker->add_task(
-            [out_future, fnc = PureTaskT(std::move(async.fnc))]
+            [out_future = out_future, fnc = PureTaskT(std::move(async.fnc))]
             () mutable {
                 std::vector<Data> empty;
                 cur_worker->fulfill(out_future, {fnc(empty)});
@@ -133,34 +128,39 @@ struct Planner {
     }
 };
 
-void launch_helper(int n_workers, std::shared_ptr<FutureNode> f) {
+void launch_helper(size_t n_workers, std::shared_ptr<FutureNode> f) {
     std::vector<Address> addrs(n_workers);
     std::vector<std::thread> threads;
-    for (int i = 0; i < n_workers; i++) { 
-        std::atomic<bool> spawn_next(false);
+    std::atomic<size_t> n_spawned(0);
+    std::atomic<size_t> n_ready(0);
+    for (size_t i = 0; i < n_workers; i++) { 
         threads.emplace_back(
-            [f, i, n_workers, &addrs, &spawn_next] () mutable {
+            [f, i, n_workers, &addrs, &n_spawned, &n_ready] () mutable {
+
                 Worker w;
+                w.set_core_affinity(i);
                 cur_worker = &w;
                 addrs[i] = w.get_addr();
-                for (int j = 0; j < i; j++) {
+                n_spawned++;
+                while (n_workers > n_spawned) {}
+
+                for (size_t j = 0; j < n_workers; j++) {
                     w.introduce(addrs[j]); 
                 }
-                //TODO: This is lame...
-                while(w.ivar_tracker.ring_size() < (size_t)(i + 1)) {
+                while (w.ivar_tracker.ring_members().size() < n_workers) {
                     w.recv();
                 }
-                spawn_next = true;
+                n_ready++;
+                while (n_workers > n_ready) {}
+
+                assert(w.ivar_tracker.ring_members().size() == n_workers);
                 if (i == n_workers - 1) {
-                    std::cout << w.ivar_tracker.ring_size() << std::endl;
                     Planner planner;
                     planner.plan(*f);
                 }
-                w.set_core_affinity(i);
                 w.run();
             }
         );
-        while(!spawn_next) { }
     }
 
     for (auto& t: threads) { 

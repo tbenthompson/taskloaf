@@ -3,7 +3,7 @@
 
 namespace taskloaf {
 
-void launch_helper(int n_workers, std::shared_ptr<FutureNode> f);
+void launch_helper(size_t n_workers, std::shared_ptr<FutureNode> f);
 int shutdown();
 void run_helper(FutureNode& data);
 

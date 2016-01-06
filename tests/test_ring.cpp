@@ -48,9 +48,11 @@ TEST_CASE("Three gossipers", "[ring]") {
     Ring r3(c3, 1);
     r1.introduce(c2.get_addr());
     r2.introduce(c3.get_addr());
-    c3.recv();
-    c1.recv();
-    c2.recv();
+    for (int i = 0; i < 5; i++) {
+        c3.recv();
+        c1.recv();
+        c2.recv();
+    }
     REQUIRE(r1.ring_size() == 3);
     REQUIRE(r2.ring_size() == 3);
     REQUIRE(r3.ring_size() == 3);

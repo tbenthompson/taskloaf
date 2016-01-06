@@ -66,7 +66,7 @@ TEST_CASE("Inc ref preserves") {
 }
 
 void settle(std::vector<Worker>& ws) {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 10; i++) {
         for (size_t j = 0; j < ws.size(); j++) {
             cur_worker = &ws[j];
             ws[j].recv();
@@ -101,11 +101,11 @@ TEST_CASE("Remote reference counting") {
         (void)iv;
 
         cur_worker = &ws[1];
-        ws[1].recv();
+        settle(ws);
 
         ws[0].fulfill(iv.first, {make_data(1)});
         REQUIRE(ws[0].ivar_tracker.n_vals_here() == 1);
-        ws[1].recv();
+        settle(ws);
 
         REQUIRE(ws[1].ivar_tracker.n_owned() == 1);
         cur_worker = &ws[1];
@@ -143,7 +143,7 @@ TEST_CASE("Remote reference counting change location") {
 void remote(int n_workers, int owner_worker, int fulfill_worker,
     int trigger_worker, bool trigger_first) 
 {
-    std::cout << n_workers << " " << owner_worker << " " << fulfill_worker << " " << trigger_worker << " " << trigger_first << std::endl;
+    // std::cout << n_workers << " " << owner_worker << " " << fulfill_worker << " " << trigger_worker << " " << trigger_first << std::endl;
     auto ws = workers(n_workers);
     int x = 0;
 

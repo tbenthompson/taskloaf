@@ -18,13 +18,23 @@ IVarRef::~IVarRef() {
     }
 }
 
+IVarRef::IVarRef(const IVarRef& ref):
+    IVarRef(ref.id)
+{
+    assert(!ref.moved);
+}
+
 IVarRef::IVarRef(IVarRef&& ref) {
+    assert(!ref.moved);
     id = std::move(ref.id);
     ref.moved = true;
 }
 
-IVarRef::IVarRef(const IVarRef& ref):
-    IVarRef(ref.id)
-{}
+IVarRef& IVarRef::operator=(IVarRef&& ref) {
+    assert(!ref.moved);
+    id = std::move(ref.id);
+    ref.moved = true;
+    return *this; 
+}
 
 } //end namespace taskloaf
