@@ -206,15 +206,15 @@ FutureList cholesky_plan(const FutureList& inputs)
     
     FutureList full_out(n_b * n_b);
 
-    full_out[0] = upper_left;
+    full_out[0] = std::move(upper_left);
     for (size_t i = 1; i < n_b; i++) {
-        full_out[i] = lower_left[i - 1];
+        full_out[i] = std::move(lower_left[i - 1]);
     }
 
     for (size_t i = 1; i < n_b; i++) {
         for (size_t j = 1; j <= i; j++) {
             auto in_idx = MATIDX(i - 1, j - 1, n_b - 1);
-            full_out[MATIDX(i, j, n_b)] = lower_right_inv[in_idx];
+            full_out[MATIDX(i, j, n_b)] = std::move(lower_right_inv[in_idx]);
         }
     }
 
@@ -234,13 +234,13 @@ void run(int n, int n_blocks, int n_workers, bool run_blas) {
 
     auto block_A = to_blocks(A, n_blocks);
     auto block_correct = to_blocks(correct, n_blocks);
-    auto correct_futures = submit_input_data(block_correct);
 
     TIC
-    auto input_futures = submit_input_data(block_A);
-    tsk::launch(n_workers, [=] () {
+    tsk::launch(n_workers, [&] () {
+        auto input_futures = submit_input_data(block_A);
         auto result_futures = cholesky_plan(input_futures);
         if (run_blas) {
+            auto correct_futures = submit_input_data(block_correct);
             auto total_error = tsk::ready<double>(0.0);
             for (int i = 0; i < n_blocks; i++) {
                 for (int j = 0; j < n_blocks; j++) {

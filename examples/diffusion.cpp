@@ -111,7 +111,7 @@ auto timestep(const Parameters& p, int step_idx,
 void diffusion(int n_workers, int n_cells, int time_steps) {
     // TODO: Figure out how to optimize so that the multiplier here gets down to 1.
     // TODO: Work on this "parallelize" chunkification stuff.
-    Parameters p{-10, 10, 3.0, 1.0, 0.375, n_cells, n_workers, time_steps};
+    Parameters p{-10, 10, 3.0, 1.0, 0.375, n_cells, 10 * n_workers, time_steps};
 
     tsk::launch(n_workers, [=] () {
         auto temp = initial_conditions(p);
@@ -128,5 +128,5 @@ void diffusion(int n_workers, int n_cells, int time_steps) {
 }
 
 int main() {
-    diffusion(6, 100000000, 20);
+    diffusion(1, 10000000, 200);
 }

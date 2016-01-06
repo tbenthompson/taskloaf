@@ -213,10 +213,6 @@ IVarTracker::IVarTracker(IVarTracker&&) = default;
 
 IVarTracker::~IVarTracker() = default;
 
-std::pair<IVarRef,bool> IVarTracker::new_ivar(const ID& id) {
-    return {IVarRef(id), true};
-}
-
 void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
     assert(input.size() > 0);
     assert(impl->vals.count(iv.id) == 0);

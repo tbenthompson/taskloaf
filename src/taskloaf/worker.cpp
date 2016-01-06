@@ -45,10 +45,6 @@ void Worker::add_task(TaskT f) {
     tasks.add_task(std::move(f));
 }
 
-std::pair<IVarRef,bool> Worker::new_ivar(const ID& id) {
-    return ivar_tracker.new_ivar(id);
-}
-
 void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
     ivar_tracker.fulfill(iv, std::move(vals));
 }

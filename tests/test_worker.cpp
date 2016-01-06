@@ -44,25 +44,77 @@ TEST_CASE("Two workers two steals = second does nothing") {
     stealing_test(2);
 }
 
-TEST_CASE("Dec ref deletes") {
+TEST_CASE("Ref tracking destructor deletes") {
     Worker w; 
     cur_worker = &w;
     {
-        auto ivarref = w.new_ivar(new_id()).first;
+        IVarRef iv(new_id());
         REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
     REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
-TEST_CASE("Inc ref preserves") {
+TEST_CASE("Ref tracking copy constructor") {
     Worker w;
     cur_worker = &w;
-    std::unique_ptr<IVarRef> ivarref2;
     {
-        auto ivarref = w.new_ivar(new_id()).first;
-        ivarref2.reset(new IVarRef(ivarref));
+        std::unique_ptr<IVarRef> ivarref2;
+        {
+            IVarRef iv(new_id());
+            ivarref2.reset(new IVarRef(iv));
+        }
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 1);
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
+}
+
+TEST_CASE("Ref tracking copy assignment") {
+    Worker w;
+    cur_worker = &w;
+    {
+        IVarRef ivarref2;
+        {
+            IVarRef iv(new_id());
+            ivarref2 = iv;
+        }
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
+    }
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
+}
+
+
+TEST_CASE("Ref tracking empty") {
+    IVarRef iv;
+}
+
+TEST_CASE("Ref tracking move constructor") {
+    Worker w;
+    cur_worker = &w;
+    {
+        std::unique_ptr<IVarRef> ivarref2;
+        {
+            IVarRef iv(new_id());
+            ivarref2.reset(new IVarRef(std::move(iv)));
+            REQUIRE(iv.empty == true);
+        }
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
+    }
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
+}
+
+TEST_CASE("Ref tracking move assignment") {
+    Worker w;
+    cur_worker = &w;
+    {
+        IVarRef iv2;
+        {
+            IVarRef iv(new_id());
+            iv2 = std::move(iv);
+            REQUIRE(iv.empty == true);
+        }
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
+    }
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
 void settle(std::vector<Worker>& ws) {
@@ -97,13 +149,13 @@ TEST_CASE("Remote reference counting") {
     {
         auto id = id_on_worker(ws[1]);
         cur_worker = &ws[0];
-        auto iv = ws[1].new_ivar(id);
+        IVarRef iv(id);
         (void)iv;
 
         cur_worker = &ws[1];
         settle(ws);
 
-        ws[0].fulfill(iv.first, {make_data(1)});
+        ws[0].fulfill(iv, {make_data(1)});
         REQUIRE(ws[0].ivar_tracker.n_vals_here() == 1);
         settle(ws);
 
@@ -122,10 +174,10 @@ TEST_CASE("Remote reference counting change location") {
         auto id = id_on_worker(ws[1]);
 
         cur_worker = &ws[0];
-        auto iv = ws[0].new_ivar(id);
+        IVarRef iv(id);
 
-        ws[1].add_trigger(iv.first, [] (std::vector<Data>&) {});
-        ws[0].add_trigger(iv.first, [] (std::vector<Data>&) {});
+        ws[1].add_trigger(iv, [] (std::vector<Data>&) {});
+        ws[0].add_trigger(iv, [] (std::vector<Data>&) {});
         REQUIRE(ws[0].ivar_tracker.n_triggers_here() == 1);
         REQUIRE(ws[1].ivar_tracker.n_triggers_here() == 1);
 
@@ -149,7 +201,7 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
 
     auto id = id_on_worker(ws[owner_worker]);
     cur_worker = &ws[owner_worker];
-    auto iv = ws[owner_worker].new_ivar(id).first;
+    IVarRef iv(id);
 
     if (trigger_first) {
         cur_worker = &ws[trigger_worker];

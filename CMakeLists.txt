@@ -44,7 +44,7 @@ ExternalProject_Add(
 ################################################################################
 
 add_library(taskloaf SHARED
-    src/taskloaf/run.cpp
+    src/taskloaf/future.cpp
     src/taskloaf/ivar.cpp
     src/taskloaf/worker.cpp
     src/taskloaf/task_collection.cpp
@@ -69,7 +69,6 @@ add_executable(run_tests
     tests/test_future.cpp
     tests/test_fnc.cpp
     tests/test_data.cpp
-    tests/test_run.cpp
     tests/test_worker.cpp
     tests/test_id.cpp
     tests/test_ring.cpp
