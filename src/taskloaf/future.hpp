@@ -21,9 +21,11 @@ template <typename F, typename... Ts>
 auto then(const Future<Ts...>& fut, F fnc) {
     typedef std::result_of_t<F(Ts&...)> Return;
     std::function<Return(Ts&...)> container_fnc(std::move(fnc));
-    auto task = [container_fnc] (std::vector<Data>& in) {
-        return Data{make_safe_void_ptr(apply_args(in, container_fnc))};
-    };
+    auto task =
+        [container_fnc = std::move(container_fnc)] (std::vector<Data>& in) mutable
+        {
+            return make_data(apply_args(in, container_fnc));
+        };
     return Future<Return>{plan_then(fut.ivar, std::move(task))};
 }
 
@@ -42,8 +44,8 @@ auto ready(T val) {
 
 template <typename F>
 auto async(F fnc) {
-    auto task = [fnc] (std::vector<Data>&) {
-        return Data{make_safe_void_ptr(fnc())};
+    auto task = [fnc = std::move(fnc)] (std::vector<Data>&) mutable {
+        return make_data(fnc());
     };
     return Future<std::result_of_t<F()>>{plan_async(std::move(task))};
 }
@@ -53,7 +55,6 @@ auto when_all(const Future<Ts>&... args) {
     std::vector<IVarRef> data{args.ivar...};
     return Future<Ts...>{plan_when_all(std::move(data))};
 }
-
 
 template <typename... Ts>
 struct Future {

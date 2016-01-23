@@ -22,6 +22,10 @@ bool operator<(const ID& lhs, const ID& rhs)
     return lhs.firsthalf < rhs.firsthalf;
 }
 
+bool operator<=(const ID& lhs, const ID& rhs) {
+    return lhs < rhs || lhs == rhs;
+}
+
 std::ostream& operator<<(std::ostream& os, const ID& id)
 {
     os << id.firsthalf << "-" << id.secondhalf;

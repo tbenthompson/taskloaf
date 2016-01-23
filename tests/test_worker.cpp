@@ -8,6 +8,33 @@
 
 using namespace taskloaf;
 
+void settle(std::vector<Worker>& ws) {
+    for (int i = 0; i < 10; i++) {
+        for (size_t j = 0; j < ws.size(); j++) {
+            cur_worker = &ws[j];
+            ws[j].recv();
+        }
+    }
+}
+
+std::vector<Worker> workers(int n_workers) {
+    std::vector<Worker> ws;
+    for (int i = 0; i < n_workers; i++) {
+        ws.emplace_back();
+        if (i != 0) {
+            ws[i].introduce(ws[0].get_addr());
+        }
+        settle(ws);
+    }
+    return std::move(ws);
+}
+
+ID id_on_worker(const Worker& w) {
+    auto id = w.ivar_tracker.get_ring_locs()[0];
+    id.secondhalf++;
+    return id;
+}
+
 TEST_CASE("Worker") {
     Worker w;
     int x = 0;
@@ -17,23 +44,22 @@ TEST_CASE("Worker") {
 }
 
 void stealing_test(int n_steals) {
-    Worker w1;
-    Worker w2;
+    auto ws = workers(2);
     int x = 0;
     int n_tasks = 5;
     for (int i = 0; i < n_tasks; i++) {
-        w1.add_task([&] () { x = 1; });
+        ws[0].add_task([&] () { x = 1; });
     }
-    w2.introduce(w1.get_addr());
+    // ws[1].introduce(ws[0].get_addr());
+    settle(ws);
     for (int i = 0; i < n_steals; i++) {
-        w2.tasks.steal();
+        ws[1].tasks.steal();
     }
-    REQUIRE(w1.tasks.size() == n_tasks);
-    REQUIRE(w2.tasks.size() == 0);
-    w1.recv();
-    REQUIRE(w1.tasks.size() == n_tasks - 1);
-    w2.recv();
-    REQUIRE(w2.tasks.size() == 1);
+    REQUIRE(ws[0].tasks.size() == n_tasks);
+    REQUIRE(ws[1].tasks.size() == 0);
+    settle(ws);
+    REQUIRE(ws[0].tasks.size() == n_tasks - 1);
+    REQUIRE(ws[1].tasks.size() == 1);
 }
 
 TEST_CASE("Two workers one steal") {
@@ -115,33 +141,6 @@ TEST_CASE("Ref tracking move assignment") {
         REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
     REQUIRE(w.ivar_tracker.n_owned() == 0);
-}
-
-void settle(std::vector<Worker>& ws) {
-    for (int i = 0; i < 10; i++) {
-        for (size_t j = 0; j < ws.size(); j++) {
-            cur_worker = &ws[j];
-            ws[j].recv();
-        }
-    }
-}
-
-std::vector<Worker> workers(int n_workers) {
-    std::vector<Worker> ws;
-    for (int i = 0; i < n_workers; i++) {
-        ws.emplace_back();
-        if (i != 0) {
-            ws[i].introduce(ws[0].get_addr());
-        }
-        settle(ws);
-    }
-    return std::move(ws);
-}
-
-ID id_on_worker(const Worker& w) {
-    auto id = w.ivar_tracker.get_ring_locs()[0];
-    id.secondhalf--;
-    return id;
 }
 
 TEST_CASE("Remote reference counting") {

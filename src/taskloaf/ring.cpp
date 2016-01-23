@@ -6,6 +6,7 @@
 #include <map>
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 
 namespace taskloaf {
 
@@ -20,15 +21,32 @@ struct GossipMessage {
     bool respond;
 };
 
-struct ConsistentHash {
+
+template <typename T>
+auto loop_around(auto it, const T& collection) {
+    if (it == collection.end()) {
+        return collection.begin();
+    }
+    return it;
+}
+
+template <typename T>
+auto before(auto it, const T& collection) {
+    if (it == collection.begin()) {
+        return std::prev(collection.end());
+    }
+    return std::prev(it);
+}
+
+struct HashRing {
     std::map<ID,Address> sorted_locs;
 
-    Address get_owner(const ID& id) {
-        auto it = sorted_locs.upper_bound(id);
-        if (it == sorted_locs.end()) {
-            it = sorted_locs.begin();
-        }
-        return it->second;
+    auto succ(const ID& id) const {
+        return loop_around(sorted_locs.upper_bound(id), sorted_locs);
+    }
+
+    auto pred(const ID& id) const {
+        return before(succ(id), sorted_locs);
     }
 
     void insert(std::vector<ID> locs, Address addr) {
@@ -43,7 +61,8 @@ struct RingImpl {
 
     std::map<Address,RingState> friends;
     std::vector<ID> my_locs;
-    ConsistentHash hash_ring;
+    std::vector<TransferHandler> transfer_handlers;
+    HashRing hash_ring;
 
     RingImpl(Comm& comm, int n_locs):
         comm(comm),
@@ -57,7 +76,7 @@ struct RingImpl {
         });
     } 
 
-    void gossip(const Address& their_addr, bool request_response) {
+    Msg make_gossip_msg(bool request_response) {
         comm.recv();
         GossipMessage msg;
         msg.sender_state = {comm.get_addr(), my_locs};
@@ -65,8 +84,25 @@ struct RingImpl {
             msg.friend_state.push_back(f.second);
         }
         msg.respond = request_response;
+        return Msg(Protocol::Gossip, make_data(std::move(msg)));
+    }
 
-        comm.send(their_addr, Msg(Protocol::Gossip, make_data(std::move(msg))));
+    void gossip(const Address& their_addr, bool request_response) {
+        comm.send(their_addr, make_gossip_msg(request_response));
+    }
+
+    void gossip(bool request_response) {
+        comm.send_random(make_gossip_msg(request_response));
+    }
+
+    std::vector<std::pair<ID,ID>> compute_transfers(const std::vector<ID>& locs) {
+        std::vector<std::pair<ID,ID>> transfers;
+        for (auto& L: locs) {
+            if (hash_ring.pred(L)->second == comm.get_addr()) {
+                transfers.push_back({L, hash_ring.succ(L)->first});
+            }
+        }
+        return transfers;
     }
 
     void add_friend(const RingState& their_state) {
@@ -75,6 +111,12 @@ struct RingImpl {
             return;
         }
         
+        auto transfers = compute_transfers(their_state.locs);
+        for (auto& t: transfers) {
+            for (auto& h: transfer_handlers) {
+                h(t.first, t.second, their_state.addr);
+            }
+        }
         hash_ring.insert(their_state.locs, their_state.addr);
         friends.insert(std::make_pair(their_state.addr, their_state));
     }
@@ -95,18 +137,11 @@ struct RingImpl {
             gossip(msg.sender_state.addr, false);
         }
     }
-
 };
 
 Ring::Ring(Comm& comm, int n_locs):
     impl(std::make_unique<RingImpl>(comm, n_locs))
 {}
-
-Ring::Ring(Comm& comm, Address gatekeeper, int n_locs):
-   Ring(comm, n_locs)
-{
-    introduce(gatekeeper);
-}
 
 Ring::Ring(Ring&&) = default;
 Ring::~Ring() = default;
@@ -118,8 +153,20 @@ void Ring::introduce(const Address& their_addr) {
     impl->gossip(their_addr, true);
 }
 
+void Ring::gossip() {
+    impl->gossip(false);
+}
+
+std::vector<std::pair<ID,ID>> Ring::compute_transfers(const std::vector<ID>& locs) {
+    return impl->compute_transfers(locs);
+}
+
+void Ring::add_transfer_handler(TransferHandler handler) {
+    impl->transfer_handlers.push_back(std::move(handler)); 
+}
+
 Address Ring::get_owner(const ID& id) {
-    return impl->hash_ring.get_owner(id);
+    return impl->hash_ring.pred(id)->second;
 }
 
 std::vector<Address> Ring::ring_members() const {

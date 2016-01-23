@@ -17,23 +17,47 @@ Future<int> fib(int index, int grouping = 3) {
     } else {
         auto af = fib(index - 1, grouping);
         auto bf = fib(index - 2, grouping);
-        return when_all(af, bf).then([] (int a, int b) { return a + b; });
+        return when_all(af, bf).then(
+            [] (int a, int b) { return a + b; }
+        );
     }
 }
 
-int main() {
-    int n = 45;
+Future<int> fib_unrevealed(int index, int grouping = 3) {
+    if (index < grouping) {
+        return async([=] () { return fib_serial(index); });
+    } else {
+        return async([=] () {
+            auto af = fib(index - 1, grouping);
+            auto bf = fib(index - 2, grouping);
+            return when_all(af, bf).then(
+                [] (int a, int b) { return a + b; }
+            );
+        }).unwrap();
+    }
+}
+
+int main(int, char** argv) {
+    int n = std::stoi(std::string(argv[1]));
+    int grouping = std::stoi(std::string(argv[2]));
+    int n_workers = std::stoi(std::string(argv[3]));
+
     TIC;
     std::cout << fib_serial(n) << std::endl;
     TOC("serial");
-    for (int n_workers = 1; n_workers <= 6; n_workers++) {
+
+    TIC2;
+    launch(n_workers, [&] () {
+        auto fut = fib(n, grouping);
+        TOC("submit");
         TIC2;
-        launch(n_workers, [=] () {
-            return fib(n, 30).then([=] (int x) {
-                std::cout << "fib(" << n << ") = " << x << std::endl;
-                return shutdown();
-            });
+        return fut.then([&] (int x) {
+            std::cout << "fib(" << n << ") = " << x << std::endl;
+            TOC("run");
+            TIC2;
+            return shutdown();
         });
-        TOC("parallel fib " + std::to_string(n_workers));
-    }
+    });
+    TOC("Clean up");
+    // TOC("parallel fib " + std::to_string(n_workers));
 }

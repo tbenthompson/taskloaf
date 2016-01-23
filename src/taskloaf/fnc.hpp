@@ -68,6 +68,15 @@ struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...) const>
     }
 };
 
+template <typename CallableType, typename... Args>
+auto apply_args(std::tuple<Args...>& args, const CallableType& f) {
+    typedef typename std::decay<decltype(args)>::type ttype;
+    return apply_args_impl<
+        CallableType, decltype(args), 0 == std::tuple_size<ttype>::value,
+        std::tuple_size<ttype>::value
+    >::call(f, std::forward<decltype(args)>(args));
+}
+
 template <typename CallableType, typename ArgDeductionType = CallableType>
 auto apply_args(std::vector<Data>& args, const CallableType& f)
 {
@@ -88,7 +97,6 @@ struct Function {};
 
 template <typename Return, typename... Args>
 struct Function<Return(Args...)> {
-    typedef Return ret;
     typedef Return (*Call)(Data&, Args...);
 
     template <typename F>

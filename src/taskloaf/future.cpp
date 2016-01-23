@@ -4,6 +4,7 @@
 #include <queue>
 #include <thread>
 #include <atomic>
+#include <iostream>
 
 namespace taskloaf {
 
@@ -32,7 +33,7 @@ IVarRef plan_unwrap(const IVarRef& input, PureTaskT unwrapper) {
     cur_worker->add_trigger(input,
         [out_future = out_future, fnc = std::move(unwrapper)]
         (std::vector<Data>& vals) mutable {
-            auto result = fnc(vals).get_as<IVarRef>();
+            auto result = std::move(fnc(vals).get_as<IVarRef>());
             cur_worker->add_trigger(result,
                 [out_future = std::move(out_future)]
                 (std::vector<Data>& vals) mutable {
@@ -102,32 +103,22 @@ IVarRef plan_when_all(std::vector<IVarRef> inputs) {
 }
 
 void launch_helper(size_t n_workers, std::function<IVarRef()> f) {
-    std::vector<Address> addrs(n_workers);
     std::vector<std::thread> threads;
-    std::atomic<size_t> n_spawned(0);
-    std::atomic<size_t> n_ready(0);
+    Address root_addr;
+    std::atomic<bool> ready(false);
     for (size_t i = 0; i < n_workers; i++) { 
         threads.emplace_back(
-            [f, i, n_workers, &addrs, &n_spawned, &n_ready] () mutable {
+            [f, i, &root_addr, &ready] () mutable {
                 Worker w;
-                w.set_core_affinity(i);
                 cur_worker = &w;
-                addrs[i] = w.get_addr();
-                n_spawned++;
-                while (n_workers > n_spawned) {}
-
-                for (size_t j = 0; j < n_workers; j++) {
-                    w.introduce(addrs[j]); 
-                }
-                while (w.ivar_tracker.ring_members().size() < n_workers) {
-                    w.recv();
-                }
-                n_ready++;
-                while (n_workers > n_ready) {}
-
-                assert(w.ivar_tracker.ring_members().size() == n_workers);
-                if (i == n_workers - 1) {
+                w.set_core_affinity(i);
+                if (i == 0) {
+                    root_addr = w.get_addr();
+                    ready = true;
                     f();
+                } else {
+                    while (!ready) {}
+                    w.introduce(root_addr); 
                 }
                 w.run();
             }

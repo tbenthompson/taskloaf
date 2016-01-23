@@ -22,30 +22,31 @@ IVarRef::~IVarRef() {
     }
 }
 
+IVarRef::IVarRef(IVarRef&& ref) {
+    assert(!ref.empty);
+    id = std::move(ref.id);
+    ref.empty = true;
+    empty = false;
+}
+
+IVarRef& IVarRef::operator=(IVarRef&& ref) {
+    assert(!ref.empty);
+    id = std::move(ref.id);
+    ref.empty = true;
+    empty = false;
+    return *this; 
+}
+
 IVarRef::IVarRef(const IVarRef& ref):
     IVarRef(ref.id)
 {
     assert(!ref.empty);
 }
 
-IVarRef::IVarRef(IVarRef&& ref) {
-    assert(!ref.empty);
-    id = std::move(ref.id);
-    empty = false;
-    ref.empty = true;
-}
-
-IVarRef& IVarRef::operator=(IVarRef&& ref) {
-    assert(!ref.empty);
-    ref.empty = true;
-    id = std::move(ref.id);
-    empty = false;
-    return *this; 
-}
-
 IVarRef& IVarRef::operator=(const IVarRef& ref) {
-    empty = false;
+    assert(empty);
     id = ref.id;
+    empty = false;
     cur_worker->inc_ref(*this);
     return *this;
 }

@@ -13,6 +13,7 @@ struct ID
 bool operator==(const ID& lhs, const ID& rhs);
 bool operator!=(const ID& lhs, const ID& rhs);
 bool operator<(const ID& lhs, const ID& rhs);
+bool operator<=(const ID& lhs, const ID& rhs);
 
 std::ostream& operator<<(std::ostream& os, const ID& id);
 

@@ -12,6 +12,6 @@ enum class Protocol {
     GetTriggers,
     RecvTriggers,
     AddTrigger,
-    DeleteTriggers,
-    DeleteVals
+    DeleteInfo,
+    OwnershipTransfer
 };

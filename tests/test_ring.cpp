@@ -3,57 +3,74 @@
 #include "taskloaf/ring.hpp"
 #include "taskloaf/caf_comm.hpp"
 
+#include <iostream>
+
 using namespace taskloaf; 
 
-TEST_CASE("Local", "[ring]") {
+struct TestRing {
     CAFComm c;
-    Ring r(c, 1);
+    Ring r;
+    TestRing(int n_locs):
+        r(c, n_locs)
+    {}
+};
+
+TEST_CASE("Local", "[ring]") {
+    TestRing(1);
 }
 
 TEST_CASE("Two nodes meet", "[ring]") {
-    CAFComm c1;
-    Ring r1(c1, 1);
-    CAFComm c2;
-    Ring r2(c2, c1.get_addr(), 1);
-    c1.recv();
-    c2.recv();
-    REQUIRE(r1.ring_size() == 2);
-    REQUIRE(r2.ring_size() == 2);
+    TestRing tr1(1);
+    TestRing tr2(1);
+    tr2.r.introduce(tr1.c.get_addr());
+    tr1.c.recv();
+    tr2.c.recv();
+    REQUIRE(tr1.r.ring_size() == 2);
+    REQUIRE(tr2.r.ring_size() == 2);
 
-    auto id = r1.get_locs()[0];
-    id.secondhalf += 1;
-    REQUIRE(r1.get_owner(id) == c2.get_addr());
-    REQUIRE(r2.get_owner(id) == c2.get_addr());
-}
-
-TEST_CASE("Two gossipers", "[ring]") {
-    auto ids = new_ids(2);
-    CAFComm c1;
-    Ring r1(c1, 1);
-    CAFComm c2;
-    Ring r2(c2, 1);
-    r1.introduce(c2.get_addr());
-    c2.recv();
-    c1.recv();
-    REQUIRE(r1.ring_size() == 2);
-    REQUIRE(r2.ring_size() == 2);
+    auto id = tr1.r.get_locs()[0];
+    id.secondhalf -= 1;
+    REQUIRE(tr1.r.get_owner(id) == tr2.c.get_addr());
+    REQUIRE(tr2.r.get_owner(id) == tr2.c.get_addr());
 }
 
 TEST_CASE("Three gossipers", "[ring]") {
-    CAFComm c1;
-    Ring r1(c1, 1);
-    CAFComm c2;
-    Ring r2(c2, 1);
-    CAFComm c3;
-    Ring r3(c3, 1);
-    r1.introduce(c2.get_addr());
-    r2.introduce(c3.get_addr());
-    for (int i = 0; i < 5; i++) {
-        c3.recv();
-        c1.recv();
-        c2.recv();
+    TestRing tr1(1);
+    TestRing tr2(1);
+    TestRing tr3(1);
+    tr1.r.introduce(tr2.c.get_addr());
+    tr2.r.introduce(tr3.c.get_addr());
+    for (int i = 0; i < 10; i++) {
+        tr3.c.recv();
+        tr1.c.recv();
+        tr2.c.recv();
     }
-    REQUIRE(r1.ring_size() == 3);
-    REQUIRE(r2.ring_size() == 3);
-    REQUIRE(r3.ring_size() == 3);
+    REQUIRE(tr1.r.ring_size() == 3);
+    REQUIRE(tr2.r.ring_size() == 3);
+    REQUIRE(tr3.r.ring_size() == 3);
+}
+
+TEST_CASE("Ownership transfer", "[ring]") {
+    TestRing tr1(1);
+    TestRing tr2(1);
+    tr2.r.introduce(tr1.c.get_addr());
+    bool ran = false;
+    tr1.r.add_transfer_handler([&] (ID begin, ID end, Address addr) {
+        ran = true; 
+        REQUIRE(begin == tr2.r.get_locs()[0]);
+        REQUIRE(end == tr1.r.get_locs()[0]);
+        REQUIRE(addr == tr2.c.get_addr());
+    });
+    tr1.c.recv();
+    tr2.c.recv();
+    REQUIRE(ran);
+}
+
+TEST_CASE("Transfer interval", "[ring]") {
+    TestRing tr1(1);
+    auto id = new_id();
+    auto ts = tr1.r.compute_transfers({id});
+    auto loc = tr1.r.get_locs()[0];
+    REQUIRE(ts[0].first == id);
+    REQUIRE(ts[0].second == loc);
 }

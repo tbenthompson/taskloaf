@@ -11,6 +11,7 @@ struct CAFCommImpl {
     Address addr;
     std::map<Address,caf::actor> other_ends;
     std::map<int,std::function<void(Data)>> handlers;
+    Msg* cur_msg;
 };
 
 CAFComm::CAFComm():
@@ -58,6 +59,10 @@ void CAFComm::send_random(Msg msg) {
     send(item->first, std::move(msg));
 }
 
+void CAFComm::forward(const Address& to) {
+    send(to, *impl->cur_msg);
+}
+
 bool CAFComm::has_incoming() {
     return impl->actor->has_next_message();
 }
@@ -66,10 +71,12 @@ void CAFComm::recv() {
     if (has_incoming()) {
         impl->actor->receive(
             [&] (Msg m) {
+                impl->cur_msg = &m;
                 if (impl->handlers.count(m.msg_type) == 0) {
                     return;
                 }
-                impl->handlers[m.msg_type](std::move(m.data));
+                impl->handlers[m.msg_type](m.data);
+                impl->cur_msg = nullptr;
             }
         );
     }

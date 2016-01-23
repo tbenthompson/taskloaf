@@ -16,12 +16,12 @@ struct IVarTracker {
     IVarTracker(IVarTracker&&);
     ~IVarTracker();
 
+    void introduce(Address addr);
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
 
-    void introduce(Address addr);
     size_t n_owned() const;
     size_t n_triggers_here() const;
     size_t n_vals_here() const;
