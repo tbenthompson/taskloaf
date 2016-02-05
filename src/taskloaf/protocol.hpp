@@ -13,5 +13,6 @@ enum class Protocol {
     RecvTriggers,
     AddTrigger,
     DeleteInfo,
-    OwnershipTransfer
+    SendOwnership,
+    InitiateTransfer
 };

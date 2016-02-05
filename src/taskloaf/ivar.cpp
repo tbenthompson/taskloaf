@@ -10,11 +10,9 @@ IVarRef::IVarRef():
 {}
 
 IVarRef::IVarRef(ID id):
-    id(id),
+    data{id, 0, 0},
     empty(false)
-{
-    cur_worker->inc_ref(*this);
-}
+{}
 
 IVarRef::~IVarRef() {
     if (!empty) {
@@ -24,30 +22,26 @@ IVarRef::~IVarRef() {
 
 IVarRef::IVarRef(IVarRef&& ref) {
     assert(!ref.empty);
-    id = std::move(ref.id);
     ref.empty = true;
+    data = std::move(ref.data);
     empty = false;
 }
 
 IVarRef& IVarRef::operator=(IVarRef&& ref) {
     assert(!ref.empty);
-    id = std::move(ref.id);
     ref.empty = true;
+    id() = std::move(ref.id());
     empty = false;
     return *this; 
 }
 
-IVarRef::IVarRef(const IVarRef& ref):
-    IVarRef(ref.id)
-{
-    assert(!ref.empty);
+IVarRef::IVarRef(const IVarRef& ref) {
+    *this = ref;
 }
 
 IVarRef& IVarRef::operator=(const IVarRef& ref) {
-    assert(empty);
-    id = ref.id;
-    empty = false;
-    cur_worker->inc_ref(*this);
+    data = copy_ref(*const_cast<RefData*>(&ref.data));
+    empty = ref.empty;
     return *this;
 }
 

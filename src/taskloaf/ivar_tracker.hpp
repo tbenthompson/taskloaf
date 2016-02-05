@@ -19,7 +19,6 @@ struct IVarTracker {
     void introduce(Address addr);
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
-    void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
 
     size_t n_owned() const;

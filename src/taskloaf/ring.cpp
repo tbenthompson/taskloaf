@@ -38,6 +38,19 @@ auto before(auto it, const T& collection) {
     return std::prev(it);
 }
 
+bool in_interval(const ID& begin, const ID& end, const ID& val) {
+    if (val < end) {
+        if (end < begin || begin <= val) {
+            return true;
+        }
+    } else {
+        if (end < begin && begin <= val) {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct HashRing {
     std::map<ID,Address> sorted_locs;
 
@@ -61,7 +74,6 @@ struct RingImpl {
 
     std::map<Address,RingState> friends;
     std::vector<ID> my_locs;
-    std::vector<TransferHandler> transfer_handlers;
     HashRing hash_ring;
 
     RingImpl(Comm& comm, int n_locs):
@@ -113,9 +125,9 @@ struct RingImpl {
         
         auto transfers = compute_transfers(their_state.locs);
         for (auto& t: transfers) {
-            for (auto& h: transfer_handlers) {
-                h(t.first, t.second, their_state.addr);
-            }
+            comm.send(comm.get_addr(), Msg(Protocol::InitiateTransfer,
+                make_data(std::make_tuple(t.first, t.second, their_state.addr))
+            ));
         }
         hash_ring.insert(their_state.locs, their_state.addr);
         friends.insert(std::make_pair(their_state.addr, their_state));
@@ -159,10 +171,6 @@ void Ring::gossip() {
 
 std::vector<std::pair<ID,ID>> Ring::compute_transfers(const std::vector<ID>& locs) {
     return impl->compute_transfers(locs);
-}
-
-void Ring::add_transfer_handler(TransferHandler handler) {
-    impl->transfer_handlers.push_back(std::move(handler)); 
 }
 
 Address Ring::get_owner(const ID& id) {

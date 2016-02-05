@@ -15,7 +15,8 @@ struct Worker {
     bool stop = false;
 
     Worker();
-    Worker(Worker&&);
+    Worker(Worker&&) = delete;
+    Worker(const Worker&) = delete;
     ~Worker();
 
     void shutdown();
@@ -24,7 +25,6 @@ struct Worker {
     void add_task(TaskT f);
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
-    void inc_ref(const IVarRef& ivar);
     void dec_ref(const IVarRef& ivar);
     void recv();
     void run();

@@ -2,6 +2,7 @@
 
 #include "taskloaf/ring.hpp"
 #include "taskloaf/caf_comm.hpp"
+#include "taskloaf/protocol.hpp"
 
 #include <iostream>
 
@@ -55,11 +56,12 @@ TEST_CASE("Ownership transfer", "[ring]") {
     TestRing tr2(1);
     tr2.r.introduce(tr1.c.get_addr());
     bool ran = false;
-    tr1.r.add_transfer_handler([&] (ID begin, ID end, Address addr) {
+    tr1.c.add_handler(to_underlying(Protocol::InitiateTransfer), [&] (Data d) {
+        auto& p = d.get_as<std::tuple<ID,ID,Address>>();
         ran = true; 
-        REQUIRE(begin == tr2.r.get_locs()[0]);
-        REQUIRE(end == tr1.r.get_locs()[0]);
-        REQUIRE(addr == tr2.c.get_addr());
+        REQUIRE(std::get<0>(p) == tr2.r.get_locs()[0]);
+        REQUIRE(std::get<1>(p) == tr1.r.get_locs()[0]);
+        REQUIRE(std::get<2>(p) == tr2.c.get_addr());
     });
     tr1.c.recv();
     tr2.c.recv();
@@ -73,4 +75,12 @@ TEST_CASE("Transfer interval", "[ring]") {
     auto loc = tr1.r.get_locs()[0];
     REQUIRE(ts[0].first == id);
     REQUIRE(ts[0].second == loc);
+}
+
+TEST_CASE("In interval", "[ring]") {
+    REQUIRE(!in_interval({10, 0}, {1, 0}, {5, 0}));
+    REQUIRE(in_interval({0, 0}, {10, 0}, {5, 0}));
+    REQUIRE(!in_interval({0, 0}, {10, 0}, {11, 0}));
+    REQUIRE(in_interval({1000, 0}, {10, 0}, {5, 0}));
+    REQUIRE(in_interval({3, 0}, {1, 0}, {5, 0}));
 }

@@ -21,8 +21,6 @@ Worker::Worker():
     });
 }
 
-Worker::Worker(Worker&&) = default;
-
 Worker::~Worker() {
     cur_worker = this;
     stop = true;
@@ -51,10 +49,6 @@ void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
 
 void Worker::add_trigger(const IVarRef& iv, TriggerT trigger) {
     ivar_tracker.add_trigger(iv, std::move(trigger));
-}
-
-void Worker::inc_ref(const IVarRef& iv) {
-    ivar_tracker.inc_ref(iv);
 }
 
 void Worker::dec_ref(const IVarRef& iv) {

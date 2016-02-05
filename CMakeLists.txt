@@ -123,7 +123,7 @@ target_include_directories(taskloaf PRIVATE
     ${CAF_INCLUDE_DIRS} 
     ${PROJECT_INCLUDE_DIR})
 add_dependencies(taskloaf actor-framework)
-target_link_libraries(taskloaf ${CAF_LIBRARIES} -lboost_system)
+target_link_libraries(taskloaf ${CAF_LIBRARIES}) 
 
 ################################################################################
 #                              taskloaf tests
@@ -138,6 +138,7 @@ add_executable(run_tests
     tests/test_id.cpp
     tests/test_ring.cpp
     tests/test_comm.cpp
+    tests/test_ivar.cpp
     )
 target_include_directories(run_tests PRIVATE
     ${CATCH_INCLUDE_DIRS}

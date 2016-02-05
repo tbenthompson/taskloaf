@@ -10,8 +10,19 @@ struct CAFCommImpl {
     caf::scoped_actor actor;
     Address addr;
     std::map<Address,caf::actor> other_ends;
-    std::map<int,std::function<void(Data)>> handlers;
+    std::map<int,std::vector<std::function<void(Data)>>> handlers;
     Msg* cur_msg;
+
+    void call_handlers(Msg& m) {
+        cur_msg = &m;
+        if (handlers.count(m.msg_type) == 0) {
+            return;
+        }
+        for (auto& h: handlers[m.msg_type]) {
+            h(m.data);
+        }
+        cur_msg = nullptr;
+    }
 };
 
 CAFComm::CAFComm():
@@ -31,6 +42,10 @@ const Address& CAFComm::get_addr() {
 }
 
 void CAFComm::send(const Address& dest, Msg msg) {
+    if (dest == get_addr()) {
+        impl->call_handlers(msg);
+        return;
+    }
     if (impl->other_ends.count(dest) == 0) {
         //TODO: An asynchronous remote_actor function would be really helpful
         //in having very very fast startup and teardown times for taskloaf.
@@ -71,19 +86,14 @@ void CAFComm::recv() {
     if (has_incoming()) {
         impl->actor->receive(
             [&] (Msg m) {
-                impl->cur_msg = &m;
-                if (impl->handlers.count(m.msg_type) == 0) {
-                    return;
-                }
-                impl->handlers[m.msg_type](m.data);
-                impl->cur_msg = nullptr;
+                impl->call_handlers(m);
             }
         );
     }
 }
 
 void CAFComm::add_handler(int msg_type, std::function<void(Data)> handler) {
-    impl->handlers.insert(std::make_pair(msg_type, std::move(handler)));
+    impl->handlers[msg_type].push_back(std::move(handler));
 }
 
 } //end namespace taskloaf

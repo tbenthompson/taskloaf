@@ -24,7 +24,6 @@ TaskCollection::TaskCollection(Comm& comm):
         auto p = d.get_as<std::pair<Address,size_t>>();
         auto n_steals = steal_count(p.second, tasks.size());
         std::vector<TaskT> steals;
-        std::cout << tasks.size() << std::endl;
         for (size_t i = 0; i < n_steals; i++) {
             steals.push_back(std::move(tasks.back()));
             tasks.pop_back();

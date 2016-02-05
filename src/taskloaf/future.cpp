@@ -33,7 +33,7 @@ IVarRef plan_unwrap(const IVarRef& input, PureTaskT unwrapper) {
     cur_worker->add_trigger(input,
         [out_future = out_future, fnc = std::move(unwrapper)]
         (std::vector<Data>& vals) mutable {
-            auto result = std::move(fnc(vals).get_as<IVarRef>());
+            auto result = fnc(vals).get_as<IVarRef>();
             cur_worker->add_trigger(result,
                 [out_future = std::move(out_future)]
                 (std::vector<Data>& vals) mutable {
@@ -118,6 +118,7 @@ void launch_helper(size_t n_workers, std::function<IVarRef()> f) {
                     f();
                 } else {
                     while (!ready) {}
+                    std::cout << root_addr.port << std::endl;
                     w.introduce(root_addr); 
                 }
                 w.run();
