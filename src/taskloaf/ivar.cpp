@@ -10,7 +10,12 @@ IVarRef::IVarRef():
 {}
 
 IVarRef::IVarRef(ID id):
-    data{id, 0, 0},
+    IVarRef(std::move(id), initial_ref())
+{}
+
+IVarRef::IVarRef(ID id, RefData data):
+    id(std::move(id)),
+    data(std::move(data)),
     empty(false)
 {}
 
@@ -20,28 +25,34 @@ IVarRef::~IVarRef() {
     }
 }
 
+void move(IVarRef& to, IVarRef&& from) {
+    to.id = std::move(from.id);
+    to.data = std::move(from.data);
+    to.empty = from.empty;
+    from.empty = true;
+}
+
+void copy(IVarRef& to, const IVarRef& from) {
+    to.data = copy_ref(*const_cast<RefData*>(&from.data));
+    to.id = from.id;
+    to.empty = from.empty;
+}
+
 IVarRef::IVarRef(IVarRef&& ref) {
-    assert(!ref.empty);
-    ref.empty = true;
-    data = std::move(ref.data);
-    empty = false;
+    move(*this, std::move(ref));
 }
 
 IVarRef& IVarRef::operator=(IVarRef&& ref) {
-    assert(!ref.empty);
-    ref.empty = true;
-    id() = std::move(ref.id());
-    empty = false;
+    move(*this, std::move(ref));
     return *this; 
 }
 
 IVarRef::IVarRef(const IVarRef& ref) {
-    *this = ref;
+    copy(*this, ref);
 }
 
 IVarRef& IVarRef::operator=(const IVarRef& ref) {
-    data = copy_ref(*const_cast<RefData*>(&ref.data));
-    empty = ref.empty;
+    copy(*this, ref);
     return *this;
 }
 

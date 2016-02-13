@@ -111,6 +111,9 @@ void Worker::run() {
     auto t_idle = t_not_tasks.time_ms - t_comm.time_ms;
     auto t_tasks = t_total.time_ms - t_not_tasks.time_ms;
 
+    for (int i = 0; i < 10000000; i++) {
+        comm->recv();
+    }
     std::stringstream buf;
     buf << "n(" << core_id << "): " << n_tasks
         << " comm: " << t_comm.time_ms 

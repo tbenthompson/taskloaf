@@ -47,7 +47,7 @@ TEST_CASE("Forward") {
 
     int x = 0;
     p1.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
-    p2.add_handler(0, [&] (Data) { p2.forward(p1.get_addr()); });
+    p2.add_handler(0, [&] (Data) { p2.send(p1.get_addr(), p2.cur_message()); });
 
     p2.recv();
     p1.recv();

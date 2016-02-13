@@ -4,7 +4,6 @@
 #include <queue>
 #include <thread>
 #include <atomic>
-#include <iostream>
 
 namespace taskloaf {
 
@@ -118,7 +117,6 @@ void launch_helper(size_t n_workers, std::function<IVarRef()> f) {
                     f();
                 } else {
                     while (!ready) {}
-                    std::cout << root_addr.port << std::endl;
                     w.introduce(root_addr); 
                 }
                 w.run();

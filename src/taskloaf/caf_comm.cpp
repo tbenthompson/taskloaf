@@ -74,8 +74,8 @@ void CAFComm::send_random(Msg msg) {
     send(item->first, std::move(msg));
 }
 
-void CAFComm::forward(const Address& to) {
-    send(to, *impl->cur_msg);
+Msg& CAFComm::cur_message() {
+    return *impl->cur_msg;
 }
 
 bool CAFComm::has_incoming() {

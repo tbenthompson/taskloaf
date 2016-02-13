@@ -17,6 +17,7 @@ bool operator<=(const ID& lhs, const ID& rhs);
 
 std::ostream& operator<<(std::ostream& os, const ID& id);
 
+size_t random_sizet();
 ID new_id();
 std::vector<ID> new_ids(size_t count);
 

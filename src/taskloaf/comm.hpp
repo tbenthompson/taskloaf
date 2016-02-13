@@ -36,7 +36,7 @@ struct Comm {
     virtual void send_random(Msg msg) = 0;
     virtual bool has_incoming() = 0;
     virtual void recv() = 0;
-    virtual void forward(const Address& to) = 0;
+    virtual Msg& cur_message() = 0;
     virtual void add_handler(int msg_type, std::function<void(Data)> handler) = 0; 
 
     template <typename T>

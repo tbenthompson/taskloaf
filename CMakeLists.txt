@@ -117,6 +117,7 @@ add_library(taskloaf SHARED
     src/taskloaf/id.cpp
     src/taskloaf/ring.cpp
     src/taskloaf/caf_comm.cpp
+    src/taskloaf/ref_counting.cpp
     )
 
 target_include_directories(taskloaf PRIVATE
@@ -138,7 +139,7 @@ add_executable(run_tests
     tests/test_id.cpp
     tests/test_ring.cpp
     tests/test_comm.cpp
-    tests/test_ivar.cpp
+    tests/test_ref_counting.cpp
     )
 target_include_directories(run_tests PRIVATE
     ${CATCH_INCLUDE_DIRS}
