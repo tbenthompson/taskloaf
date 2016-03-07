@@ -14,9 +14,7 @@ struct CAFComm: public Comm {
 
     const Address& get_addr() override;
     void send(const Address& dest, Msg msg) override;
-    //TODO: Better architecture for these send_ functions?
-    void send_all(Msg msg) override;
-    void send_random(Msg msg) override;
+    const std::vector<Address>& remote_endpoints() override;
     Msg& cur_message() override;
     bool has_incoming() override;
     void recv() override;

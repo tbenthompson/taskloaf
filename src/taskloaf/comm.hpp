@@ -2,6 +2,7 @@
 #include "data.hpp"
 
 #include <functional>
+#include <vector>
 
 namespace taskloaf {
 
@@ -14,6 +15,11 @@ constexpr auto to_underlying(E e) noexcept
 struct Msg {
     int msg_type; 
     Data data;
+
+    Msg():
+        msg_type(0),
+        data(empty_data())
+    {}
 
     Msg(int msg_type, Data data):
         msg_type(msg_type),
@@ -32,8 +38,7 @@ struct Address;
 struct Comm {
     virtual const Address& get_addr() = 0;
     virtual void send(const Address& dest, Msg msg) = 0;
-    virtual void send_all(Msg msg) = 0;
-    virtual void send_random(Msg msg) = 0;
+    virtual const std::vector<Address>& remote_endpoints() = 0;
     virtual bool has_incoming() = 0;
     virtual void recv() = 0;
     virtual Msg& cur_message() = 0;
@@ -43,6 +48,8 @@ struct Comm {
     void add_handler(T msg_type, std::function<void(Data)> handler) {
         add_handler(to_underlying(msg_type), std::move(handler));
     }
+
+    void send_random(Msg msg);
 };
 
 } //end namespace taskloaf

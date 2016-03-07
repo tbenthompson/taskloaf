@@ -31,7 +31,6 @@ set(CMAKE_THREAD_LIBS_INIT -lpthread)
 
 FIND_PACKAGE(OpenMP REQUIRED)
 if(OPENMP_FOUND)
-    message("OPENMP FOUND")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
@@ -56,7 +55,6 @@ else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support.
                     Please use a different C++ compiler.")
 endif() 
-MESSAGE(${CMAKE_CXX_FLAGS})
 
 ################################################################################
 #                              includes
@@ -76,6 +74,9 @@ set(CAF_LIBRARIES
     ${CAF_ROOT_DIR}/actor-framework-build/lib/libcaf_core.so
     ${CAF_ROOT_DIR}/actor-framework-build/lib/libcaf_io.so)
 
+set(MPMCQUEUE_ROOT_DIR ${PROJECT_BINARY_DIR}/concurrentqueue-prefix/src)
+set(MPMCQUEUE_INCLUDE_DIR ${MPMCQUEUE_ROOT_DIR}/concurrentqueue)
+
 ################################################################################
 #                              Grab C++ Actor Framework
 ################################################################################
@@ -87,6 +88,20 @@ ExternalProject_Add(
     CONFIGURE_COMMAND <SOURCE_DIR>/configure 
         --no-examples --no-riac --no-cash --no-nexus --no-opencl --no-unit-tests
         --build-dir=<BINARY_DIR>
+    UPDATE_COMMAND ""
+    INSTALL_COMMAND ""
+)
+
+################################################################################
+#                              Grab MPMC queue
+################################################################################
+
+ExternalProject_Add(
+    concurrentqueue
+    DOWNLOAD_COMMAND git clone --depth 1
+	git@github.com:cameron314/concurrentqueue.git
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
     UPDATE_COMMAND ""
     INSTALL_COMMAND ""
 )
@@ -118,12 +133,16 @@ add_library(taskloaf SHARED
     src/taskloaf/ring.cpp
     src/taskloaf/caf_comm.cpp
     src/taskloaf/ref_counting.cpp
+    src/taskloaf/mpi_comm.cpp
+    src/taskloaf/comm.cpp
     )
 
 target_include_directories(taskloaf PRIVATE
+    ${PROJECT_INCLUDE_DIR}
     ${CAF_INCLUDE_DIRS} 
-    ${PROJECT_INCLUDE_DIR})
-add_dependencies(taskloaf actor-framework)
+    ${MPMCQUEUE_INCLUDE_DIR}
+    )
+add_dependencies(taskloaf actor-framework concurrentqueue)
 target_link_libraries(taskloaf ${CAF_LIBRARIES}) 
 
 ################################################################################
@@ -142,9 +161,10 @@ add_executable(run_tests
     tests/test_ref_counting.cpp
     )
 target_include_directories(run_tests PRIVATE
-    ${CATCH_INCLUDE_DIRS}
     ${PROJECT_INCLUDE_DIR}
     ${PROJECT_SOURCE_DIR}
+    ${MPMCQUEUE_INCLUDE_DIR}
+    ${CATCH_INCLUDE_DIRS}
     )
 add_dependencies(run_tests taskloaf Catch)
 target_link_libraries(run_tests taskloaf)

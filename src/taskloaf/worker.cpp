@@ -27,7 +27,10 @@ Worker::~Worker() {
 }
 
 void Worker::shutdown() {
-    comm->send_all(Msg(Protocol::Shutdown, make_data(10)));
+    auto& remotes = comm->remote_endpoints();
+    for (auto& r: remotes) {
+        comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
+    }
     stop = true;
 }
 

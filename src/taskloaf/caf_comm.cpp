@@ -10,8 +10,14 @@ struct CAFCommImpl {
     caf::scoped_actor actor;
     Address addr;
     std::map<Address,caf::actor> other_ends;
+    std::vector<Address> other_end_addrs;
     std::map<int,std::vector<std::function<void(Data)>>> handlers;
     Msg* cur_msg;
+
+    void insert_other_end(const Address& addr, const caf::actor& actor) {
+        other_ends[addr] = actor;
+        other_end_addrs.push_back(addr);
+    }
 
     void call_handlers(Msg& m) {
         cur_msg = &m;
@@ -50,28 +56,13 @@ void CAFComm::send(const Address& dest, Msg msg) {
         //TODO: An asynchronous remote_actor function would be really helpful
         //in having very very fast startup and teardown times for taskloaf.
         auto connection = caf::io::remote_actor(dest.hostname, dest.port);
-        impl->other_ends[dest] = connection;
+        impl->insert_other_end(dest, connection);
     }
     impl->actor->send(impl->other_ends[dest], std::move(msg));
 }
 
-void CAFComm::send_all(Msg msg) {
-    for (auto& endpt: impl->other_ends) {
-        send(endpt.first, msg); 
-    }
-}
-
-void CAFComm::send_random(Msg msg) {
-    thread_local std::random_device rd;
-    thread_local std::mt19937 gen(rd());
-    if (impl->other_ends.size() == 0) {
-        return;
-    }
-    std::uniform_int_distribution<> dis(0, impl->other_ends.size() - 1);
-    auto item = impl->other_ends.begin();
-    auto count = dis(gen);
-    std::advance(item, count); 
-    send(item->first, std::move(msg));
+const std::vector<Address>& CAFComm::remote_endpoints() {
+    return impl->other_end_addrs;
 }
 
 Msg& CAFComm::cur_message() {
