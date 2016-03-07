@@ -3,6 +3,7 @@
 #include "taskloaf/worker.hpp"
 #include "taskloaf/id.hpp"
 #include "taskloaf/comm.hpp"
+#include "taskloaf/local_comm.hpp"
 
 #include <iostream>
 
@@ -17,10 +18,18 @@ void settle(std::vector<std::unique_ptr<Worker>>& ws) {
     }
 }
 
+Worker worker() {
+    auto lcq = std::make_shared<LocalCommQueues>(1);
+    return Worker(std::make_unique<LocalComm>(LocalComm(lcq, 0)));
+}
+
 std::vector<std::unique_ptr<Worker>> workers(int n_workers) {
+    auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws;
     for (int i = 0; i < n_workers; i++) {
-        ws.emplace_back(std::make_unique<Worker>());
+        ws.emplace_back(std::make_unique<Worker>(
+            std::make_unique<LocalComm>(LocalComm(lcq, i))
+        ));
         if (i != 0) {
             ws[i]->introduce(ws[0]->get_addr());
         }
@@ -36,7 +45,7 @@ ID id_on_worker(const std::unique_ptr<Worker>& w) {
 }
 
 TEST_CASE("Worker") {
-    Worker w;
+    auto w = worker();
     int x = 0;
     w.add_task([&] () { x = 1; cur_worker->shutdown(); });
     w.run();
@@ -76,7 +85,7 @@ void make_ivar_live(Worker& w, const IVarRef& ivar) {
 }
 
 TEST_CASE("Ref tracking destructor deletes") {
-    Worker w; 
+    auto w = worker();
     cur_worker = &w;
     {
         IVarRef iv(new_id());
@@ -87,7 +96,7 @@ TEST_CASE("Ref tracking destructor deletes") {
 }
 
 TEST_CASE("Ref tracking copy constructor") {
-    Worker w;
+    auto w = worker();
     cur_worker = &w;
     {
         std::unique_ptr<IVarRef> ivarref2;
@@ -101,7 +110,7 @@ TEST_CASE("Ref tracking copy constructor") {
 }
 
 TEST_CASE("Ref tracking copy assignment") {
-    Worker w;
+    auto w = worker();
     cur_worker = &w;
     {
         IVarRef ivarref2;
@@ -120,7 +129,7 @@ TEST_CASE("Ref tracking empty") {
 }
 
 TEST_CASE("Ref tracking move constructor") {
-    Worker w;
+    auto w = worker();
     cur_worker = &w;
     {
         std::unique_ptr<IVarRef> ivarref2;
@@ -136,7 +145,7 @@ TEST_CASE("Ref tracking move constructor") {
 }
 
 TEST_CASE("Ref tracking move assignment") {
-    Worker w;
+    auto w = worker();
     cur_worker = &w;
     {
         IVarRef iv;
@@ -202,7 +211,6 @@ TEST_CASE("Remote reference counting change location") {
 void remote(int n_workers, int owner_worker, int fulfill_worker,
     int trigger_worker, bool trigger_first) 
 {
-    // std::cout << n_workers << " " << owner_worker << " " << fulfill_worker << " " << trigger_worker << " " << trigger_first << std::endl;
     auto ws = workers(n_workers);
     int x = 0;
 

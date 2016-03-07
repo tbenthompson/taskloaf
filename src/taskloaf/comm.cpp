@@ -5,6 +5,16 @@
 
 namespace taskloaf {
 
+Msg::Msg():
+    msg_type(0),
+    data(empty_data())
+{}
+
+Msg::Msg(int msg_type, Data data):
+    msg_type(msg_type),
+    data(std::move(data))
+{}
+
 void Comm::send_random(Msg msg) {
     thread_local std::random_device rd;
     thread_local std::mt19937 gen(rd());

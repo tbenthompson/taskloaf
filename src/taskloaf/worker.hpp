@@ -14,8 +14,8 @@ struct Worker {
     bool stealing = false;
     bool stop = false;
 
-    Worker();
-    Worker(Worker&&) = delete;
+    Worker(std::unique_ptr<Comm> comm);
+    Worker(Worker&&) = default;
     Worker(const Worker&) = delete;
     ~Worker();
 

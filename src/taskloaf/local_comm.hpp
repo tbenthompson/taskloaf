@@ -1,9 +1,12 @@
 #pragma once
 #include "address.hpp"
+#include "comm.hpp"
 
 #include "concurrentqueue.h"
 
 #include <map>
+//TODO: REMOVE 
+#include <iostream>
 
 
 namespace taskloaf {
@@ -57,12 +60,16 @@ struct LocalComm: public Comm {
     std::vector<Address> remotes;
     Address my_addr;
     std::map<int,std::vector<std::function<void(Data)>>> handlers;
+    Msg* cur_msg;
 
-    LocalComm(const std::shared_ptr<LocalCommQueues>& qs, uint16_t my_index):
+    LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index):
         queues(qs),
         my_addr{"", my_index}
     {
         for (size_t i = 0; i < queues->n_workers(); i++) {
+            if (i == my_index) {
+                continue;
+            }
             remotes.push_back({"", static_cast<uint16_t>(i)});
         }
     }
@@ -76,34 +83,37 @@ struct LocalComm: public Comm {
         }
     }
 
-    const Address& get_addr() {
+    const Address& get_addr() override {
         return my_addr;
     }
 
-    const std::vector<Address>& remote_endpoints() {
+    const std::vector<Address>& remote_endpoints() override {
         return remotes;
     }
 
-    void send(const Address& dest, Msg msg) {
+    void send(const Address& dest, Msg msg) override {
         queues->enqueue(dest.port, std::move(msg));
     }
 
-    Msg& cur_message() {
-        return queues->front(my_addr.port);
+    Msg& cur_message() override {
+        return *cur_msg;
     }
 
-    bool has_incoming() {
+    bool has_incoming() override {
         return queues->has_incoming(my_addr.port);
     }
 
-    void recv() {
+    void recv() override {
         if (has_incoming()) {
-            call_handlers(queues->front(my_addr.port));
+            auto m = std::move(queues->front(my_addr.port));
             queues->pop_front(my_addr.port);
+            cur_msg = &m;
+            call_handlers(m);
+            cur_msg = nullptr;
         }
     }
 
-    void add_handler(int msg_type, std::function<void(Data)> handler) {
+    void add_handler(int msg_type, std::function<void(Data)> handler) override {
         handlers[msg_type].push_back(std::move(handler));
     }
 };

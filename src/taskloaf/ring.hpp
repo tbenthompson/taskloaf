@@ -16,6 +16,8 @@ struct Ring {
 
     ~Ring();
 
+    Comm& get_comm();
+
     void introduce(const Address& their_addr);
     void gossip();
     std::vector<std::pair<ID,ID>> compute_transfers(const std::vector<ID>& locs);

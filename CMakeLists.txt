@@ -25,10 +25,6 @@ endif()
 #                              Check for threading library (pthreads..., OpenMP)
 ################################################################################
 
-# Currently, find_package(Threads) has a bug in CMake. Should be fixed soon.
-# find_package(Threads REQUIRED)
-set(CMAKE_THREAD_LIBS_INIT -lpthread)
-
 FIND_PACKAGE(OpenMP REQUIRED)
 if(OPENMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -60,7 +56,6 @@ endif()
 #                              includes
 ################################################################################
 
-set(CMAKE_THREAD_LIBS_INIT -lpthread)
 set(PROJECT_BINARY_DIR ${PROJECT_DIR}/build)
 set(PROJECT_INCLUDE_DIR ${PROJECT_DIR}/src)
 set(PROJECT_SOURCE_DIR ${PROJECT_DIR}/src)
@@ -131,7 +126,6 @@ add_library(taskloaf SHARED
     src/taskloaf/ivar_tracker.cpp
     src/taskloaf/id.cpp
     src/taskloaf/ring.cpp
-    src/taskloaf/caf_comm.cpp
     src/taskloaf/ref_counting.cpp
     src/taskloaf/mpi_comm.cpp
     src/taskloaf/comm.cpp

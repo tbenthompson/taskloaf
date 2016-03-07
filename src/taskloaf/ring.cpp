@@ -1,6 +1,7 @@
 #include "ring.hpp"
 #include "protocol.hpp"
 #include "comm.hpp"
+#include "address.hpp"
 #include "data.hpp"
 
 #include <map>
@@ -167,6 +168,10 @@ void Ring::introduce(const Address& their_addr) {
 
 void Ring::gossip() {
     impl->gossip(false);
+}
+
+Comm& Ring::get_comm() {
+    return impl->comm;
 }
 
 std::vector<std::pair<ID,ID>> Ring::compute_transfers(const std::vector<ID>& locs) {

@@ -1,6 +1,5 @@
 #include "catch.hpp"
 
-#include "taskloaf/caf_comm.hpp"
 #include "taskloaf/local_comm.hpp"
 
 #include "concurrentqueue.h"
@@ -21,16 +20,11 @@ TEST_CASE("Local comm", "[local_comm]") {
     LocalComm a(lcq, 0);
     LocalComm b(lcq, 1);
 
-    SECTION("Send") {
+    SECTION("Recv") {
+        int x = 0;
         REQUIRE(!b.has_incoming());
         a.send({"", 1}, Msg(0, make_data(13)));
         REQUIRE(b.has_incoming());
-        REQUIRE(b.cur_message().data.get_as<int>() == 13);
-    }
-
-    SECTION("Recv") {
-        int x = 0;
-        a.send({"", 1}, Msg(0, make_data(13)));
         b.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
         b.recv();
         REQUIRE(x == 13); 
@@ -45,54 +39,30 @@ TEST_CASE("Local comm", "[local_comm]") {
         b.recv();
         REQUIRE(x == 36); 
     }
-}
 
-TEST_CASE("Protocol set up") {
-    CAFComm c1;
-}
+    SECTION("Two handlers") {
+        a.send(b.get_addr(), Msg{1, make_data(11)});
+        int x = 0;
+        b.add_handler(0, [&] (Data d) { (void)d; x = 1; });
+        b.add_handler(1, [&] (Data d) { x = d.get_as<int>(); });
+        b.recv();
+        REQUIRE(x == 11);
+    }
 
-TEST_CASE("Protocol recv") {
-    CAFComm c1;
-    CAFComm c2;
+    SECTION("Skip unhandled") {
+        a.send(b.get_addr(), Msg{1, make_data(11)});
+        b.recv();
+    }
 
-    c1.send(c2.get_addr(), Msg{0, make_data(10)});
+    SECTION("Forward") {
+        a.send(b.get_addr(), Msg{0, make_data(11)});
 
-    int x = 0;
-    c2.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
-    c2.recv();
-    REQUIRE(x == 10);
-}
+        int x = 0;
+        a.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
+        b.add_handler(0, [&] (Data) { b.send(a.get_addr(), b.cur_message()); });
 
-TEST_CASE("Two handlers") {
-    CAFComm c1;
-    CAFComm c2;
-
-    c1.send(c2.get_addr(), Msg{1, make_data(11)});
-
-    int x = 0;
-    c2.add_handler(0, [&] (Data d) { (void)d; x = 1; });
-    c2.add_handler(1, [&] (Data d) { x = d.get_as<int>(); });
-    c2.recv();
-    REQUIRE(x == 11);
-}
-
-TEST_CASE("Skip unhandled message") {
-    CAFComm c1;
-    CAFComm c2;
-    c1.send(c2.get_addr(), Msg{1, make_data(11)});
-    c2.recv();
-}
-
-TEST_CASE("Forward") {
-    CAFComm c1;
-    CAFComm c2;
-    c1.send(c2.get_addr(), Msg{0, make_data(11)});
-
-    int x = 0;
-    c1.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
-    c2.add_handler(0, [&] (Data) { c2.send(c1.get_addr(), c2.cur_message()); });
-
-    c2.recv();
-    c1.recv();
-    REQUIRE(x == 11);
+        b.recv();
+        a.recv();
+        REQUIRE(x == 11);
+    }
 }

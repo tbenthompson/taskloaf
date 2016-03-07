@@ -1,6 +1,6 @@
 #include "worker.hpp"
-#include "caf_comm.hpp"
 #include "protocol.hpp"
+#include "comm.hpp"
 
 //TODO: Remove
 #include <iostream>
@@ -11,8 +11,8 @@ namespace taskloaf {
 
 thread_local Worker* cur_worker;
 
-Worker::Worker():
-    comm(std::make_unique<CAFComm>()),
+Worker::Worker(std::unique_ptr<Comm> p_comm):
+    comm(std::move(p_comm)),
     tasks(*comm),
     ivar_tracker(*comm)
 {

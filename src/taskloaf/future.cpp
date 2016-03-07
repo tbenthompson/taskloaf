@@ -1,5 +1,6 @@
 #include "future.hpp"
 #include "worker.hpp"
+#include "local_comm.hpp"
 
 #include <queue>
 #include <thread>
@@ -105,10 +106,11 @@ void launch_helper(size_t n_workers, std::function<IVarRef()> f) {
     std::vector<std::thread> threads;
     Address root_addr;
     std::atomic<bool> ready(false);
+    auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     for (size_t i = 0; i < n_workers; i++) { 
         threads.emplace_back(
-            [f, i, &root_addr, &ready] () mutable {
-                Worker w;
+            [f, i, lcq, &root_addr, &ready] () mutable {
+                Worker w(std::make_unique<LocalComm>(LocalComm(lcq, i)));
                 cur_worker = &w;
                 w.set_core_affinity(i);
                 if (i == 0) {

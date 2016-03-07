@@ -16,15 +16,8 @@ struct Msg {
     int msg_type; 
     Data data;
 
-    Msg():
-        msg_type(0),
-        data(empty_data())
-    {}
-
-    Msg(int msg_type, Data data):
-        msg_type(msg_type),
-        data(std::move(data))
-    {}
+    Msg();
+    Msg(int msg_type, Data data);
 
     template <typename T>
     Msg(T msg_type, Data data):
