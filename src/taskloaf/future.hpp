@@ -32,7 +32,7 @@ auto then(const Future<Ts...>& fut, F fnc) {
 template <typename T>
 auto unwrap(const Future<T>& fut) {
     auto unwrapper = [] (std::vector<Data>& in) {
-        return Data{make_safe_void_ptr(in[0].get_as<T>().ivar)};
+        return make_data(in[0].get_as<T>().ivar);
     };
     return Future<typename T::type>{plan_unwrap(fut.ivar, std::move(unwrapper))};
 }

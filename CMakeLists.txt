@@ -36,7 +36,7 @@ endif()
 #                              setup compiler
 ################################################################################
 
-set(warnings "-Wall -Wextra -Werror -Wno-parentheses -Wno-deprecated-declarations")
+set(warnings "-Wall -Wextra -Werror -Wno-parentheses -Wno-deprecated-declarations -Wno-unknown-pragmas")
 set(opt "-O3 -g") 
 if (BUILD_TYPE STREQUAL "Debug")
     set(opt "-O0 -g -DSPDLOG_TRACE_ON")
@@ -60,33 +60,6 @@ set(PROJECT_BINARY_DIR ${PROJECT_DIR}/build)
 set(PROJECT_INCLUDE_DIR ${PROJECT_DIR}/src)
 set(PROJECT_SOURCE_DIR ${PROJECT_DIR}/src)
 
-set(CATCH_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/Catch-prefix/src/Catch/single_include)
-set(CAF_ROOT_DIR ${PROJECT_BINARY_DIR}/actor-framework-prefix/src)
-set(CAF_INCLUDE_DIRS
-    ${CAF_ROOT_DIR}/actor-framework/libcaf_core 
-    ${CAF_ROOT_DIR}/actor-framework/libcaf_io)
-set(CAF_LIBRARIES 
-    ${CAF_ROOT_DIR}/actor-framework-build/lib/libcaf_core.so
-    ${CAF_ROOT_DIR}/actor-framework-build/lib/libcaf_io.so)
-
-set(MPMCQUEUE_ROOT_DIR ${PROJECT_BINARY_DIR}/concurrentqueue-prefix/src)
-set(MPMCQUEUE_INCLUDE_DIR ${MPMCQUEUE_ROOT_DIR}/concurrentqueue)
-
-################################################################################
-#                              Grab C++ Actor Framework
-################################################################################
-
-ExternalProject_Add(
-    actor-framework
-    DOWNLOAD_COMMAND git clone --depth 1
-        git@github.com:actor-framework/actor-framework.git
-    CONFIGURE_COMMAND <SOURCE_DIR>/configure 
-        --no-examples --no-riac --no-cash --no-nexus --no-opencl --no-unit-tests
-        --build-dir=<BINARY_DIR>
-    UPDATE_COMMAND ""
-    INSTALL_COMMAND ""
-)
-
 ################################################################################
 #                              Grab MPMC queue
 ################################################################################
@@ -100,6 +73,24 @@ ExternalProject_Add(
     UPDATE_COMMAND ""
     INSTALL_COMMAND ""
 )
+set(MPMCQUEUE_ROOT_DIR ${PROJECT_BINARY_DIR}/concurrentqueue-prefix/src)
+set(MPMCQUEUE_INCLUDE_DIR ${MPMCQUEUE_ROOT_DIR}/concurrentqueue)
+
+################################################################################
+#                              Grab Cereal for serialization
+################################################################################
+
+ExternalProject_Add(
+    cereal
+    DOWNLOAD_COMMAND git clone --depth 1
+        git@github.com:USCiLab/cereal.git
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    UPDATE_COMMAND ""
+    INSTALL_COMMAND ""
+)
+set(CEREAL_ROOT_DIR ${PROJECT_BINARY_DIR}/cereal-prefix/src)
+set(CEREAL_INCLUDE_DIR ${CEREAL_ROOT_DIR}/cereal/include)
 
 ################################################################################
 #                              Grab Catch
@@ -113,6 +104,7 @@ ExternalProject_Add(
     UPDATE_COMMAND ""
     INSTALL_COMMAND ""
 )
+set(CATCH_INCLUDE_DIRS ${PROJECT_BINARY_DIR}/Catch-prefix/src/Catch/single_include)
 
 ################################################################################
 #                              taskloaf library
@@ -127,17 +119,18 @@ add_library(taskloaf SHARED
     src/taskloaf/id.cpp
     src/taskloaf/ring.cpp
     src/taskloaf/ref_counting.cpp
+    src/taskloaf/local_comm.cpp
     src/taskloaf/mpi_comm.cpp
     src/taskloaf/comm.cpp
     )
 
+MESSAGE(${CEREAL_INCLUDE_DIR})
 target_include_directories(taskloaf PRIVATE
     ${PROJECT_INCLUDE_DIR}
-    ${CAF_INCLUDE_DIRS} 
     ${MPMCQUEUE_INCLUDE_DIR}
+    ${CEREAL_INCLUDE_DIR}
     )
-add_dependencies(taskloaf actor-framework concurrentqueue)
-target_link_libraries(taskloaf ${CAF_LIBRARIES}) 
+add_dependencies(taskloaf concurrentqueue cereal)
 
 ################################################################################
 #                              taskloaf tests
@@ -159,6 +152,7 @@ target_include_directories(run_tests PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${MPMCQUEUE_INCLUDE_DIR}
     ${CATCH_INCLUDE_DIRS}
+    ${CEREAL_INCLUDE_DIR}
     )
 add_dependencies(run_tests taskloaf Catch)
 target_link_libraries(run_tests taskloaf)
@@ -173,7 +167,10 @@ add_test(all-tests run_tests)
 
 macro(taskloaf_example name filename) 
     add_executable(${name} ${filename})
-    target_include_directories(${name} PRIVATE ${PROJECT_INCLUDE_DIR})
+    target_include_directories(${name} PRIVATE 
+        ${PROJECT_INCLUDE_DIR}
+        ${CEREAL_INCLUDE_DIR}
+    )
     add_dependencies(${name} taskloaf)
     target_link_libraries(${name} taskloaf)
 endmacro()

@@ -52,7 +52,6 @@ TEST_CASE("Worker") {
     REQUIRE(x == 1);
 }
 
-
 void stealing_test(int n_steals) {
     auto ws = workers(2);
     int x = 0;
