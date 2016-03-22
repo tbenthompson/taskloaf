@@ -8,6 +8,11 @@ struct ID
 {
     size_t firsthalf;
     size_t secondhalf;
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void)ar;
+    }
 };
 
 bool operator==(const ID& lhs, const ID& rhs);

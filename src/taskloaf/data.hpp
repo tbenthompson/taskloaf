@@ -1,6 +1,10 @@
 #pragma once
 
 #include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/utility.hpp>
+#include <cereal/types/tuple.hpp>
+#include <cereal/types/set.hpp>
 
 #include <memory>
 #include <mutex>
@@ -9,71 +13,85 @@
 namespace taskloaf {
 
 struct SafeVoidPtr {
-    std::shared_ptr<void> ptr;
+    std::unique_ptr<void,void(*)(void*)> ptr;
 
     template <typename T>
-    T& get_as() {
-        return *reinterpret_cast<T*>(ptr.get());
-    }
-};
-
-template <typename T>
-SafeVoidPtr make_safe_void_ptr(T value)
-{
-    return {std::shared_ptr<void>(new T(std::move(value)),
-        [] (void* data_ptr) 
-        {
-            delete reinterpret_cast<T*>(data_ptr);
-        }
-    )};
-}
-
-// 
-struct Data {
-    SafeVoidPtr unserialized_data;
-    std::shared_ptr<std::once_flag> serialized_flag;
-    std::shared_ptr<std::stringstream> serialized_data;
-
-    Data(SafeVoidPtr d):
-        unserialized_data(d),
-        serialized_flag(std::make_shared<std::once_flag>()),
-        serialized_data(std::make_shared<std::stringstream>())
+    SafeVoidPtr(T value):
+        ptr(new T(std::move(value)),
+            [] (void* data_ptr) 
+            {
+                delete reinterpret_cast<T*>(data_ptr);
+            }
+        )
     {}
 
     template <typename T>
     T& get_as() 
     {
-        // if (unserialized_data.ptr == nullptr) {
-        //     auto data = deserialize<T>(serialized_data);
-        //     unserialized_data = make_safe_void_ptr(std::move(data));
-        // }
-        return unserialized_data.get_as<T>();
+        if (ptr == nullptr) {
+            // auto data = deserialize<T>(serialized_data);
+            // unserialized_data = make_safe_void_ptr(std::move(data));
+        }
+        return *reinterpret_cast<T*>(ptr.get());
+    }
+};
+
+struct DataInternals {
+    SafeVoidPtr unserialized_data;
+    std::function<void(DataInternals&)> serializer;
+    std::once_flag serialized_flag;
+    std::stringstream serialized_data;
+
+    template <typename T>
+    DataInternals(T value):
+        unserialized_data(std::move(value)),
+        serializer([] (DataInternals& data) {
+            cereal::BinaryOutputArchive oarchive(data.serialized_data);
+            oarchive(data.unserialized_data.get_as<T>());
+        })
+    {}
+};
+
+struct Data {
+    std::shared_ptr<DataInternals> internals; 
+
+    Data():
+        internals(nullptr)
+    {}
+
+    template <typename T>
+    Data(T value):
+        internals(std::make_shared<DataInternals>(std::move(value)))
+    {}
+
+    template <typename T>
+    T& get_as() 
+    {
+        return internals->unserialized_data.get_as<T>();
     }
 
     // serialization requirements:
     // any type, multiple archives (at minimum, a binary archive and a 
     // pseudo-archive that measures the size of the object).
-    template <typename T>
     void serialize() {
         // use std::call_once to ensure thread safety when mutating the state
         // of the data object.
-        std::call_once(*serialized_flag, [this] () {
-            if (serialized_data->gcount() > 0) {
+        std::call_once(internals->serialized_flag, [this] () {
+            if (internals->serialized_data.gcount() > 0) {
                 return;
             }
-            cereal::BinaryOutputArchive oarchive(*serialized_data);
-            oarchive(get_as<T>());
+            internals->serializer(*internals);
         });
     }
 };
 
 template <typename T>
 Data make_data(T value) {
-    return Data(make_safe_void_ptr(std::move(value)));
+    return Data(std::move(value));
 }
 
 inline Data empty_data() {
-    return Data({nullptr});
+    return Data();
 }
 
 } //end namespace taskloaf

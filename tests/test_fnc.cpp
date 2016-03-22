@@ -9,8 +9,8 @@ using namespace taskloaf;
 TEST_CASE("Apply args") {
     std::vector<Data> args;
     auto in = 1.012;
-    args.push_back({make_safe_void_ptr(1.012)});
-    args.push_back({make_safe_void_ptr(2)});
+    args.push_back(make_data(1.012));
+    args.push_back(make_data(2));
     auto out = apply_args(args, [] (double x, int y) { return x * y; });
     REQUIRE(out == 2.024);
 }

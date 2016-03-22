@@ -11,6 +11,11 @@ struct RefData {
     size_t ref_id;
     int generation = 0;
     int children = 0;
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void)ar;
+    }
 };
 
 RefData initial_ref();

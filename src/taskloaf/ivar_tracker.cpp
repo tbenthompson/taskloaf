@@ -16,6 +16,11 @@ struct IVarOwnershipData {
     std::set<Address> trigger_locs;
     //TODO: Also store value size in bytes. For greedy memory transfer.
     //TODO: Also store trigger sizes in bytes. For greedy memory transfer.
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void)ar;
+    }
 };
 
 struct IVarData {

@@ -19,6 +19,11 @@ struct IVarRef {
     IVarRef& operator=(const IVarRef&);
     IVarRef(const IVarRef&);
     ~IVarRef();
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void)ar;
+    }
 };
 
 } //end namespace taskloaf

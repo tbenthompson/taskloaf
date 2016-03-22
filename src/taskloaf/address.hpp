@@ -7,6 +7,11 @@ namespace taskloaf {
 struct Address {
     std::string hostname;
     uint16_t port;
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void) ar;
+    }
 };
 
 inline bool operator<(const Address& a, const Address& b) {

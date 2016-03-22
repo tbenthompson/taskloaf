@@ -226,7 +226,7 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
     }
 
     cur_worker = ws[fulfill_worker].get();
-    ws[fulfill_worker]->fulfill(iv, {Data{make_safe_void_ptr(1)}});
+    ws[fulfill_worker]->fulfill(iv, {make_data(1)});
     settle(ws);
 
     if (!trigger_first) {

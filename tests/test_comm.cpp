@@ -17,49 +17,6 @@ TEST_CASE("MPMC Queue", "[comm]") {
     REQUIRE(item == 25);
 }
 
-struct MyData
-{
-    int x;
-
-    template<class Archive>
-    void serialize(Archive& archive)
-    {
-        archive(x);
-    }
-};
-
-TEST_CASE("Cereal", "[comm]") {
-    std::stringstream ss;
-
-    {
-        cereal::BinaryOutputArchive oarchive(ss);
-        MyData m1{1}, m2{2}, m3{3};
-        oarchive(m1, m2, m3);
-    }
-
-    {
-        cereal::BinaryInputArchive iarchive(ss);
-        MyData m1, m2, m3;
-        iarchive(m1, m2, m3);
-        REQUIRE(m1.x == 1); REQUIRE(m2.x == 2); REQUIRE(m3.x == 3);
-    }
-}
-
-TEST_CASE("Serialize Data", "[comm]") {
-    auto d = make_data(10);
-    d.serialize<int>();
-    {
-        cereal::BinaryInputArchive iarchive(*d.serialized_data);
-        int x;
-        iarchive(x);
-        REQUIRE(x == 10);
-    }
-}
-
-TEST_CASE("Measure serialized size", "[comm]") {
-    
-}
-
 TEST_CASE("Local comm", "[comm]") {
     auto lcq = std::make_shared<LocalCommQueues>(2);
     LocalComm a(lcq, 0);

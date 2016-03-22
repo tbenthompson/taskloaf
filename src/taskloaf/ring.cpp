@@ -20,6 +20,11 @@ struct GossipMessage {
     std::vector<RingState> friend_state;
     RingState sender_state;
     bool respond;
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void)ar;
+    }
 };
 
 

@@ -110,6 +110,11 @@ struct Function<Return(Args...)> {
         return call(closure, std::forward<Args>(args)...);
     }
 
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void)ar; 
+    }
+
     Call call;
     Data closure;
 };
