@@ -14,6 +14,12 @@ namespace taskloaf {
 struct RingState {
     Address addr;
     std::vector<ID> locs;
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar(addr);
+        ar(locs);
+    }
 };
 
 struct GossipMessage {
@@ -23,7 +29,9 @@ struct GossipMessage {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        (void)ar;
+        ar(friend_state);
+        ar(sender_state);
+        ar(respond);
     }
 };
 

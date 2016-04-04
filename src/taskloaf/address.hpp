@@ -10,7 +10,8 @@ struct Address {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        (void) ar;
+        ar(hostname);
+        ar(port);
     }
 };
 

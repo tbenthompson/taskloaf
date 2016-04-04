@@ -64,6 +64,11 @@ struct Future {
     auto then(F f) const {
         return taskloaf::then(*this, f);
     }
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar(ivar);
+    }
 };
 
 template <typename T>
@@ -79,6 +84,11 @@ struct Future<T> {
     
     auto unwrap() const {
         return taskloaf::unwrap(*this);
+    }
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar(ivar);
     }
 };
 

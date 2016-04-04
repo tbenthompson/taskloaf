@@ -22,7 +22,9 @@ struct IVarRef {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        (void)ar;
+        ar(id);
+        ar(data);
+        ar(empty);
     }
 };
 

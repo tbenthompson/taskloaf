@@ -28,7 +28,7 @@ TaskCollection::TaskCollection(Comm& comm):
             steals.push_back(std::move(tasks.back()));
             tasks.pop_back();
         }
-        comm.send(p.first, Msg(Protocol::StealResponse, make_data(steals)));
+        comm.send(p.first, Msg(Protocol::StealResponse, make_data(std::move(steals))));
     });
 
     comm.add_handler(Protocol::StealResponse, [&] (Data d) {

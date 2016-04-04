@@ -11,7 +11,8 @@ struct ID
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        (void)ar;
+        ar(firsthalf);
+        ar(secondhalf);
     }
 };
 

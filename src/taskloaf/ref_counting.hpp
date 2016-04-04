@@ -14,7 +14,9 @@ struct RefData {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        (void)ar;
+        ar(ref_id);
+        ar(generation);
+        ar(children);
     }
 };
 
@@ -33,6 +35,13 @@ struct ReferenceCount {
     void dec(const RefData& ref);
     bool alive();
     bool dead();
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar(source_ref);
+        ar(counts);
+        ar(deletes);
+    }
 };
 
 } //end namespace taskloaf

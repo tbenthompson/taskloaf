@@ -2,6 +2,7 @@
 
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
 #include <cereal/types/utility.hpp>
 #include <cereal/types/tuple.hpp>
 #include <cereal/types/set.hpp>
@@ -13,7 +14,7 @@
 namespace taskloaf {
 
 struct SafeVoidPtr {
-    std::unique_ptr<void,void(*)(void*)> ptr;
+    std::shared_ptr<void> ptr;
 
     template <typename T>
     SafeVoidPtr(T value):
@@ -28,60 +29,46 @@ struct SafeVoidPtr {
     template <typename T>
     T& get_as() 
     {
-        if (ptr == nullptr) {
-            // auto data = deserialize<T>(serialized_data);
-            // unserialized_data = make_safe_void_ptr(std::move(data));
-        }
         return *reinterpret_cast<T*>(ptr.get());
     }
 };
 
-struct DataInternals {
-    SafeVoidPtr unserialized_data;
-    std::function<void(DataInternals&)> serializer;
-    std::once_flag serialized_flag;
-    std::stringstream serialized_data;
+struct SerializedData {
+    std::stringstream stream;
 
-    template <typename T>
-    DataInternals(T value):
-        unserialized_data(std::move(value)),
-        serializer([] (DataInternals& data) {
-            cereal::BinaryOutputArchive oarchive(data.serialized_data);
-            oarchive(data.unserialized_data.get_as<T>());
-        })
-    {}
+    size_t n_bytes() {
+        auto start_pos = stream.tellg();
+        stream.seekg(0, std::ios::end);
+        auto size = stream.tellg();
+        stream.seekg(start_pos);
+        return size;
+    }
 };
 
 struct Data {
-    std::shared_ptr<DataInternals> internals; 
+    SafeVoidPtr ptr;
+    std::function<SerializedData()> serialize;
 
     Data():
-        internals(nullptr)
+        ptr(nullptr),
+        serialize(nullptr)
     {}
 
     template <typename T>
     Data(T value):
-        internals(std::make_shared<DataInternals>(std::move(value)))
+        ptr(std::move(value)),
+        serialize([ptr = this->ptr] () mutable {
+            std::stringstream serialized_data;
+            cereal::BinaryOutputArchive oarchive(serialized_data);
+            oarchive(ptr.get_as<T>());
+            return SerializedData{std::move(serialized_data)};
+        })
     {}
 
     template <typename T>
     T& get_as() 
     {
-        return internals->unserialized_data.get_as<T>();
-    }
-
-    // serialization requirements:
-    // any type, multiple archives (at minimum, a binary archive and a 
-    // pseudo-archive that measures the size of the object).
-    void serialize() {
-        // use std::call_once to ensure thread safety when mutating the state
-        // of the data object.
-        std::call_once(internals->serialized_flag, [this] () {
-            if (internals->serialized_data.gcount() > 0) {
-                return;
-            }
-            internals->serializer(*internals);
-        });
+        return ptr.get_as<T>();
     }
 };
 
