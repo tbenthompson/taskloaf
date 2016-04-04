@@ -39,7 +39,7 @@ TEST_CASE("Cereal", "[data]") {
 
 TEST_CASE("Serialize/deserialize", "[data]") {
     auto d = make_data(10);
-    auto binary = d.serialize();
+    auto binary = d.serializer();
     {
         cereal::BinaryInputArchive iarchive(binary.stream);
         int x;
@@ -52,19 +52,19 @@ TEST_CASE("Measure serialized size", "[data]") {
     SECTION("string") {
         std::string s("abcdef");
         auto d = make_data(s);
-        auto binary = d.serialize();
+        auto binary = d.serializer();
         REQUIRE(binary.n_bytes() == 14);
     }
 
     SECTION("int") {
         auto d = make_data(10);
-        auto binary = d.serialize();
+        auto binary = d.serializer();
         REQUIRE(binary.n_bytes() == 4);
     }
 
     SECTION("double") {
         auto d = make_data(0.015);
-        auto binary = d.serialize();
+        auto binary = d.serializer();
         REQUIRE(binary.n_bytes() == 8);
     }
 }

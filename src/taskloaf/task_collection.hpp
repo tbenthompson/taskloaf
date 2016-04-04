@@ -1,18 +1,9 @@
 #pragma once
-#include "fnc.hpp"
+#include "closure.hpp"
 
 #include <deque>
 
 namespace taskloaf {
-
-struct TaskT {
-    Function<void()> fnc;
-
-    template <typename Archive>
-    void serialize(Archive& ar) {
-        ar(fnc);
-    }
-};
 
 struct Comm;
 struct TaskCollection {

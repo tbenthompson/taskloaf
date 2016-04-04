@@ -103,7 +103,7 @@ void Worker::run() {
         if (tasks.size() > 0) {
 
             t_not_tasks.stop();
-            tasks.next().fnc();
+            tasks.next()();
             t_not_tasks.start();
 
             n_tasks++;

@@ -47,7 +47,13 @@ ID id_on_worker(const std::unique_ptr<Worker>& w) {
 TEST_CASE("Worker") {
     auto w = worker();
     int x = 0;
-    w.add_task({[&] () { x = 1; cur_worker->shutdown(); }});
+    w.add_task({
+        [] (std::vector<Data>& d) {
+            d[0].get_as<std::reference_wrapper<int>>().get() = 1; 
+            cur_worker->shutdown(); 
+        }, 
+        {make_data(std::ref(x))}
+    });
     w.run();
     REQUIRE(x == 1);
 }
@@ -57,7 +63,12 @@ void stealing_test(int n_steals) {
     int x = 0;
     int n_tasks = 5;
     for (int i = 0; i < n_tasks; i++) {
-        ws[0]->add_task({[&] () { x = 1; }});
+        ws[0]->add_task({
+            [] (std::vector<Data>& d) {
+                d[0].get_as<std::reference_wrapper<int>>().get() = 1; 
+            },
+            {make_data(std::ref(x))}
+        });
     }
     // ws[1]->introduce(ws[0]->get_addr());
     settle(ws);
@@ -191,8 +202,8 @@ TEST_CASE("Remote reference counting change location") {
         cur_worker = ws[0].get();
         IVarRef iv(id);
 
-        ws[1]->add_trigger(iv, [] (std::vector<Data>&) {});
-        ws[0]->add_trigger(iv, [] (std::vector<Data>&) {});
+        ws[1]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
+        ws[0]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
         REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 1);
         REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 1);
 
@@ -217,11 +228,18 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
     cur_worker = ws[owner_worker].get();
     IVarRef iv(id);
 
+    auto setup_trigger = [&] () {
+        ws[trigger_worker]->add_trigger(iv, {
+            [] (std::vector<Data>& d, std::vector<Data>& vals) {
+                d[0].get_as<std::reference_wrapper<int>>().get() = vals[0].get_as<int>(); 
+            },
+            {make_data(std::ref(x))}
+        });
+    };
+
     if (trigger_first) {
         cur_worker = ws[trigger_worker].get();
-        ws[trigger_worker]->add_trigger(iv, [&] (std::vector<Data>& vals) {
-            x = vals[0].get_as<int>(); 
-        });
+        setup_trigger();
         settle(ws);
     }
 
@@ -231,9 +249,7 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
 
     if (!trigger_first) {
         cur_worker = ws[trigger_worker].get();
-        ws[trigger_worker]->add_trigger(iv, [&] (std::vector<Data>& vals) {
-            x = vals[0].get_as<int>(); 
-        });
+        setup_trigger();
         settle(ws);
     }
 

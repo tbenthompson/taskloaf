@@ -13,26 +13,6 @@
 
 namespace taskloaf {
 
-struct SafeVoidPtr {
-    std::shared_ptr<void> ptr;
-
-    template <typename T>
-    SafeVoidPtr(T value):
-        ptr(new T(std::move(value)),
-            [] (void* data_ptr) 
-            {
-                delete reinterpret_cast<T*>(data_ptr);
-            }
-        )
-    {}
-
-    template <typename T>
-    T& get_as() 
-    {
-        return *reinterpret_cast<T*>(ptr.get());
-    }
-};
-
 struct SerializedData {
     std::stringstream stream;
 
@@ -46,30 +26,41 @@ struct SerializedData {
 };
 
 struct Data {
-    SafeVoidPtr ptr;
-    std::function<SerializedData()> serialize;
+    std::shared_ptr<void> ptr;
+    std::function<SerializedData()> serializer;
 
     Data():
         ptr(nullptr),
-        serialize(nullptr)
+        serializer(nullptr)
     {}
 
     template <typename T>
     Data(T value):
-        ptr(std::move(value)),
-        serialize([ptr = this->ptr] () mutable {
+        ptr(
+            new T(std::move(value)),
+            [] (void* data_ptr) 
+            {
+                delete reinterpret_cast<T*>(data_ptr);
+            }
+        ),
+        serializer([ptr = this->ptr] () mutable {
             std::stringstream serialized_data;
             cereal::BinaryOutputArchive oarchive(serialized_data);
-            oarchive(ptr.get_as<T>());
+            oarchive(*reinterpret_cast<T*>(ptr.get()));
             return SerializedData{std::move(serialized_data)};
         })
     {}
 
-    template <typename T>
-    T& get_as() 
-    {
-        return ptr.get_as<T>();
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        (void)ar;
     }
+
+    template <typename T>
+    T& get_as() { return *reinterpret_cast<T*>(ptr.get()); }
+
+    template <typename T>
+    const T& get_as() const { return *reinterpret_cast<T*>(ptr.get()); }
 };
 
 template <typename T>

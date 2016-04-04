@@ -3,6 +3,7 @@
 #include "ivar.hpp"
 #include "fnc.hpp"
 #include "address.hpp"
+#include "closure.hpp"
 
 namespace taskloaf {
 
@@ -11,8 +12,6 @@ struct Data;
 struct Comm;
 
 struct IVarTrackerImpl;
-
-typedef Function<void(std::vector<Data>& val)> TriggerT;
 
 struct IVarTracker {
     std::unique_ptr<IVarTrackerImpl> impl;
