@@ -5,7 +5,14 @@
 
 namespace taskloaf {
 
-typedef Function<void()> TaskT;
+struct TaskT {
+    Function<void()> fnc;
+
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar(fnc);
+    }
+};
 
 struct Comm;
 struct TaskCollection {

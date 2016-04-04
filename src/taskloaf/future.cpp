@@ -13,7 +13,7 @@ IVarRef plan_then(const IVarRef& input, PureTaskT task) {
     cur_worker->add_trigger(input,
         [out_future = out_future, fnc = std::move(task)] 
         (std::vector<Data>& vals) mutable {
-            cur_worker->add_task(
+            cur_worker->add_task({
                 [
                     out_future = std::move(out_future),
                     vals = std::vector<Data>(vals),
@@ -22,7 +22,7 @@ IVarRef plan_then(const IVarRef& input, PureTaskT task) {
                 () mutable {
                     cur_worker->fulfill(out_future, {fnc(vals)});
                 }
-            );
+            });
         }
     );
     return std::move(out_future);
@@ -53,13 +53,13 @@ IVarRef plan_ready(Data data) {
 
 IVarRef plan_async(PureTaskT task) {
     IVarRef out_future(new_id());
-    cur_worker->add_task(
+    cur_worker->add_task({
         [out_future = out_future, fnc = std::move(task)]
         () mutable {
             std::vector<Data> empty;
             cur_worker->fulfill(out_future, {fnc(empty)});
         }
-    );
+    });
     return std::move(out_future);
 }
 

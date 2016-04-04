@@ -68,7 +68,8 @@ void tester(int expected_copies, int expected_moves,
 
 TEST_CASE("to_string fnc", "[fnc]") {
     Function<int(int)> f = [a = 256] (int x) { return x * a; };
-    Function<int(int)> f2(f.to_string());
+    Function<int(int)> f2; 
+    f2.from_string(f.to_string());
     REQUIRE(f2(13) == f(13));
 }
 

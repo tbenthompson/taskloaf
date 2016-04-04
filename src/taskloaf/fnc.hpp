@@ -116,10 +116,6 @@ struct Function<Return(Args...)> {
         closure = std::string(reinterpret_cast<const char*>(newf.get()), sizeof(f));
     }
 
-    Function(const std::string& dump) {
-        from_string(dump);
-    }
-
     Return operator()(Args&&... args) {
         return call(closure, std::forward<Args>(args)...);
     }

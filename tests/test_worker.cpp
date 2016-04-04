@@ -47,7 +47,7 @@ ID id_on_worker(const std::unique_ptr<Worker>& w) {
 TEST_CASE("Worker") {
     auto w = worker();
     int x = 0;
-    w.add_task([&] () { x = 1; cur_worker->shutdown(); });
+    w.add_task({[&] () { x = 1; cur_worker->shutdown(); }});
     w.run();
     REQUIRE(x == 1);
 }
@@ -57,7 +57,7 @@ void stealing_test(int n_steals) {
     int x = 0;
     int n_tasks = 5;
     for (int i = 0; i < n_tasks; i++) {
-        ws[0]->add_task([&] () { x = 1; });
+        ws[0]->add_task({[&] () { x = 1; }});
     }
     // ws[1]->introduce(ws[0]->get_addr());
     settle(ws);
