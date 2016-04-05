@@ -19,7 +19,6 @@ void future_tester(auto fnc) {
     REQUIRE(correct);
 }
 
-
 TEST_CASE("Ready", "[future]") {
     future_tester([] () { return ready(1); });
 }

@@ -1,5 +1,5 @@
 #include "taskloaf.hpp"
-#include "timing.hpp"
+#include "taskloaf/timing.hpp"
 
 using namespace taskloaf;
 

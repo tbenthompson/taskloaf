@@ -1,6 +1,7 @@
 #include "future.hpp"
 #include "worker.hpp"
 #include "local_comm.hpp"
+#include "timing.hpp"
 
 #include <queue>
 #include <thread>

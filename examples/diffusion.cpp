@@ -1,6 +1,6 @@
 #include "taskloaf.hpp"
 #include "patterns.hpp"
-#include "timing.hpp"
+#include "taskloaf/timing.hpp"
 
 #include <iostream>
 #include <cmath>

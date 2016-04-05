@@ -1,21 +1,9 @@
 #include "taskloaf.hpp"
+#include "taskloaf/timing.hpp"
 
 #include <random>
 #include <chrono>
 #include <iostream>
-
-#define TIC\
-    std::chrono::high_resolution_clock::time_point start =\
-        std::chrono::high_resolution_clock::now();\
-    int time_ms;
-#define TIC2\
-    start = std::chrono::high_resolution_clock::now();
-#define TOC(name)\
-    time_ms = std::chrono::duration_cast<std::chrono::microseconds>\
-                (std::chrono::high_resolution_clock::now() - start).count();\
-    std::cout << name << " took "\
-              << time_ms\
-              << "us.\n";
 
 #define MATIDX(r,c,n) (c) * (n) + (r)
 

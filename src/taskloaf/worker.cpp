@@ -1,8 +1,8 @@
 #include "worker.hpp"
 #include "protocol.hpp"
 #include "comm.hpp"
+#include "timing.hpp"
 
-//TODO: Remove
 #include <iostream>
 #include <sstream>
 #include <chrono>
@@ -69,21 +69,6 @@ void Worker::recv() {
 }
 
 void Worker::run() {
-    struct Timer {
-        typedef std::chrono::high_resolution_clock::time_point Time;
-        Time t_start;
-        int time_ms = 0;
-
-        void start() {
-            t_start = std::chrono::high_resolution_clock::now();
-        }
-        void stop() {
-            time_ms += std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::high_resolution_clock::now() - t_start
-            ).count();
-        }
-    };
-
     int n_tasks = 0;
     Timer t_comm;
     Timer t_not_tasks;
@@ -114,9 +99,6 @@ void Worker::run() {
     auto t_idle = t_not_tasks.time_ms - t_comm.time_ms;
     auto t_tasks = t_total.time_ms - t_not_tasks.time_ms;
 
-    for (int i = 0; i < 10000000; i++) {
-        comm->recv();
-    }
     std::stringstream buf;
     buf << "n(" << core_id << "): " << n_tasks
         << " comm: " << t_comm.time_ms 
