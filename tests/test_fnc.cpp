@@ -39,6 +39,12 @@ TEST_CASE("Function func", "[fnc]") {
     REQUIRE(f(3) == 6);
 }
 
+TEST_CASE("Function capture", "[fnc]") {
+    int y = 10;
+    auto f = make_function([=] (int x) { return y * x; });
+    REQUIRE(f(3) == 30);
+}
+
 TEST_CASE("Serialize/deserialize fnc", "[fnc]") {
     std::stringstream ss;
     cereal::BinaryOutputArchive oarchive(ss);

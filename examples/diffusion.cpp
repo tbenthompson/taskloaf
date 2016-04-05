@@ -62,9 +62,9 @@ auto update(const Parameters& p, int chunk_index, const std::vector<double>& tem
         out.front() += p.coeff * (left - 2 * temp[0] + temp[1]);
     }
     for (size_t cell_idx = 1; cell_idx < temp.size() - 1; cell_idx++) {
-        // out[cell_idx] = temp[cell_idx] + p.coeff * (
-        //     temp[cell_idx - 1] - 2 * temp[cell_idx] + temp[cell_idx + 1]
-        // );
+        out[cell_idx] = temp[cell_idx] + p.coeff * (
+            temp[cell_idx - 1] - 2 * temp[cell_idx] + temp[cell_idx + 1]
+        );
     }
     if (chunk_index != p.n_chunks - 1) {
         out.back() = temp[size - 1];

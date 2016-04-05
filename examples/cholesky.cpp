@@ -261,8 +261,8 @@ void run(int n, int n_blocks, int n_workers, bool run_blas) {
                 return tsk::shutdown();
             });
         } else {
-            return result_futures.back().then([] (auto x) {
-                (void)x; return tsk::shutdown(); 
+            return result_futures.back().then([] (Matrix a) {
+                (void)a; return tsk::shutdown(); 
             });
         }
     });
