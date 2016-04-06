@@ -43,8 +43,8 @@ auto unwrap(const Future<T>& fut) {
 }
 
 template <typename T>
-auto ready(T val) {
-    return Future<T>{plan_ready(make_data(std::move(val)))};
+auto ready(T&& val) {
+    return Future<T>{plan_ready(make_data(std::forward<T>(val)))};
 }
 
 template <typename F>
@@ -71,8 +71,8 @@ struct Future {
     IVarRef ivar;
 
     template <typename F>
-    auto then(F f) const {
-        return taskloaf::then(*this, f);
+    auto then(F&& f) const {
+        return taskloaf::then(*this, std::forward<F>(f));
     }
 
     template <typename Archive>
@@ -88,8 +88,8 @@ struct Future<T> {
     IVarRef ivar;
 
     template <typename F>
-    auto then(F f) const {
-        return taskloaf::then(*this, f);
+    auto then(F&& f) const {
+        return taskloaf::then(*this, std::forward<F>(f));
     }
     
     auto unwrap() const {
@@ -106,8 +106,8 @@ void launch_helper(size_t n_workers, std::function<IVarRef()> f);
 int shutdown();
 
 template <typename F>
-void launch(int n_workers, F f) {
-    launch_helper(n_workers, [f = std::move(f)] () {
+void launch(int n_workers, F&& f) {
+    launch_helper(n_workers, [f = std::forward<F>(f)] () {
         auto t = ready(f()).unwrap();
         return t.ivar;
     });

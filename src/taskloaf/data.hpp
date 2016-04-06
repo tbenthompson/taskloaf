@@ -13,21 +13,10 @@
 
 namespace taskloaf {
 
-struct SerializedData {
-    std::stringstream stream;
-
-    size_t n_bytes() {
-        auto start_pos = stream.tellg();
-        stream.seekg(0, std::ios::end);
-        auto size = stream.tellg();
-        stream.seekg(start_pos);
-        return size;
-    }
-};
-
 struct Data {
     std::shared_ptr<void> ptr;
-    std::function<SerializedData()> serializer;
+    std::string serialized_data;
+    std::function<std::string()> serializer;
 
     Data():
         ptr(nullptr),
@@ -47,20 +36,43 @@ struct Data {
             std::stringstream serialized_data;
             cereal::BinaryOutputArchive oarchive(serialized_data);
             oarchive(*reinterpret_cast<T*>(ptr.get()));
-            return SerializedData{std::move(serialized_data)};
+            return serialized_data.str();
         })
     {}
 
     template <typename Archive>
-    void serialize(Archive& ar) {
-        (void)ar;
+    void save(Archive& ar) const {
+        ar(serializer()); 
+    }
+
+    template <typename Archive>
+    void load(Archive& ar) {
+        ar(serialized_data);
+        ptr = nullptr;
+        serializer = nullptr;
     }
 
     template <typename T>
-    T& get_as() { return *reinterpret_cast<T*>(ptr.get()); }
+    T& get_as() {
+        if (ptr == nullptr) {
+            ptr = std::make_shared<T>();
+            std::stringstream input(serialized_data);
+            cereal::BinaryInputArchive iarchive(input);
+            iarchive(*reinterpret_cast<T*>(ptr.get()));
+        }
+        return *reinterpret_cast<T*>(ptr.get()); 
+    }
 
     template <typename T>
-    const T& get_as() const { return *reinterpret_cast<T*>(ptr.get()); }
+    const T& get_as() const {
+        if (ptr == nullptr) {
+            ptr = std::make_shared<T>();
+            std::stringstream input(serialized_data);
+            cereal::BinaryInputArchive iarchive(input);
+            iarchive(*reinterpret_cast<T*>(ptr.get()));
+        }
+        return *reinterpret_cast<T*>(ptr.get()); 
+    }
 };
 
 template <typename T>

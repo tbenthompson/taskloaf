@@ -20,11 +20,17 @@ struct MyData
     }
 };
 
-TEST_CASE("Cereal", "[data]") {
+struct CachingArchive: public cereal::BinaryOutputArchive {
+    CachingArchive(std::ostream& stream):
+        BinaryOutputArchive(stream)
+    {}
+};
+
+TEST_CASE("CachingArchive", "[data]") {
     std::stringstream ss;
 
     {
-        cereal::BinaryOutputArchive oarchive(ss);
+        CachingArchive oarchive(ss);
         MyData m1{1}, m2{2}, m3{3};
         oarchive(m1, m2, m3);
     }
@@ -39,13 +45,15 @@ TEST_CASE("Cereal", "[data]") {
 
 TEST_CASE("Serialize/deserialize", "[data]") {
     auto d = make_data(10);
-    auto binary = d.serializer();
-    {
-        cereal::BinaryInputArchive iarchive(binary.stream);
-        int x;
-        iarchive(x);
-        REQUIRE(x == 10);
-    }
+
+    std::stringstream ss;
+    cereal::BinaryOutputArchive oarchive(ss);
+    oarchive(d);
+
+    cereal::BinaryInputArchive iarchive(ss);
+    Data d2;
+    iarchive(d2);
+    REQUIRE(d2.get_as<int>() == 10);
 }
 
 TEST_CASE("Measure serialized size", "[data]") {
@@ -53,19 +61,18 @@ TEST_CASE("Measure serialized size", "[data]") {
         std::string s("abcdef");
         auto d = make_data(s);
         auto binary = d.serializer();
-        REQUIRE(binary.n_bytes() == 14);
+        REQUIRE(binary.size() == 14);
     }
 
     SECTION("int") {
         auto d = make_data(10);
         auto binary = d.serializer();
-        REQUIRE(binary.n_bytes() == 4);
+        REQUIRE(binary.size() == 4);
     }
 
     SECTION("double") {
         auto d = make_data(0.015);
         auto binary = d.serializer();
-        REQUIRE(binary.n_bytes() == 8);
+        REQUIRE(binary.size() == 8);
     }
 }
-

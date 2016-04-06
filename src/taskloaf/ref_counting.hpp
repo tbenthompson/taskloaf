@@ -18,6 +18,10 @@ struct RefData {
         ar(generation);
         ar(children);
     }
+
+    bool operator<(const RefData& other) const {
+        return ref_id < other.ref_id;
+    }
 };
 
 RefData initial_ref();

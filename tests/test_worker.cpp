@@ -48,11 +48,11 @@ TEST_CASE("Worker") {
     auto w = worker();
     int x = 0;
     w.add_task({
-        [] (std::vector<Data>& d) {
-            d[0].get_as<std::reference_wrapper<int>>().get() = 1; 
+        [&] (std::vector<Data>&) {
+            x = 1; 
             cur_worker->shutdown(); 
         }, 
-        {make_data(std::ref(x))}
+        {}
     });
     w.run();
     REQUIRE(x == 1);
@@ -64,10 +64,10 @@ void stealing_test(int n_steals) {
     int n_tasks = 5;
     for (int i = 0; i < n_tasks; i++) {
         ws[0]->add_task({
-            [] (std::vector<Data>& d) {
-                d[0].get_as<std::reference_wrapper<int>>().get() = 1; 
+            [&] (std::vector<Data>&) {
+                x = 1; 
             },
-            {make_data(std::ref(x))}
+            {}
         });
     }
     // ws[1]->introduce(ws[0]->get_addr());
@@ -230,10 +230,10 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
 
     auto setup_trigger = [&] () {
         ws[trigger_worker]->add_trigger(iv, {
-            [] (std::vector<Data>& d, std::vector<Data>& vals) {
-                d[0].get_as<std::reference_wrapper<int>>().get() = vals[0].get_as<int>(); 
+            [&] (std::vector<Data>&, std::vector<Data>& vals) {
+                x = vals[0].get_as<int>(); 
             },
-            {make_data(std::ref(x))}
+            {}
         });
     };
 

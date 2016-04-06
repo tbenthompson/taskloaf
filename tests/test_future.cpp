@@ -9,12 +9,10 @@ void future_tester(auto fnc) {
     bool correct = false;
     launch(1, [&] () {
         auto fut = fnc();
-        return when_all(fut, ready(std::ref(correct))).then(
-            [] (int x, std::reference_wrapper<bool> correct) { 
-                correct.get() = (x == 1);
-                return shutdown();
-            }
-        );
+        return fut.then([&] (int x) {
+            correct = (x == 1);
+            return shutdown();
+        });
     });
     REQUIRE(correct);
 }
@@ -89,9 +87,8 @@ TEST_CASE("Then member fnc", "[future]") {
 TEST_CASE("Run tree once", "[future]") {
     int x = 0;
     launch(1, [&] () {
-        auto x_ref = ready(std::ref(x));
-        auto once_task = x_ref.then([] (std::reference_wrapper<int> x_ref) { 
-            x_ref.get()++;
+        auto once_task = async([&] () { 
+            x++;
             return 0; 
         });
         return when_all(

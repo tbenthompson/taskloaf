@@ -6,10 +6,6 @@
 
 namespace taskloaf {
 
-bool operator<(const RefData& a, const RefData& b) {
-    return a.ref_id < b.ref_id;
-}
-
 RefData initial_ref() {
     return {random_sizet(), 0, 0};
 }

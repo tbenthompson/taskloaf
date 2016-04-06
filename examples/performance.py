@@ -22,3 +22,5 @@ benchmark(
     300,
     env_mod = dict(OMP_NUM_THREADS = '1')
 )
+
+
