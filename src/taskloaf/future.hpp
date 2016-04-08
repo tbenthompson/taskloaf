@@ -43,8 +43,8 @@ auto unwrap(const Future<T>& fut) {
 }
 
 template <typename T>
-auto ready(T&& val) {
-    return Future<T>{plan_ready(make_data(std::forward<T>(val)))};
+auto ready(T val) {
+    return Future<T>{plan_ready(make_data(std::move(val)))};
 }
 
 template <typename F>

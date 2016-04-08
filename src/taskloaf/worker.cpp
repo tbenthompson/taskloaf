@@ -68,44 +68,23 @@ void Worker::recv() {
     comm->recv();
 }
 
-void Worker::run() {
-    int n_tasks = 0;
-    Timer t_comm;
-    Timer t_not_tasks;
-    Timer t_total;
-    t_not_tasks.start();
-    t_total.start();
+void Worker::one_step() {
+    if (comm->has_incoming()) {
+        comm->recv();
+        return;
+    }
 
+    tasks.steal();
+    if (tasks.size() > 0) {
+        tasks.next()();
+    }
+}
+
+void Worker::run() {
     cur_worker = this;
     while (!stop) {
-        while (comm->has_incoming()) {
-            t_comm.start();
-            comm->recv();
-            t_comm.stop();
-        }
-
-        tasks.steal();
-        if (tasks.size() > 0) {
-
-            t_not_tasks.stop();
-            tasks.next()();
-            t_not_tasks.start();
-
-            n_tasks++;
-        }
+        one_step();
     }
-    t_not_tasks.stop();
-    t_total.stop();
-    auto t_idle = t_not_tasks.time_ms - t_comm.time_ms;
-    auto t_tasks = t_total.time_ms - t_not_tasks.time_ms;
-
-    std::stringstream buf;
-    buf << "n(" << core_id << "): " << n_tasks
-        << " comm: " << t_comm.time_ms 
-        << " tasks: " << t_tasks
-        << " idle: " << t_idle
-        << " undeleted ivars " << ivar_tracker.n_owned() << std::endl;
-    std::cout << buf.rdbuf();
 }
 
 void Worker::set_core_affinity(int core_id) {

@@ -1,7 +1,7 @@
 #include "catch.hpp"
 
 #include "taskloaf/local_comm.hpp"
-#include "taskloaf/mpi_comm.hpp"
+#include "taskloaf/remote_comm.hpp"
 
 #include <concurrentqueue.h>
 #include <cereal/archives/binary.hpp>
@@ -69,8 +69,8 @@ TEST_CASE("Local comm", "[comm]") {
     }
 }
 
-TEST_CASE("MPI Comm", "[comm]") {
-    auto lcq = std::make_shared<LocalCommQueues>(2);
-    MPIComm a(std::make_unique<LocalComm>(lcq, 0));
-    MPIComm b(std::make_unique<LocalComm>(lcq, 1));
+TEST_CASE("Remote Comm", "[comm]") {
+    RemoteComm a(std::make_unique<Messenger>());
+    RemoteComm b(std::make_unique<Messenger>());
+    // a.send(b.get_addr());
 }

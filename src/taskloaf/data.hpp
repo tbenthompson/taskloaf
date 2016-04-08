@@ -62,17 +62,6 @@ struct Data {
         }
         return *reinterpret_cast<T*>(ptr.get()); 
     }
-
-    template <typename T>
-    const T& get_as() const {
-        if (ptr == nullptr) {
-            ptr = std::make_shared<T>();
-            std::stringstream input(serialized_data);
-            cereal::BinaryInputArchive iarchive(input);
-            iarchive(*reinterpret_cast<T*>(ptr.get()));
-        }
-        return *reinterpret_cast<T*>(ptr.get()); 
-    }
 };
 
 template <typename T>

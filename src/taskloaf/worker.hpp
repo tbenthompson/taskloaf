@@ -27,6 +27,7 @@ struct Worker {
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void dec_ref(const IVarRef& ivar);
     void recv();
+    void one_step();
     void run();
     void set_core_affinity(int core_id);
 };

@@ -33,10 +33,16 @@ if(OPENMP_FOUND)
 endif()
 
 ################################################################################
+#                              Check for threading library (pthreads..., OpenMP)
+################################################################################
+
+find_package(MPI REQUIRED)
+
+################################################################################
 #                              setup compiler
 ################################################################################
 
-set(warnings "-Wall -Wextra -Werror -Wno-parentheses -Wno-deprecated-declarations -Wno-unknown-pragmas")
+set(warnings "-Wall -Wextra -Werror -Wno-parentheses -Wno-deprecated-declarations -Wno-unknown-pragmas -Wno-literal-suffix")
 set(opt "-O3 -g") 
 if (BUILD_TYPE STREQUAL "Debug")
     set(opt "-O0 -g -DSPDLOG_TRACE_ON")
@@ -120,7 +126,7 @@ add_library(taskloaf SHARED
     src/taskloaf/ring.cpp
     src/taskloaf/ref_counting.cpp
     src/taskloaf/local_comm.cpp
-    src/taskloaf/mpi_comm.cpp
+    src/taskloaf/remote_comm.cpp
     src/taskloaf/comm.cpp
     )
 
@@ -146,6 +152,7 @@ add_executable(run_tests
     tests/test_ring.cpp
     tests/test_comm.cpp
     tests/test_ref_counting.cpp
+    tests/test_fakelaunch.cpp
     )
 target_include_directories(run_tests PRIVATE
     ${PROJECT_INCLUDE_DIR}
@@ -169,7 +176,9 @@ macro(taskloaf_example name filename)
     add_executable(${name} ${filename})
     target_include_directories(${name} PRIVATE 
         ${PROJECT_INCLUDE_DIR}
+        ${MPMCQUEUE_INCLUDE_DIR}
         ${CEREAL_INCLUDE_DIR}
+        ${MPI_INCLUDE_PATH}
     )
     add_dependencies(${name} taskloaf)
     target_link_libraries(${name} taskloaf)
@@ -181,3 +190,5 @@ taskloaf_example(dot_product examples/dot_product.cpp)
 taskloaf_example(cholesky examples/cholesky.cpp)
 target_link_libraries(cholesky openblas)
 taskloaf_example(diffusion examples/diffusion.cpp)
+taskloaf_example(mpitest examples/mpitest.cpp)
+target_link_libraries(mpitest ${MPI_LIBRARIES})
