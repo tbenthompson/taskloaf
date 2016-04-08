@@ -31,17 +31,27 @@ struct Data {
             {
                 delete reinterpret_cast<T*>(data_ptr);
             }
-        ),
-        serializer([ptr = this->ptr] () mutable {
+        )
+    {
+        set_serializer<T>();
+    }
+
+    template <typename T>
+    void set_serializer() {
+        serializer = [ptr = this->ptr] () mutable {
             std::stringstream serialized_data;
             cereal::BinaryOutputArchive oarchive(serialized_data);
             oarchive(*reinterpret_cast<T*>(ptr.get()));
             return serialized_data.str();
-        })
-    {}
+        };
+    }
 
     template <typename Archive>
     void save(Archive& ar) const {
+        if (serialized_data.size() > 0) {
+            ar(serialized_data);
+            return;
+        }
         ar(serializer()); 
     }
 
@@ -59,6 +69,7 @@ struct Data {
             std::stringstream input(serialized_data);
             cereal::BinaryInputArchive iarchive(input);
             iarchive(*reinterpret_cast<T*>(ptr.get()));
+            set_serializer<T>();
         }
         return *reinterpret_cast<T*>(ptr.get()); 
     }

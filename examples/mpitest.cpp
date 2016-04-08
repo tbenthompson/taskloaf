@@ -10,6 +10,11 @@
 using namespace taskloaf;
 
 void mpi_launch_helper(std::function<IVarRef()> f) {
+    int rank;
+    int size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    std::cout << rank << " " << size << std::endl;
     (void)f;
     // PASS MPICOMM!
     // Worker w();

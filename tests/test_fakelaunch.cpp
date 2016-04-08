@@ -9,7 +9,6 @@
 using namespace taskloaf;
 
 void testbed_helper(size_t n_workers, std::function<IVarRef()> f) {
-    std::vector<std::thread> threads;
     Address root_addr;
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws(n_workers);
@@ -66,9 +65,9 @@ Future<int> fib(int index, int grouping = 3) {
 }
 
 TEST_CASE("Fib") {
-    size_t n = 30;
+    size_t n = 20;
     size_t grouping = 15;
-    launch_testbed(200, [&] () {
+    launch_testbed(10, [&] () {
         auto fut = fib(n, grouping);
         return fut.then([&] (int x) {
             std::cout << "fib(" << n << ") = " << x << std::endl;

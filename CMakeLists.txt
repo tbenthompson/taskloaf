@@ -126,7 +126,7 @@ add_library(taskloaf SHARED
     src/taskloaf/ring.cpp
     src/taskloaf/ref_counting.cpp
     src/taskloaf/local_comm.cpp
-    src/taskloaf/remote_comm.cpp
+    src/taskloaf/serializing_comm.cpp
     src/taskloaf/comm.cpp
     )
 
