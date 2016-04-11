@@ -45,17 +45,6 @@ TEST_CASE("Function capture", "[fnc]") {
     REQUIRE(f(3) == 30);
 }
 
-TEST_CASE("Serialize/deserialize fnc", "[fnc]") {
-    std::stringstream ss;
-    cereal::BinaryOutputArchive oarchive(ss);
-    Function<int(int)> f = [] (int x) { return x * 256; };
-    oarchive(f);
-    cereal::BinaryInputArchive iarchive(ss);
-    Function<int(int)> f2;
-    iarchive(f2);
-    REQUIRE(f2(10) == f(10));
-}
-
 TEST_CASE("Closure one param", "[fnc]") {
     Closure<int(int)> c(
         [] (std::vector<Data>& d, int y) { return d[0].get_as<int>() * y; },
@@ -76,3 +65,20 @@ TEST_CASE("Closure three params", "[fnc]") {
     ); 
     REQUIRE(std::fabs(c(3) - 118.8) < 0.001);
 }
+
+TEST_CASE("Serialize/deserialize fnc", "[fnc]") {
+    std::stringstream ss;
+    cereal::BinaryOutputArchive oarchive(ss);
+    int mult = 256;
+    Function<int(int)> f = [=] (int x) { return x * mult; };
+
+    oarchive(f);
+    cereal::BinaryInputArchive iarchive(ss);
+    Function<int(int)> f2;
+    iarchive(f2);
+
+    mult = 255;
+    REQUIRE(f(10) == 2560);
+    REQUIRE(f2(10) == f(10));
+}
+

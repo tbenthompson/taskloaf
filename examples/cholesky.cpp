@@ -224,7 +224,7 @@ void run(int n, int n_blocks, int n_workers, bool run_blas) {
     auto block_correct = to_blocks(correct, n_blocks);
 
     TIC
-    tsk::launch(n_workers, [&] () {
+    tsk::launch_local(n_workers, [&] () {
         auto input_futures = submit_input_data(block_A);
         auto result_futures = cholesky_plan(input_futures);
         if (run_blas) {

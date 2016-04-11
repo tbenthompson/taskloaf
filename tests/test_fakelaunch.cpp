@@ -1,15 +1,12 @@
 #include "catch.hpp"
-#include "taskloaf/ivar.hpp"
-#include "taskloaf/address.hpp"
 #include "taskloaf/local_comm.hpp"
 #include "taskloaf/worker.hpp"
-#include "taskloaf/future.hpp"
+#include "taskloaf.hpp"
 #include <functional>
 
 using namespace taskloaf;
 
 void testbed_helper(size_t n_workers, std::function<IVarRef()> f) {
-    Address root_addr;
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws(n_workers);
     for (size_t i = 0; i < n_workers; i++) { 
@@ -17,10 +14,9 @@ void testbed_helper(size_t n_workers, std::function<IVarRef()> f) {
         ws[i] = std::make_unique<Worker>(std::move(comm));
         cur_worker = ws[i].get();
         if (i == 0) {
-            root_addr = ws[i]->get_addr();
             f();
         } else {
-            ws[i]->introduce(root_addr); 
+            ws[i]->introduce(ws[0]->get_addr()); 
         }
     }
     while (!ws[0]->stop) {

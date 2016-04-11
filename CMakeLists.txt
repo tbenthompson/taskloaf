@@ -128,6 +128,7 @@ add_library(taskloaf SHARED
     src/taskloaf/local_comm.cpp
     src/taskloaf/serializing_comm.cpp
     src/taskloaf/comm.cpp
+    src/taskloaf/launcher.cpp
     )
 
 MESSAGE(${CEREAL_INCLUDE_DIR})

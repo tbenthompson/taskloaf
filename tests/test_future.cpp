@@ -1,13 +1,13 @@
 #include "catch.hpp"
 
 #include "taskloaf/future.hpp"
+#include "taskloaf/launcher.hpp"
 
 using namespace taskloaf; 
 
 void future_tester(auto fnc) {
-    (void)fnc;
     bool correct = false;
-    launch(1, [&] () {
+    launch_local(1, [&] () {
         auto fut = fnc();
         return fut.then([&] (int x) {
             correct = (x == 1);
@@ -86,7 +86,7 @@ TEST_CASE("Then member fnc", "[future]") {
 
 TEST_CASE("Run tree once", "[future]") {
     int x = 0;
-    launch(1, [&] () {
+    launch_local(1, [&] () {
         auto once_task = async([&] () { 
             x++;
             return 0; 

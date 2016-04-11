@@ -70,7 +70,6 @@ void stealing_test(int n_steals) {
             {}
         });
     }
-    // ws[1]->introduce(ws[0]->get_addr());
     settle(ws);
     for (int i = 0; i < n_steals; i++) {
         ws[1]->tasks.steal();

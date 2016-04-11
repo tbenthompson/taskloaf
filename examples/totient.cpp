@@ -39,7 +39,7 @@ Future<int> sum_totient(int lower, int upper) {
 int main() {
     int n = 2000;
     TIC
-    launch(1, [=] () {
+    launch_local(1, [=] () {
         return sum_totient(1, n).then([] (int x) {
             std::cout << x << std::endl;
             return shutdown();
@@ -47,7 +47,7 @@ int main() {
     });
     TOC("1");
     TIC2
-    launch(4, [=] () {
+    launch_local(4, [=] () {
         return sum_totient(1, n).then([] (int x) {
             std::cout << x << std::endl;
             return shutdown();

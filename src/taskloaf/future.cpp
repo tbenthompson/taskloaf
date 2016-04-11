@@ -1,12 +1,5 @@
 #include "future.hpp"
 #include "worker.hpp"
-#include "local_comm.hpp"
-#include "timing.hpp"
-
-#include <queue>
-#include <thread>
-#include <atomic>
-#include <iostream>
 
 namespace taskloaf {
 
@@ -107,39 +100,4 @@ IVarRef plan_when_all(std::vector<IVarRef> inputs) {
     whenall_child(std::move(inputs), 0, {}, out_future);
     return std::move(out_future);
 }
-
-void launch_helper(size_t n_workers, std::function<IVarRef()> f) {
-    std::vector<std::thread> threads;
-    Address root_addr;
-    std::atomic<bool> ready(false);
-    auto lcq = std::make_shared<LocalCommQueues>(n_workers);
-    for (size_t i = 0; i < n_workers; i++) { 
-        threads.emplace_back(
-            [f, i, lcq, &root_addr, &ready] () mutable {
-                Worker w(std::make_unique<LocalComm>(LocalComm(lcq, i)));
-                cur_worker = &w;
-                w.set_core_affinity(i);
-                if (i == 0) {
-                    root_addr = w.get_addr();
-                    ready = true;
-                    f();
-                } else {
-                    while (!ready) {}
-                    w.introduce(root_addr); 
-                }
-                w.run();
-            }
-        );
-    }
-
-    for (auto& t: threads) { 
-        t.join();         
-    }
-}
-
-int shutdown() {
-    cur_worker->shutdown(); 
-    return 0;
-}
-
 } //end namespace taskloaf

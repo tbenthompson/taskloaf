@@ -12,6 +12,7 @@ int fib_serial(int index) {
 }
 
 Future<int> fib(int index, int grouping = 3) {
+    std::cout << "running: " << index << std::endl;
     if (index < grouping) {
         return async([=] () { return fib_serial(index); });
     } else {
@@ -47,7 +48,7 @@ int main(int, char** argv) {
     TOC("serial");
 
     TIC2;
-    launch(n_workers, [&] () {
+    launch_local_serializing(n_workers, [&] () {
         auto fut = fib(n, grouping);
         TOC("submit");
         TIC2;

@@ -102,15 +102,4 @@ struct Future<T> {
     }
 };
 
-void launch_helper(size_t n_workers, std::function<IVarRef()> f);
-int shutdown();
-
-template <typename F>
-void launch(int n_workers, F&& f) {
-    launch_helper(n_workers, [f = std::forward<F>(f)] () {
-        auto t = ready(f()).unwrap();
-        return t.ivar;
-    });
-}
-
 } //end namespace taskloaf

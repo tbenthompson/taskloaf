@@ -9,40 +9,6 @@ TEST_CASE("make data", "[data]") {
     REQUIRE(d.get_as<std::string>() == "yea!");
 }
 
-struct MyData
-{
-    int x;
-
-    template<class Archive>
-    void serialize(Archive& archive)
-    {
-        archive(x);
-    }
-};
-
-struct CachingArchive: public cereal::BinaryOutputArchive {
-    CachingArchive(std::ostream& stream):
-        BinaryOutputArchive(stream)
-    {}
-};
-
-TEST_CASE("CachingArchive", "[data]") {
-    std::stringstream ss;
-
-    {
-        CachingArchive oarchive(ss);
-        MyData m1{1}, m2{2}, m3{3};
-        oarchive(m1, m2, m3);
-    }
-
-    {
-        cereal::BinaryInputArchive iarchive(ss);
-        MyData m1, m2, m3;
-        iarchive(m1, m2, m3);
-        REQUIRE(m1.x == 1); REQUIRE(m2.x == 2); REQUIRE(m3.x == 3);
-    }
-}
-
 std::stringstream serialize(Data d) {
     std::stringstream ss;
     cereal::BinaryOutputArchive oarchive(ss);

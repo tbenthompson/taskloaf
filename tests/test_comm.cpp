@@ -46,6 +46,17 @@ void test_comm(Comm& a, Comm& b) {
         REQUIRE(x == 13); 
     }
 
+    SECTION("Msg ordering") {
+        double x = 4.5;
+        b.add_handler(0, [&] (Data d) { x /= d.get_as<double>(); });
+        b.add_handler(1, [&] (Data d) { x -= d.get_as<double>(); });
+        a.send({"", 1}, Msg(0, make_data(4.5)));
+        a.send({"", 1}, Msg(1, make_data(1.0)));
+        b.recv();
+        b.recv();
+        REQUIRE(x == 0.0);
+    }
+
     SECTION("Recv complex") {
         int x = 0;
         auto d = make_data(Function<int(int)>([] (int x) { return 2 * x; })); 
@@ -95,7 +106,7 @@ TEST_CASE("Local comm", "[comm]") {
     test_comm(a, b);
 }
 
-TEST_CASE("Remote Comm", "[comm]") {
+TEST_CASE("Serializing Comm", "[comm]") {
     auto lcq = std::make_shared<LocalCommQueues>(2);
     SerializingComm a(std::make_unique<LocalComm>(lcq, 0));
     SerializingComm b(std::make_unique<LocalComm>(lcq, 1));

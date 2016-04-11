@@ -28,7 +28,7 @@ int main() {
     int n_per_block = n / n_blocks;
     for (int n_workers = 1; n_workers <= 6; n_workers++) {
         TIC;
-        launch(n_workers, [=] () {
+        launch_local(n_workers, [=] () {
             std::vector<Future<double>> chunks;
             for (int i = 0; i < n_blocks; i++) {
                 chunks.push_back(async([=] () {

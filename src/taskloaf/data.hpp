@@ -8,7 +8,6 @@
 #include <cereal/types/set.hpp>
 
 #include <memory>
-#include <mutex>
 #include <vector>
 
 namespace taskloaf {
@@ -24,7 +23,7 @@ struct Data {
     {}
 
     template <typename T>
-    Data(T value):
+    explicit Data(T value):
         ptr(
             new T(std::move(value)),
             [] (void* data_ptr) 
