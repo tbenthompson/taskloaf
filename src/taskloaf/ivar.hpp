@@ -21,10 +21,21 @@ struct IVarRef {
     ~IVarRef();
 
     template <typename Archive>
-    void serialize(Archive& ar) {
-        ar(id);
-        ar(data);
+    void save(Archive& ar) const {
         ar(empty);
+        if (!empty) {
+            ar(id);
+            ar(copy_ref(*const_cast<RefData*>(&data)));
+        }
+    }
+
+    template <typename Archive>
+    void load(Archive& ar) {
+        ar(empty);
+        if (!empty) {
+            ar(id);
+            ar(data);
+        }
     }
 };
 

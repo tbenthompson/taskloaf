@@ -4,6 +4,7 @@
 #include "taskloaf/id.hpp"
 #include "taskloaf/comm.hpp"
 #include "taskloaf/local_comm.hpp"
+#include "taskloaf/serializing_comm.hpp"
 
 #include <iostream>
 
@@ -28,11 +29,14 @@ std::vector<std::unique_ptr<Worker>> workers(int n_workers) {
     std::vector<std::unique_ptr<Worker>> ws;
     for (int i = 0; i < n_workers; i++) {
         ws.emplace_back(std::make_unique<Worker>(
-            std::make_unique<LocalComm>(LocalComm(lcq, i))
+            std::make_unique<SerializingComm>(
+                std::make_unique<LocalComm>(LocalComm(lcq, i))
+            )
         ));
         if (i != 0) {
             ws[i]->introduce(ws[0]->get_addr());
         }
+        ws[i]->core_id = i;
         settle(ws);
     }
     return std::move(ws);
@@ -171,25 +175,34 @@ TEST_CASE("Ref tracking move assignment") {
 
 TEST_CASE("Remote reference counting") {
     auto ws = workers(2);
+    settle(ws);
     {
         auto id = id_on_worker(ws[1]);
-        cur_worker = ws[0].get();
         IVarRef iv(id);
-        (void)iv;
-
-        cur_worker = ws[1].get();
         settle(ws);
+        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 
+        cur_worker = ws[0].get();
         ws[0]->fulfill(iv, {make_data(1)});
-        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
-        settle(ws);
 
+        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+
+        settle(ws);
+        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
         REQUIRE(ws[1]->ivar_tracker.n_owned() == 1);
+
         cur_worker = ws[1].get();
     }
-    cur_worker = ws[1].get();
     settle(ws);
     REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 0);
+    REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
     REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 }
 

@@ -2,8 +2,7 @@
 #include <map>
 #include <cassert>
 #include <vector>
-
-#include "data.hpp"
+#include <memory>
 
 namespace taskloaf {
 

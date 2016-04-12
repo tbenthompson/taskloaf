@@ -72,7 +72,7 @@ TEST_CASE("Then fnc", "[future]") {
 
 TEST_CASE("Then member fnc", "[future]") {
     struct ABC {
-        ABC() {
+        void plan() {
             auto val = ready(*this).then([] (ABC abc) { return abc.rocks(); });
         }
 
@@ -80,6 +80,7 @@ TEST_CASE("Then member fnc", "[future]") {
     };
     future_tester([] () {
         ABC abc;
+        abc.plan();
         return ready(1);
     });
 }

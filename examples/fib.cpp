@@ -12,7 +12,6 @@ int fib_serial(int index) {
 }
 
 Future<int> fib(int index, int grouping = 3) {
-    std::cout << "running: " << index << std::endl;
     if (index < grouping) {
         return async([=] () { return fib_serial(index); });
     } else {

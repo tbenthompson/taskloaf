@@ -2,7 +2,11 @@
 
 #include "taskloaf/data.hpp"
 
+#include "delete_tracker.hpp"
+
 using namespace taskloaf;
+
+int DeleteTracker::deletes = 0;
 
 TEST_CASE("make data", "[data]") {
     auto d = make_data(std::string("yea!"));
@@ -20,10 +24,10 @@ Data deserialize(std::stringstream& ss) {
     cereal::BinaryInputArchive iarchive(ss);
     Data d2;
     iarchive(d2);
-    return d2;
+    return std::move(d2);
 }
 
-TEST_CASE("Serialize/deserialize/reserialize", "[data]") {
+TEST_CASE("Serialize/deserialize", "[data]") {
     auto d = make_data(10);
     auto ss = serialize(d);
     auto d2 = deserialize(ss);
@@ -54,19 +58,40 @@ TEST_CASE("Measure serialized size", "[data]") {
     SECTION("string") {
         std::string s("abcdef");
         auto d = make_data(s);
-        auto binary = d.serializer();
+        auto binary = d.serializer(d);
         REQUIRE(binary.size() == 14);
     }
 
     SECTION("int") {
         auto d = make_data(10);
-        auto binary = d.serializer();
+        auto binary = d.serializer(d);
         REQUIRE(binary.size() == 4);
     }
 
     SECTION("double") {
         auto d = make_data(0.015);
-        auto binary = d.serializer();
+        auto binary = d.serializer(d);
         REQUIRE(binary.size() == 8);
     }
+}
+
+
+TEST_CASE("Deleter called", "[data]") {
+    DeleteTracker::deletes = 0;
+    DeleteTracker a;
+    {
+        auto d = make_data(a);
+    }
+    REQUIRE(DeleteTracker::deletes == 1);
+}
+    
+TEST_CASE("Deserialized deleter called", "[data]") {
+    DeleteTracker a;
+    auto d = make_data(a);
+    DeleteTracker::deletes = 0;
+    {
+        auto ss = serialize(d);
+        auto d2 = deserialize(ss);
+    }
+    REQUIRE(DeleteTracker::deletes == 1);
 }

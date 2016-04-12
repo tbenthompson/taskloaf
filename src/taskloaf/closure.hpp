@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fnc.hpp"
+#include "data.hpp"
 
 namespace taskloaf {
 

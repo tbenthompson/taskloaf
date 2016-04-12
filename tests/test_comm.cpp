@@ -4,6 +4,8 @@
 #include "taskloaf/serializing_comm.hpp"
 #include "taskloaf/fnc.hpp"
 
+#include "delete_tracker.hpp"
+
 #include <concurrentqueue.h>
 #include <cereal/archives/binary.hpp>
 
@@ -16,23 +18,6 @@ TEST_CASE("MPMC Queue", "[comm]") {
     bool found = q.try_dequeue(item);
     REQUIRE(found);
     REQUIRE(item == 25);
-}
-
-void forwarding_test(Comm& a, Comm& b, bool open) {
-    a.send(b.get_addr(), Msg{0, make_data(11)});
-
-    int x = 0;
-    a.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
-    b.add_handler(0, [&] (Data) {
-        if (open) {
-            b.cur_message().data.get_as<int>();
-        }
-        b.send(a.get_addr(), b.cur_message()); 
-    });
-
-    b.recv();
-    a.recv();
-    REQUIRE(x == 11);
 }
 
 void test_comm(Comm& a, Comm& b) {
@@ -91,11 +76,25 @@ void test_comm(Comm& a, Comm& b) {
     }
 
     SECTION("Forward") {
-        forwarding_test(a, b, true);
+        a.send(b.get_addr(), Msg{0, make_data(11)});
+
+        int x = 0;
+        a.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
+        b.add_handler(0, [&] (Data) {
+            b.send(a.get_addr(), b.cur_message()); 
+        });
+
+        b.recv();
+        a.recv();
+        REQUIRE(x == 11);
     }
 
-    SECTION("Forward unopened message") {
-        forwarding_test(a, b, false);
+    SECTION("Delete msg after handling") {
+        a.send(b.get_addr(), Msg{0, make_data(DeleteTracker())});
+        DeleteTracker::deletes = 0;
+        b.add_handler(0, [&] (Data) {});
+        b.recv();
+        REQUIRE(DeleteTracker::deletes == 1);
     }
 }
 
