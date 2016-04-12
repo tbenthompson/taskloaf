@@ -47,17 +47,19 @@ int main(int, char** argv) {
     TOC("serial");
 
     TIC2;
-    launch_local_serializing(n_workers, [&] () {
-        auto fut = fib(n, grouping);
-        TOC("submit");
-        TIC2;
-        return fut.then([&] (int x) {
-            std::cout << "fib(" << n << ") = " << x << std::endl;
-            TOC("run");
+    for (size_t i = 0; i < 1000; i++) {
+        launch_local_serializing(n_workers, [&] () {
+            auto fut = fib(n, grouping);
+            TOC("submit");
             TIC2;
-            return shutdown();
+            return fut.then([&] (int x) {
+                std::cout << "fib(" << n << ") = " << x << std::endl;
+                TOC("run");
+                TIC2;
+                return shutdown();
+            });
         });
-    });
+    }
     TOC("Clean up");
     // TOC("parallel fib " + std::to_string(n_workers));
 }

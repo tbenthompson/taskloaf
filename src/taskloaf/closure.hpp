@@ -3,6 +3,8 @@
 #include "fnc.hpp"
 #include "data.hpp"
 
+#include <cereal/types/vector.hpp>
+
 namespace taskloaf {
 
 template <typename T> 

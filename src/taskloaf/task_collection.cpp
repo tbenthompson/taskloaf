@@ -2,6 +2,7 @@
 #include "comm.hpp"
 #include "protocol.hpp"
 #include "address.hpp"
+#include <cereal/types/utility.hpp>
 
 #include <iostream>
 #include <cmath>

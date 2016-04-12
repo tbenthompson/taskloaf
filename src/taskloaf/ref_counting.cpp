@@ -16,8 +16,8 @@ RefData copy_ref(RefData& ref) {
 }
 
 ReferenceCount::ReferenceCount():
-    source_ref{random_sizet(), -1, 0},
-    counts(1, 1)
+    source_ref{random_sizet(), -1, 1},
+    counts{0}
 {}
 
 void ReferenceCount::zero() {
@@ -25,13 +25,13 @@ void ReferenceCount::zero() {
 }
 
 void ReferenceCount::merge(const ReferenceCount& other) {
+    dec(other.source_ref);
     for (auto& d: other.deletes) {
         if (deletes.count(d) > 0) {
             continue;
         }
         dec(d);
     }
-    dec(other.source_ref);
 }
 
 void ReferenceCount::dec(const RefData& ref) {
@@ -45,8 +45,15 @@ void ReferenceCount::dec(const RefData& ref) {
         counts[ref.generation]--;
     }
     counts[ref.generation + 1] += ref.children;
-    deletes.insert(ref);
+    if (counts[0] < -source_ref.children) {
+        std::cout << counts[0] << " sc:" << source_ref.children << " i:" << ref.ref_id << " c:" <<  ref.children << " g:" << ref.generation << std::endl;
+        for (auto& d: deletes) {
+            std::cout << d.ref_id << " c:" <<  d.children << " g:" << d.generation << std::endl;
+
+        }
+    }
     assert(counts[0] >= -source_ref.children);
+    deletes.insert(ref);
 }
 
 bool ReferenceCount::alive() {

@@ -39,13 +39,14 @@ Msg& SerializingComm::cur_message() {
 
 void SerializingComm::add_handler(int msg_type, std::function<void(Data)> handler) {
     backend->add_handler(msg_type, [=] (Data serialized_d) {
-        cur_msg = std::make_unique<Msg>();
-        cur_msg->msg_type = msg_type;
+        Msg m;
+        cur_msg = &m;
+        m.msg_type = msg_type;
         std::stringstream serialized_ss(serialized_d.get_as<std::string>());
         cereal::BinaryInputArchive iarchive(serialized_ss);
-        iarchive(cur_msg->data);
-        handler(cur_msg->data);
-        cur_msg.reset();
+        iarchive(m.data);
+        handler(m.data);
+        cur_msg = nullptr;
     });
 }
 

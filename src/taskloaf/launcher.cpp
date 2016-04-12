@@ -56,9 +56,28 @@ void launch_local_helper_serializing(size_t n_workers, std::function<IVarRef()> 
     });
 }
 
-// void launch_local_helper_singlethread(size_t n_workers, std::function<IVarRef()> f) {
-// 
-// }
+void launch_local_helper_singlethread(size_t n_workers, std::function<IVarRef()> f) {
+    auto lcq = std::make_shared<LocalCommQueues>(n_workers);
+    std::vector<std::unique_ptr<Worker>> ws(n_workers);
+    for (size_t i = 0; i < n_workers; i++) { 
+        auto comm = std::make_unique<SerializingComm>(
+            std::make_unique<LocalComm>(LocalComm(lcq, i))
+        );
+        ws[i] = std::make_unique<Worker>(std::move(comm));
+        cur_worker = ws[i].get();
+        if (i == 0) {
+            f();
+        } else {
+            ws[i]->introduce(ws[0]->get_addr()); 
+        }
+    }
+    while (!ws[0]->stop) {
+        for (size_t i = 0; i < n_workers; i++) { 
+            cur_worker = ws[i].get();
+            ws[i]->one_step();
+        }
+    }
+}
 
 int shutdown() {
     cur_worker->shutdown(); 

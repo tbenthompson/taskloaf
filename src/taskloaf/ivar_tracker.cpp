@@ -5,9 +5,12 @@
 #include "protocol.hpp"
 #include "ivar_db.hpp"
 
+#include <cereal/types/utility.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/set.hpp>
+
 #include <unordered_map>
 #include <set>
-#include <iostream>
 
 namespace taskloaf {
 
@@ -22,8 +25,6 @@ struct IVarTrackerImpl {
     {
         setup_handlers();
     }
-
-
 
     template <typename F>
     void forward_or(const ID& id, F f) {

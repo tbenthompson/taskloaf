@@ -1,17 +1,12 @@
 #pragma once
 
+#include "fnc.hpp"
+
 #include <cereal/archives/binary.hpp>
-#include <cereal/types/vector.hpp>
 #include <cereal/types/string.hpp>
-#include <cereal/types/utility.hpp>
-#include <cereal/types/tuple.hpp>
-#include <cereal/types/set.hpp>
 
 #include <cassert>
 #include <memory>
-#include <vector>
-
-#include "fnc.hpp"
 
 namespace taskloaf {
 

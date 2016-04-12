@@ -2,6 +2,7 @@
 #include "worker.hpp"
 
 #include <iostream>
+#include <mutex>
 
 namespace taskloaf {
 

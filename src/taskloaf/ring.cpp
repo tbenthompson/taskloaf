@@ -4,6 +4,9 @@
 #include "address.hpp"
 #include "data.hpp"
 
+#include <cereal/types/tuple.hpp>
+#include <cereal/types/vector.hpp>
+
 #include <map>
 #include <algorithm>
 #include <cassert>

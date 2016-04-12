@@ -6,39 +6,6 @@
 
 using namespace taskloaf;
 
-void testbed_helper(size_t n_workers, std::function<IVarRef()> f) {
-    auto lcq = std::make_shared<LocalCommQueues>(n_workers);
-    std::vector<std::unique_ptr<Worker>> ws(n_workers);
-    for (size_t i = 0; i < n_workers; i++) { 
-        auto comm = std::make_unique<LocalComm>(LocalComm(lcq, i));
-        ws[i] = std::make_unique<Worker>(std::move(comm));
-        cur_worker = ws[i].get();
-        if (i == 0) {
-            f();
-        } else {
-            ws[i]->introduce(ws[0]->get_addr()); 
-        }
-    }
-    while (!ws[0]->stop) {
-        for (size_t i = 0; i < n_workers; i++) { 
-            cur_worker = ws[i].get();
-            ws[i]->one_step();
-        }
-    }
-}
-
-template <typename F>
-void launch_testbed(size_t n_workers, F&& f) {
-    testbed_helper(n_workers, [f = std::forward<F>(f)] () {
-        auto t = ready(f()).unwrap();
-        return t.ivar;
-    });
-}
-
-
-
-
-
 int fib_serial(int index) {
     if (index < 3) {
         return 1;
@@ -63,7 +30,7 @@ Future<int> fib(int index, int grouping = 3) {
 TEST_CASE("Fib") {
     size_t n = 20;
     size_t grouping = 15;
-    launch_testbed(10, [&] () {
+    launch_local_singlethread(10, [&] () {
         auto fut = fib(n, grouping);
         return fut.then([&] (int x) {
             std::cout << "fib(" << n << ") = " << x << std::endl;

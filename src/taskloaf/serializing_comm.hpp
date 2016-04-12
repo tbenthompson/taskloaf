@@ -6,7 +6,7 @@ namespace taskloaf {
 
 struct SerializingComm: public Comm {
     std::unique_ptr<Comm> backend;
-    std::unique_ptr<Msg> cur_msg;
+    Msg* cur_msg;
 
     SerializingComm(std::unique_ptr<Comm> backend);
     ~SerializingComm();
