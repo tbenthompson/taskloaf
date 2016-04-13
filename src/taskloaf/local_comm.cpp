@@ -50,16 +50,7 @@ LocalComm::LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index):
     }
 }
 
-void LocalComm::call_handlers(Msg& m) {
-    if (handlers.count(m.msg_type) == 0) {
-        return;
-    }
-    for (auto& h: handlers[m.msg_type]) {
-        h(m.data);
-    }
-}
-
-const Address& LocalComm::get_addr() {
+const Address& LocalComm::get_addr() const {
     return my_addr;
 }
 
@@ -84,13 +75,13 @@ void LocalComm::recv() {
         auto m = std::move(queues->front(my_addr.port));
         queues->pop_front(my_addr.port);
         cur_msg = &m;
-        call_handlers(m);
+        handlers.call(m);
         cur_msg = nullptr;
     }
 }
 
 void LocalComm::add_handler(int msg_type, std::function<void(Data)> handler) {
-    handlers[msg_type].push_back(std::move(handler));
+    handlers.add_handler(msg_type, std::move(handler));
 }
 
 } //end namespace taskloaf;

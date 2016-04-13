@@ -1,41 +1,7 @@
-#include "taskloaf.hpp"
+#include "fib.hpp"
 #include "taskloaf/timing.hpp"
 
 using namespace taskloaf;
-
-int fib_serial(int index) {
-    if (index < 3) {
-        return 1;
-    } else {
-        return fib_serial(index - 1) + fib_serial(index - 2);
-    }
-}
-
-Future<int> fib(int index, int grouping = 3) {
-    if (index < grouping) {
-        return async([=] () { return fib_serial(index); });
-    } else {
-        auto af = fib(index - 1, grouping);
-        auto bf = fib(index - 2, grouping);
-        return when_all(af, bf).then(
-            [] (int a, int b) { return a + b; }
-        );
-    }
-}
-
-Future<int> fib_unrevealed(int index, int grouping = 3) {
-    if (index < grouping) {
-        return async([=] () { return fib_serial(index); });
-    } else {
-        return async([=] () {
-            auto af = fib(index - 1, grouping);
-            auto bf = fib(index - 2, grouping);
-            return when_all(af, bf).then(
-                [] (int a, int b) { return a + b; }
-            );
-        }).unwrap();
-    }
-}
 
 int main(int, char** argv) {
     int n = std::stoi(std::string(argv[1]));
@@ -47,19 +13,17 @@ int main(int, char** argv) {
     TOC("serial");
 
     TIC2;
-    for (size_t i = 0; i < 1000; i++) {
-        launch_local_serializing(n_workers, [&] () {
-            auto fut = fib(n, grouping);
-            TOC("submit");
+    launch_local_serializing(n_workers, [&] () {
+        auto fut = fib(n, grouping);
+        TOC("submit");
+        TIC2;
+        return fut.then([&] (int x) {
+            std::cout << "fib(" << n << ") = " << x << std::endl;
+            TOC("run");
             TIC2;
-            return fut.then([&] (int x) {
-                std::cout << "fib(" << n << ") = " << x << std::endl;
-                TOC("run");
-                TIC2;
-                return shutdown();
-            });
+            return shutdown();
         });
-    }
+    });
     TOC("Clean up");
     // TOC("parallel fib " + std::to_string(n_workers));
 }

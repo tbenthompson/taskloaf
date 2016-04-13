@@ -129,6 +129,7 @@ add_library(taskloaf SHARED
     src/taskloaf/serializing_comm.cpp
     src/taskloaf/comm.cpp
     src/taskloaf/launcher.cpp
+    src/taskloaf/mpi_comm.cpp
     )
 
 MESSAGE(${CEREAL_INCLUDE_DIR})
@@ -136,37 +137,39 @@ target_include_directories(taskloaf PRIVATE
     ${PROJECT_INCLUDE_DIR}
     ${MPMCQUEUE_INCLUDE_DIR}
     ${CEREAL_INCLUDE_DIR}
+    ${MPI_INCLUDE_PATH}
     )
+target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(taskloaf ${MPI_LIBRARIES})
 add_dependencies(taskloaf concurrentqueue cereal)
 
 ################################################################################
 #                              taskloaf tests
 ################################################################################
 
-add_executable(run_tests 
-    tests/test_main.cpp
-    tests/test_future.cpp
-    tests/test_fnc.cpp
-    tests/test_data.cpp
-    tests/test_worker.cpp
-    tests/test_id.cpp
-    tests/test_ring.cpp
-    tests/test_comm.cpp
-    tests/test_ref_counting.cpp
-    tests/test_fakelaunch.cpp
-    )
-target_include_directories(run_tests PRIVATE
-    ${PROJECT_INCLUDE_DIR}
-    ${PROJECT_SOURCE_DIR}
-    ${MPMCQUEUE_INCLUDE_DIR}
-    ${CATCH_INCLUDE_DIRS}
-    ${CEREAL_INCLUDE_DIR}
-    )
-add_dependencies(run_tests taskloaf Catch)
-target_link_libraries(run_tests taskloaf)
-target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
+macro(taskloaf_tests name files)
+    add_executable(${name} ${files})
+    target_include_directories(${name} PRIVATE
+        ${PROJECT_INCLUDE_DIR}
+        ${PROJECT_SOURCE_DIR}
+        ${MPMCQUEUE_INCLUDE_DIR}
+        ${CATCH_INCLUDE_DIRS}
+        ${CEREAL_INCLUDE_DIR}
+        ${MPI_INCLUDE_PATH}
+        )
+    add_dependencies(${name} taskloaf Catch)
+    target_link_libraries(${name} taskloaf)
+    target_link_libraries(${name} ${MPI_LIBRARIES})
+endmacro()
+
+taskloaf_tests(run_tests
+    "tests/test_main.cpp;tests/test_future.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp;tests/test_fakelaunch.cpp"
+)
+
+taskloaf_tests(mpi_tests "tests/test_mpi.cpp")
 
 enable_testing()
+add_test(all-tests mpi_tests)
 add_test(all-tests run_tests)
 
 ################################################################################
@@ -191,5 +194,4 @@ taskloaf_example(dot_product examples/dot_product.cpp)
 taskloaf_example(cholesky examples/cholesky.cpp)
 target_link_libraries(cholesky openblas)
 taskloaf_example(diffusion examples/diffusion.cpp)
-taskloaf_example(mpitest examples/mpitest.cpp)
-target_link_libraries(mpitest ${MPI_LIBRARIES})
+taskloaf_example(fibmpi examples/fibmpi.cpp)

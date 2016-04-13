@@ -1,15 +1,25 @@
 #pragma once
-
-#include "comm.hpp"
+#include <mpi.h>
+#include "taskloaf/address.hpp"
+#include "taskloaf/comm.hpp"
 
 namespace taskloaf {
 
-struct SerializingComm: public Comm {
-    std::unique_ptr<Comm> backend;
+int mpi_rank(const Comm& c);
+
+struct SentMsg {
+    Msg msg;
+    MPI_Request state;
+};
+
+struct MPIComm: public Comm {
+    Address addr;
+    std::vector<Address> endpoints;
+    MsgHandlers handlers;
+    std::vector<SentMsg> outbox;
     Msg* cur_msg;
 
-    SerializingComm(std::unique_ptr<Comm> backend);
-    ~SerializingComm();
+    MPIComm(); 
 
     const Address& get_addr() const override;
     void send(const Address& dest, Msg msg) override;

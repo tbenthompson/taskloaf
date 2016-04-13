@@ -2,12 +2,12 @@
 #include "worker.hpp"
 #include "local_comm.hpp"
 #include "serializing_comm.hpp"
+#include "mpi_comm.hpp"
 
 #include <thread>
 #include <atomic>
 
 namespace taskloaf {
-
 
 template <typename FComm>
 void helper(size_t n_workers, std::function<IVarRef()> f,
@@ -77,6 +77,26 @@ void launch_local_helper_singlethread(size_t n_workers, std::function<IVarRef()>
             ws[i]->one_step();
         }
     }
+}
+
+void launch_mpi_helper(std::function<IVarRef()> f) {
+    MPI_Init(NULL, NULL);
+
+    Worker w(std::make_unique<SerializingComm>(std::make_unique<MPIComm>()));
+    cur_worker = &w;
+    auto& endpts = w.comm->remote_endpoints();
+    for (size_t i = 0; i < endpts.size(); i++) {
+        auto& e = endpts[i];
+        if (e.port < w.comm->get_addr().port) {
+            w.introduce(e);
+        }
+    }
+    if (w.comm->get_addr().port == 0) {
+        f();
+    }
+    w.run();
+
+    MPI_Finalize();
 }
 
 int shutdown() {

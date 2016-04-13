@@ -11,7 +11,6 @@ namespace taskloaf {
 
 using MsgQueue = moodycamel::ConcurrentQueue<Msg>;
 
-//TODO: These two classes can be pimpled.
 struct LocalCommQueues {
     const size_t starting_queue_size = 20;
     std::vector<MsgQueue> msg_queues;
@@ -29,13 +28,12 @@ struct LocalComm: public Comm {
     std::shared_ptr<LocalCommQueues> queues;
     std::vector<Address> remotes;
     Address my_addr;
-    std::map<int,std::vector<std::function<void(Data)>>> handlers;
+    MsgHandlers handlers;
     Msg* cur_msg;
 
     LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index);
 
-    void call_handlers(Msg& m);
-    const Address& get_addr() override;
+    const Address& get_addr() const override;
     const std::vector<Address>& remote_endpoints() override;
     void send(const Address& dest, Msg msg) override;
     Msg& cur_message() override;

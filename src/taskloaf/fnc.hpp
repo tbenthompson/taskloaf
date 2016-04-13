@@ -10,7 +10,7 @@ namespace taskloaf {
 template <typename T> 
 struct Function {};
 
-// This is a function wrapper similar to std::function with the additionally 
+// This is a function wrapper similar to std::function with the 
 // ability to serialize and deserialize functions and closures.
 // IMPORTANT!!! This only works for closures of POD data types.
 // Use a future to pass a non-POD type to a task.

@@ -26,10 +26,17 @@ struct Msg {
     {}
 };
 
+struct MsgHandlers {
+    std::map<int,std::vector<std::function<void(Data)>>> handlers;
+
+    void call(Msg& m);
+    void add_handler(int msg_type, std::function<void(Data)> handler);
+};
+
 struct Address;
 
 struct Comm {
-    virtual const Address& get_addr() = 0;
+    virtual const Address& get_addr() const = 0;
     virtual void send(const Address& dest, Msg msg) = 0;
     virtual const std::vector<Address>& remote_endpoints() = 0;
     virtual bool has_incoming() = 0;

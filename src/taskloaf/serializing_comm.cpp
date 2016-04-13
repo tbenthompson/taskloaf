@@ -9,7 +9,7 @@ SerializingComm::SerializingComm(std::unique_ptr<Comm> backend):
 
 SerializingComm::~SerializingComm() = default;
 
-const Address& SerializingComm::get_addr() {
+const Address& SerializingComm::get_addr() const {
     return backend->get_addr();
 }
 
