@@ -3,10 +3,88 @@
 #include <cassert>
 #include <vector>
 #include <memory>
+#include <typeindex>
+
+#include <cereal/types/utility.hpp>
+
+//TODO: REMOVE
+#include <iostream>
 
 namespace taskloaf {
 
 //Modified substantially from https://github.com/darabos/pinty/blob/master/pinty.h
+
+struct CallerRegistry {
+    std::map<size_t,std::vector<std::pair<std::type_index,void*>>> registry;
+
+    template <typename F>
+    void insert(void* f_ptr) {
+        auto tid = typeid(F).hash_code();
+        registry[tid].push_back({std::type_index(typeid(F)), f_ptr});
+    }
+
+    template <typename F>
+    std::pair<size_t,size_t> lookup_location() {
+        auto tid = typeid(F).hash_code();
+        for (size_t i = 0; i < registry[tid].size(); i++) {
+            if (std::type_index(typeid(F)) == registry[tid][i].first) {
+                return {tid, i};
+            }
+        }
+        assert(false);
+    }
+
+    void* get_function(const std::pair<size_t,size_t>& loc) {
+        return registry[loc.first][loc.second].second;
+    }
+};
+
+inline auto& get_caller_registry() {
+    static CallerRegistry caller_registry;
+    return caller_registry;
+}
+
+template<typename Return, typename... Args>
+using FncCaller = Return (*)(const std::string&, Args...);
+
+template<typename Func, typename Return, typename... Args>
+struct RegisterCaller
+{
+    RegisterCaller() {
+        auto f = [] (const std::string& data, Args... args) {
+            const char* char_arr = data.c_str();
+            auto& closure = *const_cast<Func*>(
+                reinterpret_cast<const Func*>(char_arr)
+            );
+            return closure(std::forward<Args>(args)...);
+        };
+        auto f_ptr = static_cast<FncCaller<Return,Args...>>(f);
+        get_caller_registry().insert<Func>(reinterpret_cast<void*>(f_ptr));
+    }
+    static RegisterCaller instance;
+    static std::pair<size_t,size_t> add_to_registry() {
+        (void)instance;
+        return get_caller_registry().lookup_location<Func>();
+    }
+};
+
+template<typename Func, typename Return, typename... Args>
+RegisterCaller<Func,Return,Args...> RegisterCaller<Func,Return,Args...>::instance;
+
+template <typename Func, typename Return, typename... Args>
+struct Caller {
+    static Return runner(const std::string& data, Args... args) {
+        const char* char_arr = data.c_str();
+        return (*const_cast<Func*>(reinterpret_cast<const Func*>(char_arr)))
+            (std::forward<Args>(args)...);
+    }
+};
+
+template <typename Func, typename Return, typename... Args>
+static auto get_call() {
+    return RegisterCaller<Func,Return,Args...>::add_to_registry();
+}
+
 template <typename T> 
 struct Function {};
 
@@ -16,60 +94,30 @@ struct Function {};
 // Use a future to pass a non-POD type to a task.
 template <typename Return, typename... Args>
 struct Function<Return(Args...)> {
-    template <typename Func>
-    struct Caller {
-        static Return Call(const std::string& data, Args... args) {
-            const char* char_arr = data.c_str();
-            return (*const_cast<Func*>(reinterpret_cast<const Func*>(char_arr)))
-                (std::forward<Args>(args)...);
-        }
-    };
-
-    typedef Return (*Call)(const std::string&, Args...);
-    const static size_t call_size = sizeof(Call);
+    std::pair<size_t,size_t> caller_id;
+    std::string closure;
 
     Function() = default;
 
     template <typename F>
-    Function(F f):
-        call(&Caller<F>::Call)
-    {
+    Function(F f) {
+        caller_id = get_call<F,Return,Args...>();
         auto newf = std::make_unique<F>(std::move(f));
         closure = std::string(reinterpret_cast<const char*>(newf.get()), sizeof(f));
     }
 
-    Function(const std::string& dump) {
-        from_string(dump);
-    }
-
     Return operator()(Args... args) {
-        return call(closure, std::forward<Args>(args)...);
-    }
-
-    std::string to_string() const {
-        auto call_ptr = reinterpret_cast<const char*>(&call);
-        return std::string(call_ptr, call_size) + closure;
-    }
-
-    void from_string(const std::string& dump) {
-        call = *const_cast<Call*>(reinterpret_cast<const Call*>(dump.c_str()));
-        closure = dump.substr(sizeof(call));
+        auto caller = reinterpret_cast<FncCaller<Return,Args...>>(
+            get_caller_registry().get_function(caller_id)
+        );
+        return caller(closure, std::forward<Args>(args)...);
     }
 
     template <typename Archive>
-    void save(Archive& ar) const {
-        ar(to_string());
+    void serialize(Archive& ar) {
+        ar(caller_id);
+        ar(closure);
     }
-
-    template <typename Archive>
-    void load(Archive& ar) {
-        std::string serialized_fnc;
-        ar(serialized_fnc);
-        from_string(serialized_fnc);
-    }
-
-    Call call;
-    std::string closure;
 };
 
 // From http://stackoverflow.com/a/12283159 to auto convert many function-like

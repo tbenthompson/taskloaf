@@ -1,6 +1,7 @@
 #include "taskloaf/mpi_comm.hpp"
 #include "taskloaf/serializing_comm.hpp"
 #include "taskloaf/future.hpp"
+#include "taskloaf/fnc.hpp"
 
 #include <cereal/types/vector.hpp>
 
