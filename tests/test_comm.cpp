@@ -6,7 +6,6 @@
 
 #include "delete_tracker.hpp"
 
-#include <concurrentqueue.h>
 #include <cereal/archives/binary.hpp>
 
 using namespace taskloaf;

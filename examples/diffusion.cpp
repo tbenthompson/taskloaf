@@ -108,10 +108,11 @@ auto timestep(const Parameters& p,
             }
         );
     }
-    return std::move(new_temp);
+    return new_temp;
 }
 
-tsk::Future<std::vector<double>> wait(auto futures) {
+auto wait(std::vector<tsk::Future<std::vector<double>>> futures) 
+{
     return reduce(futures, [] (const std::vector<double>&, const std::vector<double>&) {
         return std::vector<double>{};
     });
@@ -132,38 +133,12 @@ void diffusion(int n_workers, int n_cells, int time_steps, int n_chunks) {
     });
 }
 
-void diffusion_serial(int n_cells, int time_steps) {
-    Parameters p{-10, 10, 3.0, 1.0, 0.375, n_cells, 1, time_steps};
-    std::vector<double> temp(n_cells);
-#pragma omp parallel for schedule(static, 6)
-    for (int j = 0; j < n_cells; j++) {
-        double x = p.left + p.dx() * j + p.dx() / 2; 
-        temp[j] = p.ao * std::exp(-x * x / (2 * p.sigma * p.sigma));
-    }
-
-    for (int i = 0; i < time_steps; i++) {
-        std::vector<double> subs(n_cells);
-        #pragma omp parallel for schedule(static,6)
-        for (size_t cell_idx = 1; cell_idx < temp.size() - 1; cell_idx++) {
-            subs[cell_idx] = temp[cell_idx] + p.coeff * (
-                temp[cell_idx - 1] - 2 * temp[cell_idx] + temp[cell_idx + 1]
-            );
-        }
-        temp = std::move(subs);
-    }
-    std::cout << temp[0] << std::endl;
-}
-
 int main(int, char** argv) {
     int n = std::stoi(std::string(argv[1]));
     int n_steps = std::stoi(std::string(argv[2]));
     int n_workers = std::stoi(std::string(argv[3]));
     int n_chunks = std::stoi(std::string(argv[4]));
     TIC
-    (void)argv;
-    diffusion_serial(n, n_steps);
-    TOC("OMP");
-    TIC2
     diffusion(n_workers, n, n_steps, n_chunks);
     TOC("Taskloaf");
 }

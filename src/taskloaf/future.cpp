@@ -19,7 +19,7 @@ IVarRef plan_then(const IVarRef& input, PureTaskT task) {
         },
         {make_data(out_future), make_data(std::move(task))}
     });
-    return std::move(out_future);
+    return out_future;
 }
 
 IVarRef plan_unwrap(const IVarRef& input, PureTaskT unwrapper) {
@@ -38,13 +38,13 @@ IVarRef plan_unwrap(const IVarRef& input, PureTaskT unwrapper) {
         },
         { make_data(out_future), make_data(std::move(unwrapper)) }
     });
-    return std::move(out_future);
+    return out_future;
 }
 
 IVarRef plan_ready(Data data) {
     IVarRef out_future(new_id());
     cur_worker->fulfill(out_future, {std::move(data)});
-    return std::move(out_future);
+    return out_future;
 }
 
 IVarRef plan_async(PureTaskT task) {
@@ -58,7 +58,7 @@ IVarRef plan_async(PureTaskT task) {
         },
         {make_data(out_future), make_data(std::move(task))}
     });
-    return std::move(out_future);
+    return out_future;
 }
 
 void whenall_child(std::vector<IVarRef> child_results, size_t next_idx,
@@ -98,6 +98,6 @@ void whenall_child(std::vector<IVarRef> child_results, size_t next_idx,
 IVarRef plan_when_all(std::vector<IVarRef> inputs) {
     IVarRef out_future(new_id());
     whenall_child(std::move(inputs), 0, {}, out_future);
-    return std::move(out_future);
+    return out_future;
 }
 } //end namespace taskloaf

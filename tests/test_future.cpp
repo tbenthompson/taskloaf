@@ -5,7 +5,8 @@
 
 using namespace taskloaf; 
 
-void future_tester(auto fnc) {
+template <typename F>
+void future_tester(F fnc) {
     bool correct = false;
     launch_local(1, [&] () {
         auto fut = fnc();

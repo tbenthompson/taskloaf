@@ -17,14 +17,14 @@ std::stringstream serialize(Data d) {
     std::stringstream ss;
     cereal::BinaryOutputArchive oarchive(ss);
     oarchive(d);
-    return std::move(ss);
+    return ss;
 }
 
 Data deserialize(std::stringstream& ss) {
     cereal::BinaryInputArchive iarchive(ss);
     Data d2;
     iarchive(d2);
-    return std::move(d2);
+    return d2;
 }
 
 TEST_CASE("Serialize/deserialize", "[data]") {

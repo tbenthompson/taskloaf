@@ -27,7 +27,7 @@ Matrix random_spd_matrix(size_t n)
         }
         A[i * n + i] += n;
     }
-    return std::move(A);
+    return A;
 }
 
 Blocks to_blocks(const Matrix& A, size_t n_blocks)

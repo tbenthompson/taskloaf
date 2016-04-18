@@ -40,7 +40,7 @@ struct GossipMessage {
 
 
 template <typename T>
-auto loop_around(auto it, const T& collection) {
+auto loop_around(typename T::const_iterator it, const T& collection) {
     if (it == collection.end()) {
         return collection.begin();
     }
@@ -48,7 +48,7 @@ auto loop_around(auto it, const T& collection) {
 }
 
 template <typename T>
-auto before(auto it, const T& collection) {
+auto before(typename T::const_iterator it, const T& collection) {
     if (it == collection.begin()) {
         return std::prev(collection.end());
     }

@@ -32,6 +32,7 @@ struct CallerRegistry {
             }
         }
         assert(false);
+        return {0, 0};
     }
 
     void* get_function(const std::pair<size_t,size_t>& loc) {

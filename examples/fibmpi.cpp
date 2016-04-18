@@ -1,5 +1,3 @@
-#include <mpi.h>
-
 #include <functional>
 
 #include "fib.hpp"

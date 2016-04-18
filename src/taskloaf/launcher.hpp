@@ -35,6 +35,9 @@ void launch_local(int n_workers, F&& f) {
     local_launch_coordinator(n_workers, f, launch_local_helper);
 }
 
+int shutdown();
+
+#ifdef MPI_FOUND
 void launch_mpi_helper(std::function<IVarRef()> f);
 
 template <typename F>
@@ -44,7 +47,6 @@ void launch_mpi(F&& f) {
         return t.ivar;
     });
 }
-
-int shutdown();
+#endif
 
 } //end namespace taskloaf

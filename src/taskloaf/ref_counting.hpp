@@ -9,8 +9,8 @@ namespace taskloaf {
 
 struct RefData {
     size_t ref_id;
-    int generation = 0;
-    int children = 0;
+    int generation;
+    int children;
 
     template <typename Archive>
     void serialize(Archive& ar) {

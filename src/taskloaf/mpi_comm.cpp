@@ -1,3 +1,4 @@
+#ifdef MPI_FOUND
 #include "mpi_comm.hpp"
 
 #include <algorithm>
@@ -91,3 +92,4 @@ void MPIComm::add_handler(int msg_type, std::function<void(Data)> handler) {
 }
 
 } //end namespace taskloaf
+#endif

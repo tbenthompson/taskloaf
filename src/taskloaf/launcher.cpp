@@ -79,6 +79,13 @@ void launch_local_helper_singlethread(size_t n_workers, std::function<IVarRef()>
     }
 }
 
+int shutdown() {
+    cur_worker->shutdown(); 
+    return 0;
+}
+
+#ifdef MPI_FOUND
+
 void launch_mpi_helper(std::function<IVarRef()> f) {
     MPI_Init(NULL, NULL);
 
@@ -99,9 +106,6 @@ void launch_mpi_helper(std::function<IVarRef()> f) {
     MPI_Finalize();
 }
 
-int shutdown() {
-    cur_worker->shutdown(); 
-    return 0;
-}
+#endif
 
 } //end namespace taskloaf

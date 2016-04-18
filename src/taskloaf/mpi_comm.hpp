@@ -1,7 +1,9 @@
 #pragma once
-#include <mpi.h>
+#ifdef MPI_FOUND
 #include "taskloaf/address.hpp"
 #include "taskloaf/comm.hpp"
+
+#include <mpi.h>
 
 namespace taskloaf {
 
@@ -31,3 +33,4 @@ struct MPIComm: public Comm {
 };
 
 } //end namespace taskloaf
+#endif

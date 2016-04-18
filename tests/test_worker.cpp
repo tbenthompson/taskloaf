@@ -39,7 +39,7 @@ std::vector<std::unique_ptr<Worker>> workers(int n_workers) {
         ws[i]->core_id = i;
         settle(ws);
     }
-    return std::move(ws);
+    return ws;
 }
 
 ID id_on_worker(const std::unique_ptr<Worker>& w) {

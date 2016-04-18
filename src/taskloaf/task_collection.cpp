@@ -52,7 +52,7 @@ void TaskCollection::add_task(TaskT f) {
 TaskT TaskCollection::next() {
     auto t = std::move(tasks.front());
     tasks.pop_front();
-    return std::move(t);
+    return t;
 }
 
 void TaskCollection::steal() {
