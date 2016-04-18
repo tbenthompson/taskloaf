@@ -1,4 +1,5 @@
-from taskloaf_wrapper import *
+from taskloaf_wrapper import when_both, ready, async, shutdown, launch_local,\
+    launch_mpi
 import taskloaf_wrapper
 import ctypes
 

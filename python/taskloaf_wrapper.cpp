@@ -5,10 +5,11 @@ namespace tsk = taskloaf;
 
 namespace cereal {
 
+static auto pickle_module = boost::python::import("dill"); 
+
 template<class Archive>
 void save(Archive& ar, const boost::python::object& o)
 { 
-    auto pickle_module = boost::python::import("cloudpickle"); 
     std::string dump = boost::python::extract<std::string>(
         pickle_module.attr("dumps")(o)
     );
@@ -20,26 +21,10 @@ void load(Archive& ar, boost::python::object& o)
 {
     std::string dump;
     ar(dump);
-    auto pickle_module = boost::python::import("cloudpickle"); 
     o = pickle_module.attr("loads")(dump);
 }
 
 } // end namespace cereal
-
-std::string serialize_test(boost::python::object& o) {
-    std::stringstream serialized_data;
-    cereal::BinaryOutputArchive oarchive(serialized_data);
-    oarchive(o);
-    return serialized_data.str();
-}
-
-boost::python::object deserialize_test(const std::string& dump) {
-    std::stringstream serialized_data(dump);
-    cereal::BinaryInputArchive iarchive(serialized_data);
-    boost::python::object o;
-    iarchive(o);
-    return o;
-}
 
 template <typename F>
 auto handle_py_exception(F f) {
@@ -70,6 +55,27 @@ struct PyFuture {
             });
         }).unwrap()};
     }
+
+    struct PyFuturePickleSuite: boost::python::pickle_suite
+    {
+        static boost::python::tuple getstate(const PyFuture& w)
+        {
+            std::stringstream serialized_data;
+            cereal::BinaryOutputArchive oarchive(serialized_data);
+            oarchive(w.fut);
+            return boost::python::make_tuple(
+                boost::python::object(serialized_data.str())
+            );
+        }
+
+        static void setstate(PyFuture& w, boost::python::tuple state)
+        {
+            std::string dump = boost::python::extract<std::string>(state[0]);
+            std::stringstream serialized_data(dump);
+            cereal::BinaryInputArchive iarchive(serialized_data);
+            iarchive(w.fut);
+        }
+    };
 };
 
 PyFuture when_both(PyFuture a, PyFuture b) {
@@ -116,10 +122,9 @@ BOOST_PYTHON_MODULE(taskloaf_wrapper) {
     def("async", async);
     def("shutdown", shutdown);
     def("when_both", when_both);
-    def("serialize_test", serialize_test);
-    def("deserialize_test", deserialize_test);
 
-    class_<PyFuture>("Future", no_init)
+    class_<PyFuture>("Future", init<>())
         .def("then", &PyFuture::then)
-        .def("unwrap", &PyFuture::unwrap);
+        .def("unwrap", &PyFuture::unwrap)
+        .def_pickle(PyFuture::PyFuturePickleSuite());
 }

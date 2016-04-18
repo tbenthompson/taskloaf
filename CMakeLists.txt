@@ -9,7 +9,6 @@ set(BUILD_TYPE Release)
 include(ExternalProject)
 
 
-set(OPENMP_REQUIRED true)
 set(PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 ################################################################################
@@ -25,7 +24,7 @@ endif()
 #                              Check for threading library (pthreads..., OpenMP)
 ################################################################################
 
-FIND_PACKAGE(OpenMP REQUIRED)
+FIND_PACKAGE(OpenMP)
 if(OPENMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
@@ -33,7 +32,7 @@ if(OPENMP_FOUND)
 endif()
 
 ################################################################################
-#                              Check for threading library (pthreads..., OpenMP)
+#                              Check for MPI!
 ################################################################################
 
 find_package(MPI REQUIRED)
@@ -45,7 +44,7 @@ find_package(MPI REQUIRED)
 set(warnings "-Wall -Wextra -Werror -Wno-parentheses -Wno-deprecated-declarations -Wno-unknown-pragmas -Wno-literal-suffix")
 set(opt "-O3 -g") 
 if (BUILD_TYPE STREQUAL "Debug")
-    set(opt "-O0 -g -DSPDLOG_TRACE_ON")
+    set(opt "-O0 -g")
 endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${warnings} ${opt}")
 
@@ -163,7 +162,7 @@ macro(taskloaf_tests name files)
 endmacro()
 
 taskloaf_tests(run_tests
-    "tests/test_main.cpp;tests/test_future.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp;tests/test_fakelaunch.cpp"
+    "tests/test_main.cpp;tests/test_future.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp"
 )
 
 taskloaf_tests(mpi_tests "tests/test_mpi.cpp")
@@ -191,7 +190,13 @@ endmacro()
 taskloaf_example(fib examples/fib.cpp)
 taskloaf_example(totient examples/totient.cpp)
 taskloaf_example(dot_product examples/dot_product.cpp)
-taskloaf_example(cholesky examples/cholesky.cpp)
-target_link_libraries(cholesky openblas)
-taskloaf_example(diffusion examples/diffusion.cpp)
+
+find_package(BLAS)
+find_package(LAPACK)
+if (BLAS_FOUND AND LAPACK_FOUND) 
+    taskloaf_example(cholesky examples/cholesky.cpp)
+    target_link_libraries(cholesky openblas)
+endif()
+
 taskloaf_example(fibmpi examples/fibmpi.cpp)
+taskloaf_example(diffusion examples/diffusion.cpp)

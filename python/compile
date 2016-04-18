@@ -1,1 +1,1 @@
-g++ -I../taskloaf/src/ -I../taskloaf/build/cereal-prefix/src/cereal/include -I/usr/include/python2.7 -L../taskloaf/build -fPIC -shared taskloaf_wrapper.cpp --std=c++14 -o taskloaf_wrapper.so -lboost_python -Wl,-rpath,../taskloaf/build -ltaskloaf
+g++ -O3 -I../src/ -I../build/cereal-prefix/src/cereal/include -I/usr/include/python2.7 -L../build -fPIC -shared taskloaf_wrapper.cpp --std=c++14 -o taskloaf_wrapper.so -lboost_python -Wl,-rpath,../build -ltaskloaf
