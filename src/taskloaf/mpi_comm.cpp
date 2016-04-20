@@ -70,7 +70,6 @@ void MPIComm::recv() {
 
     int n_bytes;
     MPI_Get_count(&stat, MPI_CHAR, &n_bytes);
-    // std::cout << "NBYTES: " << n_bytes << std::endl;
 
     Msg m(stat.MPI_TAG, make_data(std::string(n_bytes, 'a')));
     cur_msg = &m;

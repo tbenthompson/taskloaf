@@ -1,2 +1,6 @@
+dist
+tmp
 build
+build_python
+taskloaf.egg-info
 *.swp
