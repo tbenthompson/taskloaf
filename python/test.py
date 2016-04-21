@@ -43,7 +43,7 @@ def done(x):
     # more tasks to run.
     return shutdown()
 
-# Calculate the 42nd fibonacci number, then print it and shutdown
+# Calculate the 38th fibonacci number, then print it and shutdown
 def main():
     return fib(38).then(done)
 
