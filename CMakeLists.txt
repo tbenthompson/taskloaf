@@ -110,8 +110,7 @@ endif(BUILD_TESTS)
 ################################################################################
 
 if (BUILD_PYTHON)
-    set(WRAPPER_SRC "${TASKLOAF_SRC};python/new_taskloaf_wrapper.cpp")
-    MESSAGE("${WRAPPER_SRC}")
+    set(WRAPPER_SRC "${TASKLOAF_SRC};taskloaf/taskloaf_wrapper.cpp")
     add_library(taskloaf_wrapper SHARED ${WRAPPER_SRC})
     SET_TARGET_PROPERTIES(taskloaf_wrapper PROPERTIES PREFIX "")
 
