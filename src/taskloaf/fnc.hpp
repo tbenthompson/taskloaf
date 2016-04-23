@@ -54,7 +54,7 @@ struct RegisterCaller
             auto& closure = *const_cast<Func*>(
                 reinterpret_cast<const Func*>(char_arr)
             );
-            return closure(std::forward<Args>(args)...);
+            return closure(args...);
         };
         auto f_ptr = static_cast<FncCaller<Return,Args...>>(f);
         get_caller_registry().insert<Func>(reinterpret_cast<void*>(f_ptr));
@@ -68,15 +68,6 @@ struct RegisterCaller
 
 template<typename Func, typename Return, typename... Args>
 RegisterCaller<Func,Return,Args...> RegisterCaller<Func,Return,Args...>::instance;
-
-template <typename Func, typename Return, typename... Args>
-struct Caller {
-    static Return runner(const std::string& data, Args... args) {
-        const char* char_arr = data.c_str();
-        return (*const_cast<Func*>(reinterpret_cast<const Func*>(char_arr)))
-            (std::forward<Args>(args)...);
-    }
-};
 
 template <typename Func, typename Return, typename... Args>
 static auto get_call() {
@@ -104,11 +95,16 @@ struct Function<Return(Args...)> {
         closure = std::string(reinterpret_cast<const char*>(newf.get()), sizeof(f));
     }
 
-    Return operator()(Args... args) {
+    template <typename... As>
+    Return operator()(As&&... args) {
         auto caller = reinterpret_cast<FncCaller<Return,Args...>>(
             get_caller_registry().get_function(caller_id)
         );
-        return caller(closure, std::forward<Args>(args)...);
+        return caller(closure, std::forward<As>(args)...);
+    }
+
+    Return call(Args... args) {
+        return this->operator()(args...);
     }
 
     template <typename Archive>

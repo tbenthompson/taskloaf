@@ -50,4 +50,4 @@ def main():
     return fib(n).then(done)
 
 # Launch an MPI taskloaf application with main as the first task.
-tl.launch_local(1, main);
+tl.launch_mpi(main);

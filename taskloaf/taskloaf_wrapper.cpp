@@ -5,20 +5,23 @@
 namespace py = pybind11;
 namespace tl = taskloaf;
 
-static auto pickle_module = py::module::import("dill"); 
-static py::object dumps = pickle_module.attr("dumps");
-static py::object loads = pickle_module.attr("loads");
-
 namespace cereal {
     template<class Archive>
     void save(Archive& ar, const py::object& o)
     { 
+        // TODO: Figure out a way to load these once.
+        auto pickle_module = py::module::import("dill"); 
+        py::object dumps = pickle_module.attr("dumps");
+        py::object loads = pickle_module.attr("loads");
         ar(dumps.call(o).cast<std::string>());
     }
 
     template<class Archive>
     void load(Archive& ar, py::object& o)
     {
+        auto pickle_module = py::module::import("dill"); 
+        py::object dumps = pickle_module.attr("dumps");
+        py::object loads = pickle_module.attr("loads");
         std::string dump;
         ar(dump);
         o = loads.call(py::bytes(dump));
@@ -26,25 +29,12 @@ namespace cereal {
 } // end namespace cereal
 
 template <typename F>
-auto handle_py_exception(F f) {
+auto handle_py_exception(const F& f) {
     try {
         return f();
     } catch (const pybind11::error_already_set& e) {
+        // TODO: Need better python error reporting.
         PyErr_Print();
-        // Need better python error reporting.
-        // PyThreadState *tstate = PyThreadState_GET();
-        // if (NULL != tstate && NULL != tstate->frame) {
-        //     PyFrameObject *frame = tstate->frame;
-
-        //     printf("Python stack trace:\n");
-        //     while (NULL != frame) {
-        //         int line = frame->f_lineno;
-        //         const char *filename = PyString_AsString(frame->f_code->co_filename);
-        //         const char *funcname = PyString_AsString(frame->f_code->co_name);
-        //         printf("    %s(%d): %s\n", filename, line, funcname);
-        //         frame = frame->f_back;
-        //     }
-        // }
         throw e;
     }
 }
@@ -54,14 +44,14 @@ struct PyFuture {
 
     PyFuture then(const py::object& f) {
         return {tl::when_all(tl::ready(f), fut).then(
-            [] (py::object f, py::object val) {
+            [] (py::object& f, py::object& val) {
                 return handle_py_exception([&] () { return f.call(val); });
             }
         )};
     }
 
     PyFuture unwrap() {
-        return {fut.then([] (py::object val) {
+        return {fut.then([] (py::object& val) {
             return handle_py_exception([&] () {
                 return val.cast<PyFuture*>()->fut;
             });
@@ -88,22 +78,20 @@ struct PyFuture {
 
 PyFuture when_both(const PyFuture& a, const PyFuture& b) {
     return PyFuture{tl::when_all(a.fut, b.fut).then(
-        [] (py::object a_o, py::object b_o) {
+        [] (py::object& a_o, py::object& b_o) {
             return handle_py_exception([&] () {
-                auto out = py::object(py::make_tuple(a_o, b_o));
-                std::cout << std::string(out.str()) << std::endl;
-                return out;
+                return py::object(py::make_tuple(a_o, b_o));
             });
         }
     )};
 }
 
-PyFuture ready(const py::object& val) {
+PyFuture ready(py::object& val) {
     return {tl::ready(val)};
 }
 
 PyFuture async(const py::object& f) {
-    return {tl::ready(f).then([] (py::object f) {
+    return {tl::ready(f).then([] (const py::object& f) {
         auto out = handle_py_exception([&] () {
             auto ret = f.call();
             return ret;
@@ -128,54 +116,11 @@ void launch_mpi_wrapper(const py::object& f) {
     });
 }
 
-py::object test_serialization(py::object f) {
-    std::stringstream serialized_data;
-    cereal::BinaryOutputArchive oarchive(serialized_data);
-    oarchive(f);
-    py::object f2;
-    cereal::BinaryInputArchive iarchive(serialized_data);
-    iarchive(f2);
-    return f2.call();
-}
-
-struct Simple {
-    tl::Data d;
-};
-
-Simple test_refcounting(py::object a, py::object b) {
-    {
-        std::cout << "a_rc: " << a.ref_count() << std::endl;
-        std::cout << "b_rc: " << b.ref_count() << std::endl;
-        auto d1 = tl::make_data(py::object(std::move(a)));
-        auto d2 = tl::make_data(py::object(std::move(b)));
-        std::cout << "a_rc: " << d1.get_as<py::object>().ref_count() << std::endl;
-        std::cout << "b_rc: " << d2.get_as<py::object>().ref_count() << std::endl;
-    }
-    std::cout << "a_rc: " << a.ref_count() << std::endl;
-    std::cout << "b_rc: " << b.ref_count() << std::endl;
-    auto vd = std::vector<tl::Data>{tl::make_data(py::make_tuple(a, b))};
-    return {tl::make_data(std::move(vd))};
-}
-
-void test_refcounting2(py::object f, Simple v) {
-    Simple v2 = std::move(v);
-    auto obj = v2.d.get_as<std::vector<tl::Data>>()[0].get_as<py::object>();
-    std::cout << "a_rc: " << py::object(py::tuple(obj)[0]).ref_count() << std::endl;
-    std::cout << "b_rc: " << py::object(py::tuple(obj)[1]).ref_count() << std::endl;
-    std::cout << obj.ref_count() << std::endl;
-    std::cout << std::string(f.call(obj).str()) << std::endl;
-}
-
 PYBIND11_PLUGIN(taskloaf_wrapper) {
     py::module m(
         "taskloaf_wrapper",
         "Python bindings for the Taskloaf distributed task parallelism library"
     );
-
-    m.def("test_serialization", test_serialization);
-    m.def("test_refcounting", test_refcounting);
-    m.def("test_refcounting2", test_refcounting2);
-    py::class_<Simple>(m, "Simple");
 
     m.def("launch_local", launch_local_wrapper);
     m.def("launch_mpi", launch_mpi_wrapper);

@@ -8,8 +8,6 @@
 #include <cassert>
 #include <memory>
 
-#include <pybind11/pybind11.h>
-
 namespace taskloaf {
 
 /* This is a wrapper that hides an arbitrary object inside a shared_ptr and 
@@ -45,12 +43,6 @@ struct Data {
     template <typename T>
     void initialize() {
         ptr.reset(new T(), [] (void* data_ptr) {
-            if (std::is_same<T,pybind11::object>::value) {
-                auto& o = *reinterpret_cast<pybind11::object*>(data_ptr);
-                std::cout << "deleting: " << std::string(o.str()) 
-                    << " with ref count: " << o.ref_count()
-                    << std::endl;
-            }
             delete reinterpret_cast<T*>(data_ptr);
         });
         serializer = [] (const Data& d) {

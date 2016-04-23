@@ -23,8 +23,9 @@ struct Closure<Return(Args...)> {
         input(std::move(args))
     {}
 
-    Return operator()(Args... a) {
-        return fnc(input, a...);
+    template <typename... As>
+    Return operator()(As&&... args) {
+        return fnc(input, std::forward<As>(args)...);
     }
 
     template <typename Archive>
