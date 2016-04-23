@@ -19,7 +19,7 @@ IVarRef plan_when_all(std::vector<IVarRef> inputs);
 
 template <typename F, typename... Ts>
 auto then(const Future<Ts...>& fut, F&& fnc) {
-    typedef std::result_of_t<F(Ts&...)> Return;
+    typedef typename std::result_of<F(Ts&...)>::type Return;
     auto fnc_container = make_function(std::forward<F>(fnc));
     Closure<Data(std::vector<Data>&)> task(
         [] (std::vector<Data>& d, std::vector<Data>& in) mutable
@@ -49,7 +49,7 @@ auto ready(T val) {
 
 template <typename F>
 auto async(F&& fnc) {
-    typedef std::result_of_t<F()> Return;
+    typedef typename std::result_of<F()>::type Return;
     auto fnc_container = make_function(std::forward<F>(fnc));
     Closure<Data(std::vector<Data>&)> task(
         [] (std::vector<Data>& d, std::vector<Data>&) {

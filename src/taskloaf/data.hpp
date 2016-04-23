@@ -30,9 +30,9 @@ struct Data {
 
     template <
         typename T, 
-        typename std::enable_if_t<
-            !std::is_same<typename std::decay_t<T>,Data>::value
-        >* = nullptr
+        typename std::enable_if<
+            !std::is_same<typename std::decay<T>::type,Data>::value
+        >::type* = nullptr
     >
     explicit Data(T&& value) {
         typedef typename std::decay<T>::type DecayedT;

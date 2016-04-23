@@ -1,4 +1,7 @@
 #pragma once
+
+#include "make_unique.hpp"
+
 #include <map>
 #include <cassert>
 #include <vector>

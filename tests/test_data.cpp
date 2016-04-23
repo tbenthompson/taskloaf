@@ -13,14 +13,15 @@ TEST_CASE("make data", "[data]") {
     REQUIRE(d.get_as<std::string>() == "yea!");
 }
 
-std::stringstream serialize(Data d) {
+std::string serialize(Data d) {
     std::stringstream ss;
     cereal::BinaryOutputArchive oarchive(ss);
     oarchive(d);
-    return ss;
+    return ss.str();
 }
 
-Data deserialize(std::stringstream& ss) {
+Data deserialize(std::string s) {
+    std::stringstream ss(s);
     cereal::BinaryInputArchive iarchive(ss);
     Data d2;
     iarchive(d2);
