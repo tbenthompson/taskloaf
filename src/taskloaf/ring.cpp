@@ -169,7 +169,7 @@ struct RingImpl {
 };
 
 Ring::Ring(Comm& comm, int n_locs):
-    impl(std::make_unique<RingImpl>(comm, n_locs))
+    impl(std::unique_ptr<RingImpl>(new RingImpl(comm, n_locs)))
 {}
 
 Ring::Ring(Ring&&) = default;

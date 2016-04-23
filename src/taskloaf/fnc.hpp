@@ -1,7 +1,5 @@
 #pragma once
 
-#include "make_unique.hpp"
-
 #include <map>
 #include <cassert>
 #include <vector>
@@ -94,7 +92,7 @@ struct Function<Return(Args...)> {
     template <typename F>
     Function(F f) {
         caller_id = get_call<F,Return,Args...>();
-        auto newf = std::make_unique<F>(std::move(f));
+        auto newf = std::unique_ptr<F>(new F(std::move(f)));
         closure = std::string(reinterpret_cast<const char*>(newf.get()), sizeof(f));
     }
 

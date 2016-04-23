@@ -9,7 +9,7 @@ using namespace taskloaf;
 
 template <typename T, typename F>
 void test_send(T&& v, F&& f) {
-    SerializingComm c(std::make_unique<MPIComm>());
+    SerializingComm c(std::unique_ptr<MPIComm>(new MPIComm()));
     if (mpi_rank(c) == 0) {
         c.send({"", 1}, Msg(0, make_data(std::forward<T>(v))));
         c.send({"", 1}, Msg(1, make_data(0)));

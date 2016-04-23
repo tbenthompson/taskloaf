@@ -47,7 +47,7 @@ def main():
         zip_safe = False,
 
         name = 'taskloaf',
-        version = '0.0.1',
+        version = '0.0.3',
         description = 'taskloaf',
         long_description = 'taskloaf',
         url = 'https://github.com/tbenthompson/taskloaf',

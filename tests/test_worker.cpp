@@ -21,18 +21,18 @@ void settle(std::vector<std::unique_ptr<Worker>>& ws) {
 
 Worker worker() {
     auto lcq = std::make_shared<LocalCommQueues>(1);
-    return Worker(std::make_unique<LocalComm>(LocalComm(lcq, 0)));
+    return Worker(std::unique_ptr<LocalComm>(new LocalComm(lcq, 0)));
 }
 
 std::vector<std::unique_ptr<Worker>> workers(int n_workers) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws;
     for (int i = 0; i < n_workers; i++) {
-        ws.emplace_back(std::make_unique<Worker>(
-            std::make_unique<SerializingComm>(
-                std::make_unique<LocalComm>(LocalComm(lcq, i))
-            )
-        ));
+        ws.emplace_back(std::unique_ptr<Worker>(new Worker(
+            std::unique_ptr<SerializingComm>(new SerializingComm(
+                std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
+            ))
+        )));
         if (i != 0) {
             ws[i]->introduce(ws[0]->get_addr());
         }
