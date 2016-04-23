@@ -10,7 +10,7 @@
 namespace taskloaf {
 
 template <typename FComm>
-void helper(size_t n_workers, std::function<IVarRef()> f,
+void helper(size_t n_workers, std::function<void()> f,
     FComm comm_builder) 
 {
     std::vector<std::thread> threads;
@@ -41,13 +41,13 @@ void helper(size_t n_workers, std::function<IVarRef()> f,
 }
 
 
-void launch_local_helper(size_t n_workers, std::function<IVarRef()> f) {
+void launch_local(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     helper(n_workers, f, [&] (size_t i) {
         return std::make_unique<LocalComm>(LocalComm(lcq, i));
     });
 }
-void launch_local_helper_serializing(size_t n_workers, std::function<IVarRef()> f) {
+void launch_local_serializing(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     helper(n_workers, f, [&] (size_t i) {
         return std::make_unique<SerializingComm>(
@@ -56,7 +56,7 @@ void launch_local_helper_serializing(size_t n_workers, std::function<IVarRef()> 
     });
 }
 
-void launch_local_helper_singlethread(size_t n_workers, std::function<IVarRef()> f) {
+void launch_local_singlethread(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws(n_workers);
     for (size_t i = 0; i < n_workers; i++) { 
@@ -86,7 +86,7 @@ int shutdown() {
 
 #ifdef MPI_FOUND
 
-void launch_mpi_helper(std::function<IVarRef()> f) {
+void launch_mpi(std::function<void()> f) {
     MPI_Init(NULL, NULL);
 
     Worker w(std::make_unique<SerializingComm>(std::make_unique<MPIComm>()));

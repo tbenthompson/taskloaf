@@ -14,10 +14,10 @@ struct IVarRef {
     IVarRef();
     explicit IVarRef(ID id);
     IVarRef(ID id, RefData data);
+    IVarRef(const IVarRef&);
     IVarRef(IVarRef&&);
     IVarRef& operator=(IVarRef&&);
     IVarRef& operator=(const IVarRef&);
-    IVarRef(const IVarRef&);
     ~IVarRef();
 
     template <typename Archive>

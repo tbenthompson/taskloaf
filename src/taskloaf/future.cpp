@@ -24,7 +24,6 @@ IVarRef plan_then(const IVarRef& input, PureTaskT task) {
 
 IVarRef plan_unwrap(const IVarRef& input, PureTaskT unwrapper) {
     IVarRef out_future(new_id());
-    (void)input; (void)unwrapper;
     cur_worker->add_trigger(input, {
         [] (std::vector<Data>& d, std::vector<Data>& vals) {
             auto& fnc = d[1].get_as<PureTaskT>();

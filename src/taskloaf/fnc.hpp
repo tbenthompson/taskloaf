@@ -7,9 +7,6 @@
 
 #include <cereal/types/utility.hpp>
 
-//TODO: REMOVE
-#include <iostream>
-
 namespace taskloaf {
 
 //Modified substantially from https://github.com/darabos/pinty/blob/master/pinty.h

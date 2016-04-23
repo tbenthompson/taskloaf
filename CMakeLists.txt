@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX C)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 include(ExternalProject)
 
 set(TASKLOAF_DIR ${CMAKE_CURRENT_SOURCE_DIR})

@@ -1,11 +1,11 @@
-from taskloaf_wrapper import when_both, ready, async, shutdown, launch_local,\
-    launch_mpi
+from taskloaf_wrapper import *
 import taskloaf_wrapper
 import ctypes
 
 def when_all(*args):
     def make_split_args(f):
         def split_args(x):
+            print(x)
             return f(*x)
         return split_args
 
@@ -33,5 +33,8 @@ def when_all(*args):
     return WhenAllFuture(*args)
 
 def launch_mpi(*args, **kwargs):
+    # TODO: The CMake script knows what the name of the mpi library is, so it
+    # should store that in a configuration script or something so that we can
+    # load it properly here.
     ctypes.CDLL('libmpi.so', mode=ctypes.RTLD_GLOBAL)
     taskloaf_wrapper.launch_mpi(*args, **kwargs)
