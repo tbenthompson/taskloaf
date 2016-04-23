@@ -1,14 +1,9 @@
 # Modified from https://github.com/pybind/pbtest, find the original license there
-
-from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext
+from setuptools import setup
 from distutils.sysconfig import get_python_inc
-from pip import locations
 import multiprocessing
 import os
 import shutil
-import sys
-import setuptools
 import subprocess
 
 def build_extension():
@@ -54,10 +49,12 @@ def main():
         name = 'taskloaf',
         version = '0.0.1',
         description = 'taskloaf',
-        long_description = '',
+        long_description = 'taskloaf',
         url = 'https://github.com/tbenthompson/taskloaf',
         author = 'T. Ben Thompson',
         author_email = 't.ben.thompson@gmail.com',
+        license = 'MIT',
+        platforms = ['any'],
         classifiers = [
             'Development Status :: 4 - Beta',
             'Intended Audience :: Developers',
