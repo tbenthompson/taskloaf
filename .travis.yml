@@ -32,7 +32,6 @@ matrix:
             - cmake
             - g++-5
       env: COMPILER=g++-5
-      env: COMPILER=clang++
     - compiler: clang
       addons:
         apt:
