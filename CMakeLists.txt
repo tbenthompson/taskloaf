@@ -71,7 +71,7 @@ if (BUILD_LIBRARY)
     target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
 
     if (MPI_FOUND)
-        target_include_directories(taskloaf PRIVATE ${MPI_INCLUDE_PATH})
+        target_include_directories(taskloaf SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
         target_link_libraries(taskloaf ${MPI_LIBRARIES})
     endif()
 endif(BUILD_LIBRARY)
@@ -84,9 +84,9 @@ macro(taskloaf_tests name files)
     add_executable(${name} ${files})
     target_include_directories(${name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib
-        ${MPI_INCLUDE_PATH}
-        )
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+    target_include_directories(${name} SYSTEM PRIVATE
+        ${MPI_INCLUDE_PATH})
     add_dependencies(${name} taskloaf)
     target_link_libraries(${name} 
         taskloaf
@@ -119,11 +119,11 @@ if (BUILD_PYTHON)
 
     target_include_directories(taskloaf_wrapper PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+    target_include_directories(taskloaf_wrapper SYSTEM PRIVATE
         ${PYTHON_INCLUDE}
-        )
+        ${MPI_INCLUDE_PATH})
 
-    target_include_directories(taskloaf_wrapper PRIVATE ${MPI_INCLUDE_PATH})
     target_link_libraries(taskloaf_wrapper
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
@@ -140,7 +140,7 @@ macro(taskloaf_example name filename)
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
     )
     if (MPI_FOUND)
-        target_include_directories(${name} PRIVATE ${MPI_INCLUDE_PATH})
+        target_include_directories(${name} SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
     endif()
     add_dependencies(${name} taskloaf)
     target_link_libraries(${name} 
