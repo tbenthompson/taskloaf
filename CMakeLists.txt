@@ -4,16 +4,36 @@
 
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX C)
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_BUILD_TYPE Release)
-
-set(TASKLOAF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 option(BUILD_LIBRARY "Build taskloaf library" ON)
 option(BUILD_TESTS "Build test programs" ON)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_PYTHON "Build python wrappers" OFF)
 option(PYTHON_INCLUDE "Python include directories" "")
+
+################################################################################
+#                              setup compiler
+################################################################################
+
+include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-std=c++1y" COMPILER_SUPPORTS_CXX14)
+if(COMPILER_SUPPORTS_CXX14)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
+else()
+    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support.
+                    Please use a different C++ compiler.")
+endif() 
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-literal-suffix")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+endif()
+
+find_package(Threads REQUIRED)
 
 ################################################################################
 #                              Check for MPI!
@@ -31,29 +51,6 @@ endif()
 if("${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
     message(FATAL_ERROR "In-source builds are not allowed.")
 endif()
-
-################################################################################
-#                              setup compiler
-################################################################################
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS 
-        "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS 
-        "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-literal-suffix")
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-endif()
-
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-std=c++1y" COMPILER_SUPPORTS_CXX14)
-if(COMPILER_SUPPORTS_CXX14)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
-else()
-    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support.
-                    Please use a different C++ compiler.")
-endif() 
 
 ################################################################################
 #                              taskloaf library
@@ -120,7 +117,9 @@ if (BUILD_PYTHON)
         )
 
     target_include_directories(taskloaf_wrapper PRIVATE ${MPI_INCLUDE_PATH})
-    target_link_libraries(taskloaf_wrapper ${MPI_LIBRARIES})
+    target_link_libraries(taskloaf_wrapper
+        ${MPI_LIBRARIES}
+        ${CMAKE_THREAD_LIBS_INIT})
 endif(BUILD_PYTHON)
 
 ################################################################################
@@ -137,7 +136,9 @@ macro(taskloaf_example name filename)
         target_include_directories(${name} PRIVATE ${MPI_INCLUDE_PATH})
     endif()
     add_dependencies(${name} taskloaf)
-    target_link_libraries(${name} taskloaf)
+    target_link_libraries(${name} 
+        taskloaf
+        ${CMAKE_THREAD_LIBS_INIT})
 endmacro()
 
 if (BUILD_EXAMPLES)
@@ -150,7 +151,11 @@ if (BUILD_EXAMPLES)
     find_package(LAPACK)
     if (BLAS_FOUND AND LAPACK_FOUND)
         taskloaf_example(cholesky examples/cholesky.cpp)
-        target_link_libraries(cholesky ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+        target_link_libraries(cholesky 
+            ${BLAS_LIBRARIES}
+            ${LAPACK_LIBRARIES}
+            ${CMAKE_THREAD_LIBS_INIT}
+            )
     endif()
 
     if (MPI_FOUND)
