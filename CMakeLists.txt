@@ -149,10 +149,10 @@ macro(taskloaf_example name filename)
 endmacro()
 
 if (BUILD_EXAMPLES)
-    taskloaf_example(fib examples/fib.cpp)
     taskloaf_example(totient examples/totient.cpp)
     taskloaf_example(dot_product examples/dot_product.cpp)
     taskloaf_example(diffusion examples/diffusion.cpp)
+    taskloaf_example(readme examples/readme.cpp)
 
     find_package(BLAS)
     find_package(LAPACK)
