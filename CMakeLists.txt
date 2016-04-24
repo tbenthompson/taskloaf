@@ -26,7 +26,7 @@ else()
 endif() 
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-mismatched-tags")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-literal-suffix")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
@@ -65,6 +65,8 @@ if (BUILD_LIBRARY)
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         )
 
+    target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
+
     if (MPI_FOUND)
         target_include_directories(taskloaf PRIVATE ${MPI_INCLUDE_PATH})
         target_link_libraries(taskloaf ${MPI_LIBRARIES})
@@ -83,8 +85,11 @@ macro(taskloaf_tests name files)
         ${MPI_INCLUDE_PATH}
         )
     add_dependencies(${name} taskloaf)
-    target_link_libraries(${name} taskloaf)
-    target_link_libraries(${name} ${MPI_LIBRARIES})
+    target_link_libraries(${name} 
+        taskloaf
+        ${MPI_LIBRARIES}
+        ${CMAKE_THREAD_LIBS_INIT})
+        )
 endmacro()
 
 if(BUILD_TESTS)
