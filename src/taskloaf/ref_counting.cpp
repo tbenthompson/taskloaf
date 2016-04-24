@@ -1,6 +1,5 @@
 #include "ref_counting.hpp"
-
-#include <cassert>
+#include "tlassert.hpp"
 
 #include <iostream>
 
@@ -52,7 +51,7 @@ void ReferenceCount::dec(const RefData& ref) {
 
         }
     }
-    assert(counts[0] >= -source_ref.children);
+    tlassert(counts[0] >= -source_ref.children);
     deletes.insert(ref);
 }
 

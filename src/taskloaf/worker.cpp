@@ -94,7 +94,7 @@ void Worker::set_core_affinity(int core_id) {
     CPU_SET(core_id, &cs);
     auto err = pthread_setaffinity_np(pthread_self(), sizeof(cs), &cs);
     (void)err;
-    assert(err == 0);
+    tlassert(err == 0);
 }
 
 } //end namespace taskloaf

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <tuple>
-#include <cassert>
 
 #include "data.hpp"
 
@@ -10,7 +9,7 @@ namespace taskloaf {
 template <size_t index = 0, typename T>
 auto build_input(std::vector<Data>& args) 
 {
-    assert(index < args.size());
+    tlassert(index < args.size());
     return std::tuple<typename std::add_lvalue_reference<T>::type>(
         args[index].get_as<typename std::decay<T>::type>()
     );

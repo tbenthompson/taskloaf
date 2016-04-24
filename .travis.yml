@@ -82,3 +82,5 @@ script:
   - export CXX=$COMPILER
   - cmake ..
   - make -j2
+after_script:
+  - ctest .

@@ -28,17 +28,9 @@ void test_send(T&& v, F&& f) {
     }
 }
 
-inline void _assert(const char* expression, const char* file, int line)
-{
- fprintf(stderr, "Assertion '%s' failed, file '%s' line '%d'.", expression, file, line);
- abort();
-}
- 
-#define tskassert(EXPRESSION) ((EXPRESSION) ? (void)0 : _assert(#EXPRESSION, __FILE__, __LINE__))
-
 void test_send_simple() {
     test_send(10, [] (Comm&, int v) {
-        tskassert(v == 10); 
+        tlassert(v == 10); 
     });
 }
 
@@ -47,7 +39,7 @@ void test_send_fnc() {
     Function<int(int)> f([=] (int a) { return a * b; });
 
     test_send(f, [] (Comm&, Function<int(int)> f) {
-        tskassert(f(3) == 9);
+        tlassert(f(3) == 9);
     });
 }
 

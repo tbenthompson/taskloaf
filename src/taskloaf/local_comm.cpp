@@ -15,12 +15,12 @@ size_t LocalCommQueues::n_workers() {
 }
 
 void LocalCommQueues::enqueue(size_t which, Msg msg) {
-    assert(which < msg_queues.size());
+    tlassert(which < msg_queues.size());
     msg_queues[which].enqueue(std::move(msg));
 }
 
 bool LocalCommQueues::has_incoming(size_t which) {
-    assert(which < msg_queues.size());
+    tlassert(which < msg_queues.size());
     bool& ready_msg = cur_msg[which].first;
     if (!ready_msg) {
         ready_msg = msg_queues[which].try_dequeue(cur_msg[which].second);
@@ -29,12 +29,12 @@ bool LocalCommQueues::has_incoming(size_t which) {
 }
 
 Msg& LocalCommQueues::front(size_t which) {
-    assert(which < msg_queues.size());
+    tlassert(which < msg_queues.size());
     return cur_msg[which].second;
 }
 
 void LocalCommQueues::pop_front(size_t which) {
-    assert(which < msg_queues.size());
+    tlassert(which < msg_queues.size());
     cur_msg[which].first = false;
 }
     

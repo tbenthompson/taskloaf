@@ -106,7 +106,7 @@ struct IVarTrackerImpl {
 
             forward_or(iv.id, [&] () {
                 if (db.is_fulfilled(iv.id)) {
-                    assert(db[iv.id].ownership.trigger_locs.size() == 0);
+                    tlassert(db[iv.id].ownership.trigger_locs.size() == 0);
                     auto& val_loc = *db[iv.id].ownership.val_locs.begin();
                     comm.send(val_loc, Msg(Protocol::TriggerLocs, make_data(
                         std::make_pair(std::move(iv), std::set<Address>{p.second})
@@ -121,7 +121,7 @@ struct IVarTrackerImpl {
         comm.add_handler(Protocol::TriggerLocs, [&] (Data d) {
             auto& p = d.get_as<std::pair<IVarRef,std::set<Address>>>();
             auto& iv = p.first;
-            assert(db[iv.id].vals.size() > 0);
+            tlassert(db[iv.id].vals.size() > 0);
             fulfill_triggers(iv, p.second);
         });
         comm.add_handler(Protocol::RecvTriggers, [&] (Data d) {
@@ -131,7 +131,7 @@ struct IVarTrackerImpl {
         });
         comm.add_handler(Protocol::DeleteInfo, [&] (Data d) {
             auto& id = d.get_as<ID>();
-            assert(db.contains(id));
+            tlassert(db.contains(id));
             db.erase(id);
         });
         
@@ -188,7 +188,7 @@ struct IVarTrackerImpl {
     }
 
     void erase(const ID& id) {
-        assert(is_local(ring.get_owner(id)));
+        tlassert(is_local(ring.get_owner(id)));
         auto& info = db[id];
         for (auto& v_loc: info.ownership.val_locs) {
             if (!is_local(v_loc)) {
@@ -253,8 +253,8 @@ IVarTracker::IVarTracker(IVarTracker&&) = default;
 IVarTracker::~IVarTracker() = default;
 
 void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
-    assert(input.size() > 0);
-    assert(impl->db[iv.id].vals.size() == 0);
+    tlassert(input.size() > 0);
+    tlassert(impl->db[iv.id].vals.size() == 0);
     impl->db[iv.id].vals = std::move(input);
 
     auto owner = impl->ring.get_owner(iv.id);

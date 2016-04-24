@@ -5,7 +5,6 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/string.hpp>
 
-#include <cassert>
 #include <memory>
 
 namespace taskloaf {
@@ -75,7 +74,7 @@ struct Data {
 
     template <typename T>
     T& get_as() {
-        assert(ptr != nullptr);
+        tlassert(ptr != nullptr);
         return *reinterpret_cast<T*>(ptr.get()); 
     }
 };

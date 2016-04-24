@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cassert>
-
 #include "ivar.hpp"
 #include "fnc.hpp"
 #include "execute.hpp"

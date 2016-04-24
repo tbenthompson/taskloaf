@@ -9,7 +9,6 @@
 
 #include <map>
 #include <algorithm>
-#include <cassert>
 #include <iostream>
 
 namespace taskloaf {
@@ -135,7 +134,7 @@ struct RingImpl {
     }
 
     void add_friend(const RingState& their_state) {
-        assert(their_state.addr != comm.get_addr());
+        tlassert(their_state.addr != comm.get_addr());
         if (friends.count(their_state.addr) > 0) {
             return;
         }

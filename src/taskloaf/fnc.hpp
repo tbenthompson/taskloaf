@@ -1,7 +1,7 @@
 #pragma once
+#include "tlassert.hpp"
 
 #include <map>
-#include <cassert>
 #include <vector>
 #include <memory>
 #include <typeindex>
@@ -29,7 +29,7 @@ struct CallerRegistry {
                 return {tid, i};
             }
         }
-        assert(false);
+        tlassert(false);
         return {0, 0};
     }
 
