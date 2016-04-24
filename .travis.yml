@@ -2,7 +2,9 @@
 language: cpp
 sudo: true
 dist: trusty
-compiler: gcc
+compiler: 
+  - gcc
+  - clang
 script:
   - mkdir build
   - cd build
