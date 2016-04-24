@@ -11,6 +11,8 @@ matrix:
           packages:
             - cmake
             - g++-4.8
+            - libopenmpi-dev
+            - openmpi-bin
       env: COMPILER=g++-4.8
     - compiler: gcc
       addons:
@@ -21,6 +23,8 @@ matrix:
           packages:
             - cmake
             - g++-4.9
+            - libopenmpi-dev
+            - openmpi-bin
       env: COMPILER=g++-4.9
     - compiler: gcc
       addons:
@@ -31,6 +35,8 @@ matrix:
           packages:
             - cmake
             - g++-5
+            - libopenmpi-dev
+            - openmpi-bin
       env: COMPILER=g++-5
     - compiler: clang
       addons:
@@ -42,6 +48,8 @@ matrix:
           packages:
             - cmake
             - clang-3.5
+            - libopenmpi-dev
+            - openmpi-bin
       env: COMPILER=clang++-3.5
     - compiler: clang
       addons:
@@ -53,6 +61,8 @@ matrix:
           packages:
             - cmake
             - clang-3.6
+            - libopenmpi-dev
+            - openmpi-bin
       env: COMPILER=clang++-3.6
     - compiler: clang
       addons:
@@ -64,6 +74,8 @@ matrix:
           packages:
             - cmake
             - clang-3.7
+            - libopenmpi-dev
+            - openmpi-bin
       env: COMPILER=clang++-3.7
     - compiler: clang
       addons:
@@ -75,6 +87,8 @@ matrix:
           packages:
             - cmake
             - clang-3.8
+            - libopenmpi-dev
+            - openmpi-bin
       env: COMPILER=clang++-3.8
 script:
   - mkdir build
