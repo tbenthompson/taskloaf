@@ -32,17 +32,6 @@ matrix:
             - cmake
             - g++-5
       env: COMPILER=g++-5
-    - compiler: clang
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.4
-          packages:
-            - cmake
-            - clang-3.4
-            - g++-4.8
       env: COMPILER=clang++
     - compiler: clang
       addons:
