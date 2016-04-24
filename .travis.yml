@@ -1,91 +1,39 @@
 # Enable C++ support
 language: cpp
+addons:
+  apt:
+    sources:
+      - kalakris-cmake
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-precise-3.5
+      - llvm-toolchain-precise-3.6
+      - llvm-toolchain-precise-3.7
+      - llvm-toolchain-precise-3.8
+    packages:
+      - cmake
+      - g++-4.8
+      - g++-4.9
+      - g++-5
+      - clang-3.5
+      - clang-3.6
+      - clang-3.7
+      - clang-3.8
 matrix:
   include:
     - compiler: gcc
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-          packages:
-            - cmake
-            - g++-4.8
       env: COMPILER=g++-4.8
     - compiler: gcc
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-          packages:
-            - cmake
-            - g++-4.9
       env: COMPILER=g++-4.9
     - compiler: gcc
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-          packages:
-            - cmake
-            - g++-5
       env: COMPILER=g++-5
     - compiler: clang
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise
-          packages:
-            - cmake
-            - clang-3.4
-      env: COMPILER=clang++-3.4
     - compiler: clang
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.5
-          packages:
-            - cmake
-            - clang-3.5
       env: COMPILER=clang++-3.5
     - compiler: clang
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.6
-          packages:
-            - cmake
-            - clang-3.6
       env: COMPILER=clang++-3.6
     - compiler: clang
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.7
-          packages:
-            - cmake
-            - clang-3.7
       env: COMPILER=clang++-3.7
     - compiler: clang
-      addons:
-        apt:
-          sources:
-            - kalakris-cmake
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.8
-          packages:
-            - cmake
-            - clang-3.8
       env: COMPILER=clang++-3.8
 script:
   - mkdir build
