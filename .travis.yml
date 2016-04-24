@@ -38,11 +38,11 @@ matrix:
           sources:
             - kalakris-cmake
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise
+            - llvm-toolchain-precise-3.4
           packages:
             - cmake
             - clang-3.4
-      env: COMPILER=clang++ CXXFLAGS="-stdlib=libc++" 
+      env: COMPILER=clang++-3.4
     - compiler: clang
       addons:
         apt:
