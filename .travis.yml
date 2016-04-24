@@ -42,6 +42,7 @@ matrix:
           packages:
             - cmake
             - clang-3.4
+            - g++-4.8
       env: COMPILER=clang++
     - compiler: clang
       addons:
