@@ -89,7 +89,6 @@ macro(taskloaf_tests name files)
         taskloaf
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
-        )
 endmacro()
 
 if(BUILD_TESTS)
