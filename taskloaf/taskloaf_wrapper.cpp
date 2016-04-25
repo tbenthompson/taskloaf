@@ -110,20 +110,13 @@ void launch_local_wrapper(int n_workers, const py::object& f) {
     });
 }
 
-void launch_mpi_wrapper(const py::object& f) {
-    tl::launch_mpi([&] () {
-        f.call();
-    });
-}
-
 PYBIND11_PLUGIN(taskloaf_wrapper) {
     py::module m(
         "taskloaf_wrapper",
-        "Python bindings for the Taskloaf distributed task parallelism library"
+        "Python bindings for the taskloaf distributed parallel futures library"
     );
 
     m.def("launch_local", launch_local_wrapper);
-    m.def("launch_mpi", launch_mpi_wrapper);
     m.def("ready", ready);
     m.def("async", async);
     m.def("shutdown", shutdown);
@@ -134,6 +127,14 @@ PYBIND11_PLUGIN(taskloaf_wrapper) {
         .def("unwrap", &PyFuture::unwrap)
         .def("__getstate__", PyFuture::getstate)
         .def("__setstate__", PyFuture::setstate);
+
+#ifdef MPI_FOUND
+    m.def("launch_mpi", [] (const py::object& f) {
+        tl::launch_mpi([&] () {
+            f.call();
+        });
+    });
+#endif
 
     return m.ptr();
 }
