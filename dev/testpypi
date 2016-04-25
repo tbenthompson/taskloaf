@@ -1,0 +1,13 @@
+#!/bin/bash
+source /usr/local/bin/virtualenvwrapper.sh
+function testpypi {
+    deactivate
+    rmvirtualenv pypitestenv
+    mkvirtualenv pypitestenv -p $1
+    workon pypitestenv
+    pip install taskloaf
+    python -c "import taskloaf"
+}
+
+testpypi python2
+testpypi python3

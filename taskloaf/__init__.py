@@ -1,5 +1,5 @@
-from taskloaf_wrapper import *
-import taskloaf_wrapper
+from taskloaf.taskloaf_wrapper import *
+import taskloaf.taskloaf_wrapper
 import ctypes
 
 def when_all(*args):

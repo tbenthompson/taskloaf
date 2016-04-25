@@ -1,8 +1,0 @@
-#!/bin/bash
-source /usr/local/bin/virtualenvwrapper.sh
-deactivate
-rmvirtualenv pypitestenv
-mkvirtualenv pypitestenv
-workon pypitestenv
-pip install taskloaf
-python -c "import taskloaf"

@@ -25,3 +25,6 @@ script:
   - python setup.py install
 after_script:
   - ctest .
+  - mkdir python_test
+  - cd python_test
+  - python -c "import taskloaf"
