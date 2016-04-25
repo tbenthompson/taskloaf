@@ -22,7 +22,7 @@ script:
   - cmake ..
   - make -j2
   - cd ..
-  - python setup.py install
+  - sudo python setup.py install
 after_script:
   - ctest .
   - mkdir python_test
