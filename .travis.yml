@@ -12,8 +12,15 @@ matrix:
       before_install:
       - sudo apt-get install -qq libopenmpi-dev openmpi-bin
     - compiler: clang
+      before_install:
+      - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+      - sudo apt-get -qq update
+      - sudo apt-get -qq install g++-4.9
     - compiler: clang
       before_install:
+      - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+      - sudo apt-get -qq update
+      - sudo apt-get -qq install g++-4.9
       - sudo apt-get install -qq libopenmpi-dev openmpi-bin
 script:
   - mkdir build
