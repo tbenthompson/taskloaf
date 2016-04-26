@@ -56,26 +56,23 @@ TEST_CASE("Reserialize unopened", "[data]") {
 }
 
 TEST_CASE("Measure serialized size", "[data]") {
+    auto baseline = serialize(make_data(false)).size() - 1;
     SECTION("string") {
         std::string s("abcdef");
         auto d = make_data(s);
-        auto binary = d.serializer(d);
-        REQUIRE(binary.size() == 14);
+        REQUIRE(serialize(d).size() - baseline == 14);
     }
 
     SECTION("int") {
         auto d = make_data(10);
-        auto binary = d.serializer(d);
-        REQUIRE(binary.size() == 4);
+        REQUIRE(serialize(d).size() - baseline == 4);
     }
 
     SECTION("double") {
         auto d = make_data(0.015);
-        auto binary = d.serializer(d);
-        REQUIRE(binary.size() == 8);
+        REQUIRE(serialize(d).size() - baseline == 8);
     }
 }
-
 
 TEST_CASE("Deleter called", "[data]") {
     DeleteTracker::deletes = 0;

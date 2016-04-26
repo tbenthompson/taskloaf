@@ -19,57 +19,35 @@ namespace taskloaf {
  */
 struct Data {
     std::shared_ptr<void> ptr;
-    std::function<std::string(const Data&)> serializer;
-    Function<void(Data&,const std::string&)> deserializer;
+    std::function<void(const Data&,cereal::BinaryOutputArchive&)> serializer;
+    Function<void(Data&,cereal::BinaryInputArchive&)> deserializer;
 
-    Data():
-        ptr(nullptr),
-        serializer(nullptr)
-    {}
-
-    template <
-        typename T, 
-        typename std::enable_if<
-            !std::is_same<typename std::decay<T>::type,Data>::value
-        >::type* = nullptr
-    >
-    explicit Data(T&& value) {
-        typedef typename std::decay<T>::type DecayedT;
-        initialize<DecayedT>();
-        *reinterpret_cast<DecayedT*>(ptr.get()) = std::forward<T>(value);
-    }
-
-    template <typename T>
-    void initialize() {
-        ptr.reset(new T(), [] (void* data_ptr) {
+    template <typename T, typename... Ts>
+    void initialize(Ts&&... args) {
+        ptr.reset(new T(std::forward<Ts>(args)...), [] (void* data_ptr) {
             delete reinterpret_cast<T*>(data_ptr);
         });
-        serializer = [] (const Data& d) {
-            std::stringstream serialized_data;
-            cereal::BinaryOutputArchive oarchive(serialized_data);
-            oarchive(*reinterpret_cast<T*>(d.ptr.get()));
-            return serialized_data.str();
+        serializer = [] (const Data& d, cereal::BinaryOutputArchive& ar) {
+            tlassert(d.ptr != nullptr);
+            ar(d.get_as<T>());
         };
-        deserializer = [] (Data& d, const std::string& data) {
+        deserializer = [] (Data& d, cereal::BinaryInputArchive& ar) {
             d.initialize<T>();
-            std::stringstream input(data);
-            cereal::BinaryInputArchive iarchive(input);
-            iarchive(*reinterpret_cast<T*>(d.ptr.get()));
+            ar(d.get_as<T>());
         };
     }
 
     template <typename Archive>
     void save(Archive& ar) const {
-        ar(serializer(*this)); 
+        tlassert(ptr != nullptr);
         ar(deserializer);
+        serializer(*this, ar);
     }
 
     template <typename Archive>
     void load(Archive& ar) {
-        std::string serialized_data;
-        ar(serialized_data);
         ar(deserializer);
-        deserializer(*this, serialized_data);
+        deserializer(*this, ar);
     }
 
     template <typename T>
@@ -77,11 +55,25 @@ struct Data {
         tlassert(ptr != nullptr);
         return *reinterpret_cast<T*>(ptr.get()); 
     }
+
+    template <typename T>
+    const T& get_as() const {
+        return const_cast<Data*>(this)->get_as<T>();
+    }
 };
 
+template <typename T, typename... Ts>
+Data make_data(Ts&&... args) {
+    Data d;
+    d.initialize<T>(std::forward<Ts>(args)...);
+    return d;
+}
+
 template <typename T>
-Data make_data(T&& value) {
-    return Data(std::forward<T>(value));
+Data make_data(T&& a) {
+    Data d;
+    d.initialize<typename std::decay<T>::type>(std::forward<T>(a));
+    return d;
 }
 
 inline Data empty_data() {

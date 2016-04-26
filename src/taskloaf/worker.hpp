@@ -22,6 +22,13 @@ struct Worker {
     void shutdown();
     void introduce(Address addr);
     const Address& get_addr();
+    template <typename F, typename... Args>
+    void add_task(F&& f, Args&&... args) {
+        add_task(TaskT{
+            std::forward<F>(f),
+            {make_data(std::forward<Args>(args))...}
+        });
+    }
     void add_task(TaskT f);
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);

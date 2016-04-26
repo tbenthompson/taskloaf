@@ -20,7 +20,7 @@ auto then(const Future<Ts...>& fut, F&& fnc) {
     typedef typename std::result_of<F(Ts&...)>::type Return;
     auto fnc_container = make_function(std::forward<F>(fnc));
     auto out_future = make_delayed_future<Return>();
-    fut.add_trigger({
+    fut.add_trigger(
         [] (std::vector<Data>& d, std::vector<Data>& vals) {
             cur_worker->add_task({
                 [] (std::vector<Data>& d) {
@@ -34,8 +34,9 @@ auto then(const Future<Ts...>& fut, F&& fnc) {
                 {d[0], d[1], make_data(vals)}
             });
         },
-        {make_data(out_future), make_data(std::move(fnc_container))}
-    });
+        out_future, 
+        std::move(fnc_container)
+    );
     return out_future;
 }
 
@@ -44,24 +45,26 @@ auto then(const Future<Ts...>& fut, F&& fnc) {
 template <typename T>
 auto unwrap(const Future<T>& fut) {
     auto out_future = make_delayed_future<typename T::type>();
-    fut.add_trigger({
+    fut.add_trigger(
         [] (std::vector<Data>& d, std::vector<Data>& vals) {
             auto result = vals[0].get_as<T>();
-            result.add_trigger({
+            result.add_trigger(
                 [] (std::vector<Data>& d, std::vector<Data>& vals) {
                     d[0].get_as<decltype(out_future)>().fulfill(vals); 
                 },
-                {d[0]}
-            });
+                d[0].get_as<decltype(out_future)>()
+            );
         },
-        {make_data(out_future)}
-    });
+        out_future
+    );
     return out_future;
 }
 
 template <typename T>
 auto ready(T val) {
-    return make_delayed_future(std::move(val));
+    auto out_future = make_delayed_future<T>();
+    out_future.fulfill({make_data(std::move(val))});
+    return out_future;
 }
 
 template <typename F>
@@ -69,14 +72,15 @@ auto async(F&& fnc) {
     typedef typename std::result_of<F()>::type Return;
     auto fnc_container = make_function(std::forward<F>(fnc));
     auto out_future = make_delayed_future<Return>();
-    cur_worker->add_task({
+    cur_worker->add_task(
         [] (std::vector<Data>& d) {
             auto& fut = d[0].get_as<decltype(out_future)>();
             auto& fnc = d[1].get_as<decltype(fnc_container)>(); 
             fut.fulfill({make_data(fnc())});
         },
-        {make_data(out_future), make_data(std::move(fnc_container))}
-    });
+        out_future,
+        std::move(fnc_container)
+    );
     return out_future;
 }
 
@@ -85,8 +89,8 @@ struct WhenAllHelper {
     static void run(std::tuple<Future<Ts>...> child_results, 
         std::vector<Data> accum, Future<Ts...> result) 
     {
-        auto next_result = std::get<Idx>(std::move(child_results));
-        next_result.add_trigger({
+        auto next_result = std::get<Idx>(child_results);
+        next_result.add_trigger(
             [] (std::vector<Data>& d, std::vector<Data>& vals) {
                 auto& child_results = d[0].get_as<std::tuple<Future<Ts>...>>();
                 auto& accum = d[1].get_as<std::vector<Data>>();
@@ -97,11 +101,10 @@ struct WhenAllHelper {
                     std::move(result)
                 );
             },
-            {
-                make_data(std::move(child_results)),
-                make_data(std::move(accum)), make_data(std::move(result)) 
-            }
-        });
+            std::move(child_results),
+            std::move(accum),
+            std::move(result) 
+        );
     }
 };
 
@@ -110,15 +113,16 @@ struct WhenAllHelper<Idx, true, Ts...> {
     static void run(std::tuple<Future<Ts>...> child_results, 
         std::vector<Data> accum, Future<Ts...> result) 
     {
-        std::get<Idx>(child_results).add_trigger({
+        std::get<Idx>(child_results).add_trigger(
             [] (std::vector<Data>& d, std::vector<Data>& vals) {
                 auto& result = d[0].get_as<Future<Ts...>>();
                 auto& accum = d[1].get_as<std::vector<Data>>();
                 accum.push_back(vals[0]);
                 result.fulfill(std::move(accum));
             },
-            { make_data(std::move(result)), make_data(std::move(accum)) }
-        });
+            std::move(result),
+            std::move(accum)
+        );
     }
 };
 
@@ -182,7 +186,12 @@ struct Future {
         return taskloaf::unwrap(*this);
     }
 
-    void add_trigger(TriggerT trigger) const {
+    template <typename F, typename... Args>
+    void add_trigger(F&& f, Args&&... args) const {
+        TriggerT trigger{
+            std::forward<F>(f),
+            {make_data(std::forward<Args>(args))...}
+        };
         if (data->ready) {
             trigger(data->d.vals);
         } else {

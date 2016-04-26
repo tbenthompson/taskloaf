@@ -43,11 +43,19 @@ void test_send_fnc() {
     });
 }
 
+void test_send_data() {
+    auto d = make_data(std::string("HI"));
+    test_send(d, [] (Comm&, Data d) {
+        tlassert(d.get_as<std::string>() == "HI");
+    });
+}
+
 int main() {
     MPI_Init(nullptr, nullptr);
 
-    test_send_simple();
-    test_send_fnc();
+    // test_send_simple();
+    // test_send_fnc();
+    test_send_data();
 
     MPI_Finalize();
 }
