@@ -40,11 +40,15 @@ struct IVarDB {
         return db[id];
     }
 
+    bool is_fulfilled(const ID& id) const {
+        return db.at(id).vals.size() > 0; 
+    }
+
     void erase(const ID& id) {
         db.erase(id);
     }
 
-    bool contains(const ID& id) {
+    bool contains(const ID& id) const {
         return db.count(id) > 0;
     }
 

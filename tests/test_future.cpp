@@ -101,3 +101,6 @@ TEST_CASE("Run tree once", "[future]") {
     });
     REQUIRE(x == 1);
 }
+
+TEST_CASE("Test fast path", "[future]") {
+}
