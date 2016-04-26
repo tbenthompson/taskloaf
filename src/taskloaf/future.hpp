@@ -28,7 +28,7 @@ auto then(const Future<Ts...>& fut, F&& fnc) {
                     auto& fnc = d[1].get_as<decltype(fnc_container)>();
                     auto& vals = d[2].get_as<std::vector<Data>>();
                     out.fulfill({
-                        make_data(apply_args(vals, fnc))
+                        make_data(apply_args(fnc, vals))
                     });
                 },
                 {d[0], d[1], make_data(vals)}

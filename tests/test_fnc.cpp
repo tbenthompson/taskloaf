@@ -14,20 +14,20 @@ TEST_CASE("Apply args", "[fnc]") {
     args.push_back(make_data(1.012));
     args.push_back(make_data(2));
     SECTION("Lambda") {
-        auto out = apply_args(args, [] (double x, int y) { return x * y; });
+        auto out = apply_args([] (double x, int y) { return x * y; }, args);
         REQUIRE(out == 2.024);
     }
 
     SECTION("Function") {
         Function<double(double,int)> f = [] (double x, int y) { return x * y; };
-        auto out = apply_args(args, f);
+        auto out = apply_args(f, args);
         REQUIRE(out == 2.024);
     }
 
     SECTION("Free args") {
         Function<double(double,int,int)> f =
             [] (double x, int y, int z) { return x * y * z; };
-        auto out = apply_args(args, f, 2);
+        auto out = apply_args(f, args, 2);
         REQUIRE(out == 4.048);
     }
 }
