@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX C)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 option(BUILD_LIBRARY "Build taskloaf library" ON)
 option(BUILD_TESTS "Build test programs" ON)

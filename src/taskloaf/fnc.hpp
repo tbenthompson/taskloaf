@@ -139,9 +139,14 @@ struct get_signature_impl<R(*)(A...)> { using type = R(A...); };
 template<typename T> using get_signature =
     typename get_signature_impl<typename std::decay<T>::type>::type;
 
+template <template <typename> class FncType, typename F, typename... Args>
+auto make_fnc_type(F&& f, Args&&... args) {
+    return FncType<get_signature<F>>(std::forward<F>(f), std::forward<Args>(args)...);
+}
+
 template <typename F>
 auto make_function(F&& f) {
-    return Function<get_signature<F>>(std::forward<F>(f));
+    return make_fnc_type<Function,F>(std::forward<F>(f));
 }
 
 } //end namespace taskloaf

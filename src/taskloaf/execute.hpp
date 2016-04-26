@@ -6,41 +6,26 @@
 
 namespace taskloaf {
 
-template <size_t index = 0, typename T>
-auto build_input(std::vector<Data>& args) 
-{
-    tlassert(index < args.size());
-    return std::tuple<typename std::add_lvalue_reference<T>::type>(
-        args[index].get_as<typename std::decay<T>::type>()
+template <size_t I, typename TupleType>
+auto& extract_data(std::vector<Data>& args) {
+    typedef typename std::tuple_element<I,TupleType>::type T;
+    tlassert(I < args.size());
+    return typename std::add_lvalue_reference<T>::type(
+        args[I].get_as<typename std::decay<T>::type>()
     );
 }
 
-template <size_t index = 0, typename T, typename... Args,
-          typename std::enable_if<sizeof...(Args) != 0,int>::type = 0>
-auto build_input(std::vector<Data>& args) {
-    return std::tuple_cat(
-        build_input<index,T>(args),
-        build_input<index+1,Args...>(args)
-    );
-}
+template <typename Func, typename Args, typename IndexList>
+struct Applier;
 
-//from: http://stackoverflow.com/questions/10766112/c11-i-can-go-from-multiple-args-to-tuple-but-can-i-go-from-tuple-to-multiple
-template <typename F, typename Tuple, bool Done, int Total, int... N>
-struct apply_args_impl
-{
-    static auto call(F f, Tuple&& t) {
-        return apply_args_impl<
-            F, Tuple, Total == 1 + sizeof...(N),
-            Total, N..., sizeof...(N)
-        >::call(f, std::forward<Tuple>(t));
-    }
-};
-
-template <typename F, typename Tuple, int Total, int... N>
-struct apply_args_impl<F, Tuple, true, Total, N...>
-{
-    static auto call(F f, Tuple&& t) {
-        return f(std::get<N>(std::forward<Tuple>(t))...);
+template <typename Func, typename Tuple, size_t... I>
+struct Applier<Func, Tuple, std::index_sequence<I...>> {
+    template <typename... FreeArgs>
+    static auto on(Func&& func, std::vector<Data>& args, FreeArgs&&... free_args) {
+        return func(
+            extract_data<I,Tuple>(args)...,
+            std::forward<FreeArgs>(free_args)...
+        );
     }
 };
 
@@ -50,16 +35,12 @@ struct ApplyArgsHelper {};
 template <typename ClassType, typename ReturnType, typename... Args>
 struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...)>
 {
-    template <typename F>
-    static ReturnType run(std::vector<Data>& args, F f) {
-        auto input = build_input<0,Args...>(args);
-        typedef decltype(input) Tuple;
-        typedef typename std::decay<decltype(input)>::type ttype;
-        return apply_args_impl<
-            F, decltype(input),
-            0 == std::tuple_size<ttype>::value,
-            std::tuple_size<ttype>::value
-        >::call(f, std::forward<Tuple>(input));
+    template <typename F, typename... FreeArgs>
+    static ReturnType run(std::vector<Data>& args, F&& f, FreeArgs&&... free_args) {
+        return Applier<
+            F,std::tuple<Args...>,
+            std::make_index_sequence<sizeof...(Args) - sizeof...(FreeArgs)>
+        >::on(std::forward<F>(f), args, std::forward<FreeArgs>(free_args)...);
     }
 };
 
@@ -69,34 +50,31 @@ struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...) const>:
     public ApplyArgsHelper<ReturnType(ClassType::*)(Args...)>
 {};
 
-
-template <typename CallableType, typename... Args>
-auto apply_args(std::tuple<Args...>& args, const CallableType& f) {
-    typedef typename std::decay<decltype(args)>::type ttype;
-    return apply_args_impl<
-        CallableType, decltype(args), 0 == std::tuple_size<ttype>::value,
-        std::tuple_size<ttype>::value
-    >::call(f, std::forward<decltype(args)>(args));
-}
-
-template <typename CallableType, typename ArgDeductionType>
+template <typename F>
 struct ApplyArgsSpecializer {
-    static auto run(std::vector<Data>& args, const CallableType& f) {
-        return ApplyArgsHelper<decltype(&ArgDeductionType::operator())>::run(args, f);
+    template <typename F2, typename... FreeArgs>
+    static auto run(std::vector<Data>& args, F2&& f, FreeArgs&&... free_args) {
+        return ApplyArgsHelper<
+            decltype(&F::operator())
+        >::run(args, std::forward<F2>(f), std::forward<FreeArgs>(free_args)...);
     }
 };
 
 template <typename Return, typename... Args>
-struct ApplyArgsSpecializer<Function<Return(Args...)>,Function<Return(Args...)>> {
-    typedef Function<Return(Args...)> FType;
-    static auto run(std::vector<Data>& args, const FType& f) {
-        return ApplyArgsHelper<decltype(&FType::call)>::run(args, f);
+struct ApplyArgsSpecializer<Function<Return(Args...)>> {
+    template <typename F2, typename... FreeArgs>
+    static auto run(std::vector<Data>& args, F2&& f, FreeArgs&&... free_args) {
+        return ApplyArgsHelper<decltype(&Function<Return(Args...)>::call)>::run(
+            args, std::forward<F2>(f), std::forward<FreeArgs>(free_args)...
+        );
     }
 };
 
-template <typename CallableType, typename ArgDeductionType = CallableType>
-auto apply_args(std::vector<Data>& args, const CallableType& f) {
-    return ApplyArgsSpecializer<CallableType,ArgDeductionType>::run(args,f);
+template <typename F, typename... FreeArgs>
+auto apply_args(std::vector<Data>& args, F&& f, FreeArgs&&... free_args) {
+    return ApplyArgsSpecializer<
+        typename std::decay<F>::type
+    >::run(args,std::forward<F>(f), std::forward<FreeArgs>(free_args)...);
 }
 
 } //end namespace taskloaf

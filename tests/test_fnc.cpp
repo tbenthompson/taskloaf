@@ -23,6 +23,13 @@ TEST_CASE("Apply args", "[fnc]") {
         auto out = apply_args(args, f);
         REQUIRE(out == 2.024);
     }
+
+    SECTION("Free args") {
+        Function<double(double,int,int)> f =
+            [] (double x, int y, int z) { return x * y * z; };
+        auto out = apply_args(args, f, 2);
+        REQUIRE(out == 4.048);
+    }
 }
 
 TEST_CASE("Function lambda", "[fnc]") {
@@ -82,3 +89,20 @@ TEST_CASE("Serialize/deserialize fnc", "[fnc]") {
     REQUIRE(f2(10) == f(10));
 }
 
+
+TEST_CASE("Make closure", "[fnc]") {
+    SECTION("No free params") {
+        auto v = make_closure([] (double x, int y) { return x * y; }, 10.0, 1)();
+        REQUIRE(v == 10.0);
+    }
+
+    SECTION("One free param") {
+        auto v = make_closure([] (double x, int y) { return x * y; }, 10.0)(1);
+        REQUIRE(v == 10.0);
+    }
+
+    SECTION("Two free params") {
+        auto v = make_closure([] (double x, int y) { return x * y; })(10.0, 1);
+        REQUIRE(v == 10.0);
+    }
+}
