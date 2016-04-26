@@ -8,29 +8,19 @@ python:
 matrix:
   include:
     - compiler: gcc
+      before_install:
+      - ./dev/install_travis_gcc
     - compiler: gcc
       before_install:
+      - ./dev/install_travis_gcc
       - sudo apt-get install -qq libopenmpi-dev openmpi-bin
     - compiler: clang
       before_install:
-      - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-      - sudo apt-get -qq update
-      - sudo apt-get -qq install g++-4.9
+      - ./dev/install_travis_gcc
     - compiler: clang
       before_install:
-      - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-      - sudo apt-get -qq update
-      - sudo apt-get -qq install g++-4.9
+      - ./dev/install_travis_gcc
       - sudo apt-get install -qq libopenmpi-dev openmpi-bin
 script:
-  - mkdir build
-  - cd build
-  - cmake ..
-  - make -j2
-  - cd ..
-  - sudo python setup.py install
-after_script:
-  - ctest .
-  - mkdir python_test
-  - cd python_test
-  - python -c "import taskloaf"
+  - ./dev/travis_cpp_test
+  - ./dev/travis_py_test
