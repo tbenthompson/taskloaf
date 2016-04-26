@@ -11,28 +11,35 @@
 
 namespace taskloaf {
 
-template <typename... Ts> auto make_delayed_future();
-template <typename... Ts> auto make_ready_future(Ts&&... args);
 template <typename... Ts> struct Future;
+
+template <typename... Ts>
+Future<Ts...> make_delayed_future() {
+    return Future<Ts...>(IVarRef{new_id()});
+}
+
+template <typename... Ts>
+Future<Ts...> make_ready_future(Ts&&... args) {
+    return Future<Ts...>({make_data(std::forward<Ts>(args))...});
+}
 
 template <typename F, typename... Ts>
 auto then(const Future<Ts...>& fut, F&& fnc) {
     typedef typename std::result_of<F(Ts&...)>::type Return;
-    auto fnc_container = make_function(std::forward<F>(fnc));
-    auto out_future = make_delayed_future<Return>();
+    Function<get_signature<F>> fnc_container(std::forward<F>(fnc));
+    Future<Return> out_future = make_delayed_future<Return>();
+    typedef decltype(out_future) OutT;
+    typedef decltype(fnc_container) FncT;
     fut.add_trigger(
-        [] (std::vector<Data>& d, std::vector<Data>& vals) {
-            cur_worker->add_task({
-                [] (std::vector<Data>& d) {
-                    auto& out = d[0].get_as<decltype(out_future)>();
-                    auto& fnc = d[1].get_as<decltype(fnc_container)>();
-                    auto& vals = d[2].get_as<std::vector<Data>>();
-                    out.fulfill({
-                        make_data(apply_args(fnc, vals))
-                    });
+        [] (OutT out_future, FncT fnc_container, std::vector<Data>& vals) {
+            cur_worker->add_task(
+                [] (OutT out, FncT fnc, std::vector<Data> vals) {
+                    out.fulfill({make_data(apply_args(fnc, vals))});
                 },
-                {d[0], d[1], make_data(vals)}
-            });
+                std::move(out_future),
+                std::move(fnc_container),
+                vals
+            );
         },
         out_future, 
         std::move(fnc_container)
@@ -44,15 +51,16 @@ auto then(const Future<Ts...>& fut, F&& fnc) {
 //lazy and wait for usage.
 template <typename T>
 auto unwrap(const Future<T>& fut) {
-    auto out_future = make_delayed_future<typename T::type>();
+    Future<typename T::type> out_future = make_delayed_future<typename T::type>();
+    typedef decltype(out_future) OutT;
     fut.add_trigger(
-        [] (std::vector<Data>& d, std::vector<Data>& vals) {
+        [] (OutT out_future, std::vector<Data>& vals) {
             auto result = vals[0].get_as<T>();
             result.add_trigger(
-                [] (std::vector<Data>& d, std::vector<Data>& vals) {
-                    d[0].get_as<decltype(out_future)>().fulfill(vals); 
+                [] (OutT out_future, std::vector<Data>& vals) {
+                    out_future.fulfill(vals); 
                 },
-                d[0].get_as<decltype(out_future)>()
+                std::move(out_future)
             );
         },
         out_future
@@ -72,10 +80,10 @@ auto async(F&& fnc) {
     typedef typename std::result_of<F()>::type Return;
     auto fnc_container = make_function(std::forward<F>(fnc));
     auto out_future = make_delayed_future<Return>();
+    using FncT = decltype(fnc_container);
+    using OutT = decltype(out_future);
     cur_worker->add_task(
-        [] (std::vector<Data>& d) {
-            auto& fut = d[0].get_as<decltype(out_future)>();
-            auto& fnc = d[1].get_as<decltype(fnc_container)>(); 
+        [] (OutT fut, FncT fnc) {
             fut.fulfill({make_data(fnc())});
         },
         out_future,
@@ -91,10 +99,10 @@ struct WhenAllHelper {
     {
         auto next_result = std::get<Idx>(child_results);
         next_result.add_trigger(
-            [] (std::vector<Data>& d, std::vector<Data>& vals) {
-                auto& child_results = d[0].get_as<std::tuple<Future<Ts>...>>();
-                auto& accum = d[1].get_as<std::vector<Data>>();
-                auto& result = d[2].get_as<Future<Ts...>>();
+            [] (std::tuple<Future<Ts>...> child_results,
+                std::vector<Data> accum, Future<Ts...> result, 
+                std::vector<Data>& vals) 
+            {
                 accum.push_back(vals[0]);
                 WhenAllHelper<Idx+1,Idx+2 == sizeof...(Ts),Ts...>::run(
                     std::move(child_results), std::move(accum),
@@ -114,9 +122,9 @@ struct WhenAllHelper<Idx, true, Ts...> {
         std::vector<Data> accum, Future<Ts...> result) 
     {
         std::get<Idx>(child_results).add_trigger(
-            [] (std::vector<Data>& d, std::vector<Data>& vals) {
-                auto& result = d[0].get_as<Future<Ts...>>();
-                auto& accum = d[1].get_as<std::vector<Data>>();
+            [] (Future<Ts...> result, std::vector<Data> accum,
+                std::vector<Data>& vals) 
+            {
                 accum.push_back(vals[0]);
                 result.fulfill(std::move(accum));
             },
@@ -188,10 +196,10 @@ struct Future {
 
     template <typename F, typename... Args>
     void add_trigger(F&& f, Args&&... args) const {
-        TriggerT trigger{
-            std::forward<F>(f),
-            {make_data(std::forward<Args>(args))...}
-        };
+        auto trigger = make_closure(
+            std::forward<F>(f), std::forward<Args>(args)...
+        );
+
         if (data->ready) {
             trigger(data->d.vals);
         } else {
@@ -217,15 +225,5 @@ struct Future {
         }
     }
 };
-
-template <typename... Ts>
-auto make_delayed_future() {
-    return Future<Ts...>(IVarRef{new_id()});
-}
-
-template <typename... Ts>
-auto make_ready_future(Ts&&... args) {
-    return Future<Ts...>({make_data(std::forward<Ts>(args))...});
-}
 
 } //end namespace taskloaf

@@ -10,8 +10,7 @@
 
 namespace taskloaf {
 
-//Modified substantially from https://github.com/darabos/pinty/blob/master/pinty.h
-
+// Inspired by https://github.com/darabos/pinty/blob/master/pinty.h
 struct CallerRegistry {
     std::map<size_t,std::vector<std::pair<std::type_index,void*>>> registry;
 

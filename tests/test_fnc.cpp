@@ -105,4 +105,20 @@ TEST_CASE("Make closure", "[fnc]") {
         auto v = make_closure([] (double x, int y) { return x * y; })(10.0, 1);
         REQUIRE(v == 10.0);
     }
+
+    auto f3 = [] (double x, std::string s, int y) {
+        if (s == "hi") {
+            return x * y; 
+        }
+        return 0.0;
+    };
+    SECTION("Three params") {
+        auto v = make_closure(f3, 10.0, std::string("hi"))(1);
+        REQUIRE(v == 10.0);
+    }
+
+    SECTION("Three params two") {
+        auto v = make_closure(f3, 10.0)(std::string("hi"), 1);
+        REQUIRE(v == 10.0);
+    }
 }

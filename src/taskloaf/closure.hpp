@@ -84,12 +84,6 @@ template <size_t I, typename T, typename... AllArgs>
 struct ClosureArgSeparator<I,T,AllArgs...> {
     template <typename F, typename... ClosureArgs>
     static auto on(std::vector<Data> args) {
-        static_assert(std::is_same<
-            std::tuple_element_t<
-                sizeof...(ClosureArgs)-I,std::tuple<ClosureArgs...>
-            >, T
-        >::value, "Argument mismatch in ClosureArgSeparator");
-
         return ClosureArgSeparator<
             I-1,AllArgs...
         >::template on<F,ClosureArgs...>(std::move(args));

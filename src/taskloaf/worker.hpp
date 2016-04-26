@@ -24,10 +24,10 @@ struct Worker {
     const Address& get_addr();
     template <typename F, typename... Args>
     void add_task(F&& f, Args&&... args) {
-        add_task(TaskT{
+        add_task(make_closure(
             std::forward<F>(f),
-            {make_data(std::forward<Args>(args))...}
-        });
+            std::forward<Args>(args)...
+        ));
     }
     void add_task(TaskT f);
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
