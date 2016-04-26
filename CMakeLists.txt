@@ -43,7 +43,7 @@ add_definitions(-DTLASSERT)
 ################################################################################
 
 find_package(MPI)
-if (MPI_FOUND)
+if (MPI_CXX_FOUND)
     add_definitions(-DMPI_FOUND)
 endif()
 
@@ -70,7 +70,7 @@ if (BUILD_LIBRARY)
 
     target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
 
-    if (MPI_FOUND)
+    if (MPI_CXX_FOUND)
         target_include_directories(taskloaf SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
         target_link_libraries(taskloaf ${MPI_LIBRARIES})
     endif()
@@ -102,7 +102,7 @@ if(BUILD_TESTS)
     enable_testing()
     add_test(main-tests run_tests)
 
-    if (MPI_FOUND)
+    if (MPI_CXX_FOUND)
         taskloaf_tests(mpi_tests "tests/test_mpi.cpp")
         add_test(mpi-tests mpirun -n 2 mpi_tests)
     endif()
@@ -139,7 +139,7 @@ macro(taskloaf_example name filename)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
     )
-    if (MPI_FOUND)
+    if (MPI_CXX_FOUND)
         target_include_directories(${name} SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
     endif()
     add_dependencies(${name} taskloaf)
@@ -165,7 +165,7 @@ if (BUILD_EXAMPLES)
             )
     endif()
 
-    if (MPI_FOUND)
+    if (MPI_CXX_FOUND)
         taskloaf_example(fibmpi examples/fibmpi.cpp)
     endif()
 endif(BUILD_EXAMPLES)

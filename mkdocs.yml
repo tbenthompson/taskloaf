@@ -1,3 +1,9 @@
 site_name: taskloaf
 docs_dir: docs
 theme: yeti
+pages:
+    - Home: index.md
+    - About: about.md
+    - Quick Start: quick-start.md
+    - Installation: installation.md
+    - Design: design.md
