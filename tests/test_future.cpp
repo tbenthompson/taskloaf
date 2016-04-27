@@ -102,5 +102,15 @@ TEST_CASE("Run tree once", "[future]") {
     REQUIRE(x == 1);
 }
 
-TEST_CASE("Test fast path", "[future]") {
+TEST_CASE("Empty futures", "[future]") {
+    launch_local(1, [&] () {
+        auto f = async([] () {})
+            .then([] () { return 0; })
+            .then([] (int) {})
+            .then([] () {})
+            .then([] () { return shutdown(); });
+        return f;
+    });
+    // auto f2 = async([] () { return 0; });
+    // f2.then([] () { return 0; });
 }
