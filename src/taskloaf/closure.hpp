@@ -52,7 +52,7 @@ struct ClosureArgSeparator<0> {
                     [] (F f, ClosureArgs&... closure_args) {
                         return f(closure_args...);
                     };
-                return apply_args(std::move(runner), d);
+                return apply_data_args(std::move(runner), d);
             },
             std::move(args)
         );
@@ -73,7 +73,7 @@ struct ClosureArgSeparator<0,T,FreeArgs...> {
                     {
                         return f(closure_args..., a1, free_args...);
                     };
-                return apply_args(std::move(runner), d, a1, args...);
+                return apply_data_args(std::move(runner), d, a1, args...);
             },
             std::move(args)
         );

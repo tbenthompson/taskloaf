@@ -15,7 +15,9 @@ void test_send(T&& v, F&& f) {
         c.send({"", 1}, Msg(1, make_data(0)));
     } else {
         bool stop = false;
+        bool handler_ran = false;
         c.add_handler(0, [&] (Data d) {
+            handler_ran = true;
             auto val = d.get_as<typename std::decay<T>::type>();
             f(c, val);
         });
@@ -25,6 +27,7 @@ void test_send(T&& v, F&& f) {
         while (!stop) {
             c.recv();
         }
+        tlassert(handler_ran);
     }
 }
 
@@ -43,6 +46,15 @@ void test_send_fnc() {
     });
 }
 
+void test_send_nested_fnc() {
+    Function<int(int)> f([] (int a) { return a * 2; });
+    Function<int(int)> f2([=] (int a) { return f(a) * 3; });
+
+    test_send(f2, [] (Comm&, Function<int(int)> f) {
+        tlassert(f(3) == 18);
+    });
+}
+
 void test_send_data() {
     auto d = make_data(std::string("HI"));
     test_send(d, [] (Comm&, Data d) {
@@ -53,8 +65,9 @@ void test_send_data() {
 int main() {
     MPI_Init(nullptr, nullptr);
 
-    // test_send_simple();
-    // test_send_fnc();
+    test_send_simple();
+    test_send_fnc();
+    test_send_nested_fnc();
     test_send_data();
 
     MPI_Finalize();

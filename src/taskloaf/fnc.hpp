@@ -96,7 +96,7 @@ struct Function<Return(Args...)> {
     }
 
     template <typename... As>
-    Return operator()(As&&... args) {
+    Return operator()(As&&... args) const {
         auto caller = reinterpret_cast<FncCaller<Return,Args...>>(
             get_caller_registry().get_function(caller_id)
         );

@@ -9,10 +9,8 @@
 using namespace taskloaf;
 
 TEST_CASE("Apply args", "[fnc]") {
-    std::vector<Data> args;
-    auto in = 1.012;
-    args.push_back(make_data(1.012));
-    args.push_back(make_data(2));
+    std::tuple<double,int> args{1.012, 2};
+
     SECTION("Lambda") {
         auto out = apply_args([] (double x, int y) { return x * y; }, args);
         REQUIRE(out == 2.024);

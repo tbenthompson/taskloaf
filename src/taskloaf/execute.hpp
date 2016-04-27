@@ -71,10 +71,35 @@ struct ApplyArgsSpecializer<Function<Return(Args...)>> {
 };
 
 template <typename F, typename... FreeArgs>
-auto apply_args(F&& f, std::vector<Data>& args, FreeArgs&&... free_args) {
+auto apply_data_args(F&& f, std::vector<Data>& args, FreeArgs&&... free_args) {
     return ApplyArgsSpecializer<
         typename std::decay<F>::type
     >::run(std::forward<F>(f), args, std::forward<FreeArgs>(free_args)...);
+}
+
+template <typename IndexList>
+struct TupleApplier;
+
+template <size_t... I>
+struct TupleApplier<std::index_sequence<I...>> {
+    template <typename Func, typename Tuple, typename... FreeArgs>
+    static auto on(Func&& func, Tuple& args, FreeArgs&&... free_args) {
+        return func(
+            std::get<I>(args)...,
+            std::forward<FreeArgs>(free_args)...
+        );
+    }
+};
+
+template <typename F, typename TupleT, typename... FreeArgs>
+auto apply_args(F&& f, TupleT&& args, FreeArgs&&... free_args) {
+    return TupleApplier<
+        std::make_index_sequence<std::tuple_size<std::decay_t<TupleT>>::value>
+    >::on(
+        std::forward<F>(f),
+        std::forward<TupleT>(args),
+        std::forward<FreeArgs>(free_args)...
+    );
 }
 
 } //end namespace taskloaf
