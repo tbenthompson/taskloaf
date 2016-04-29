@@ -20,8 +20,8 @@ option(PYTHON_INCLUDE "Python include directories" "")
 
 ExternalProject_Add(
     concurrentqueue
-    DOWNLOAD_COMMAND git clone --depth 1
-	git@github.com:cameron314/concurrentqueue.git
+    GIT_REPOSITORY git@github.com:cameron314/concurrentqueue.git
+    GIT_TAG master
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     UPDATE_COMMAND ""
@@ -36,8 +36,8 @@ set(MPMCQUEUE_INCLUDE_DIR
 
 ExternalProject_Add(
     cereal
-    DOWNLOAD_COMMAND git clone --depth 1
-        git@github.com:USCiLab/cereal.git
+    GIT_REPOSITORY git@github.com:USCiLab/cereal.git
+    GIT_TAG master
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     UPDATE_COMMAND ""
@@ -51,7 +51,8 @@ set(CEREAL_INCLUDE_DIR ${PROJECT_BINARY_DIR}/cereal-prefix/src/cereal/include)
 
 ExternalProject_Add(
     Catch 
-    DOWNLOAD_COMMAND git clone --depth 1 git@github.com:philsquared/Catch.git
+    GIT_REPOSITORY git@github.com:philsquared/Catch.git
+    GIT_TAG master
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     UPDATE_COMMAND ""
@@ -65,7 +66,8 @@ set(CATCH_INCLUDE_DIR ${PROJECT_BINARY_DIR}/Catch-prefix/src/Catch/single_includ
 
 ExternalProject_Add(
     pybind11 
-    DOWNLOAD_COMMAND git clone --depth 1 git@github.com:pybind/pybind11.git
+    GIT_REPOSITORY git@github.com:pybind/pybind11.git
+    GIT_TAG master
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     UPDATE_COMMAND ""

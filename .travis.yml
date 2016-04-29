@@ -5,22 +5,18 @@ dist: trusty
 python: 
   - "2.7"
   - "3.5"
+git:
+    submodules: false
+before_install:
+  - ./dev/setup_travis
 matrix:
   include:
     - compiler: gcc
-      before_install:
-      - ./dev/install_travis_gcc
     - compiler: gcc
-      before_install:
-      - ./dev/install_travis_gcc
-      - sudo apt-get install -qq libopenmpi-dev openmpi-bin
+      env: INSTALL_MPI=true
     - compiler: clang
-      before_install:
-      - ./dev/install_travis_gcc
     - compiler: clang
-      before_install:
-      - ./dev/install_travis_gcc
-      - sudo apt-get install -qq libopenmpi-dev openmpi-bin
+      env: INSTALL_MPI=true
 script:
   - if [ "$CXX" = "g++" ]; then export CXX="g++-4.9" CC="gcc-4.9"; fi
   - ./dev/travis_cpp_test

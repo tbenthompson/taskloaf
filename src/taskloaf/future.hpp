@@ -53,20 +53,20 @@ auto then(Future<Ts...>& fut, F&& fnc) {
     typedef decltype(make_future<Return>()) OutT;
     OutT out_future = make_future<Return>();
     fut.add_trigger(
-        [] (OutT& out_future, FncT& fnc_container, std::tuple<Ts...>& val) {
+        [] (FncT& fnc_container, OutT& out_future, std::tuple<Ts...>& val) {
             cur_worker->add_task(
-                [] (OutT& out, FncT& fnc, std::tuple<Ts...>& val) {
+                [] (FncT& fnc, OutT& out, std::tuple<Ts...>& val) {
                     out.fulfill(PossiblyVoidCall<get_signature<F>>::on([&] () {
                         return apply_args(fnc, val);         
                     }));
                 },
-                std::move(out_future),
                 std::move(fnc_container),
+                std::move(out_future),
                 val
             );
         },
-        out_future, 
-        std::move(fnc_container)
+        std::move(fnc_container),
+        out_future
     );
     return out_future;
 }
