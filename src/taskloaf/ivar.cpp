@@ -34,7 +34,7 @@ void move(IVarRef& to, IVarRef&& from) {
 }
 
 void copy(IVarRef& to, const IVarRef& from) {
-    to.data = copy_ref(*const_cast<RefData*>(&from.data));
+    to.data = copy_ref(from.data);
     to.id = from.id;
     to.empty = from.empty;
 }

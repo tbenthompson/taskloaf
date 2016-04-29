@@ -8,7 +8,7 @@ namespace taskloaf {
 // A reference counting "pointer" to an IVar
 struct IVarRef {
     ID id;
-    RefData data;
+    mutable RefData data;
     bool empty;
 
     IVarRef();
@@ -25,7 +25,7 @@ struct IVarRef {
         ar(empty);
         if (!empty) {
             ar(id);
-            ar(copy_ref(*const_cast<RefData*>(&data)));
+            ar(copy_ref(data));
         }
     }
 

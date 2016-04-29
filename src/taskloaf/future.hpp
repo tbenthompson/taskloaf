@@ -2,10 +2,21 @@
 
 #include "builders.hpp"
 #include "ivar.hpp"
+#include "memory_pool.hpp"
 
 #include <cereal/types/tuple.hpp>
 
 namespace taskloaf {
+
+template <class T, class U>
+bool operator==(const PoolAllocator<T>&, const PoolAllocator<U>&) {
+    return false; 
+}
+
+template <class T, class U>
+bool operator!=(const PoolAllocator<T>& a, const PoolAllocator<U>& b) {
+    return !(a == b);
+}
 
 template <typename... Ts>
 struct FutureData {
@@ -46,14 +57,14 @@ struct FutureData<> {
     const IVarRef& get_ivar() const { return ivar; }
 };
 
-
-
 template <typename Derived, typename... Ts>
 struct FutureBase {
     std::shared_ptr<FutureData<Ts...>> data;
 
     FutureBase(): 
-        data(std::make_shared<FutureData<Ts...>>())
+        data(std::allocate_shared<
+                FutureData<Ts...>,PoolAllocator<FutureData<Ts...>>
+            >(PoolAllocator<FutureData<Ts...>>()))
     {
         data->local = true;
         data->fulfilled = false;

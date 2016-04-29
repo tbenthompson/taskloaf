@@ -91,7 +91,7 @@ endif()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-mismatched-tags")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -Werror -Wno-literal-suffix")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-literal-suffix")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 endif()
@@ -134,7 +134,7 @@ if (BUILD_LIBRARY)
         ${MPMCQUEUE_INCLUDE_DIR} 
         )
 
-    target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(taskloaf boost_system ${CMAKE_THREAD_LIBS_INIT})
 
     if (MPI_CXX_FOUND)
         target_include_directories(taskloaf SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
@@ -158,6 +158,7 @@ macro(taskloaf_tests name files)
     add_dependencies(${name} taskloaf Catch)
     target_link_libraries(${name} 
         taskloaf
+        boost_system
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
 endmacro()
@@ -197,6 +198,7 @@ if (BUILD_PYTHON)
         ${MPI_INCLUDE_PATH})
 
     target_link_libraries(taskloaf_wrapper
+        boost_system
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
 endif(BUILD_PYTHON)
