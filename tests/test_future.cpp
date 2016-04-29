@@ -111,6 +111,4 @@ TEST_CASE("Empty futures", "[future]") {
             .then([] () { return shutdown(); });
         return f;
     });
-    // auto f2 = async([] () { return 0; });
-    // f2.then([] () { return 0; });
 }

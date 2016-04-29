@@ -99,7 +99,7 @@ TEST_CASE("Deserialized deleter called", "[data]") {
 TEST_CASE("Serializable closure") {
     Closure<int(int&)> f;
     {
-        SerializableFunctor s{};
+        SerializableFunctor s;
         s.vs = {1,2,3,4};
         f = make_closure(s);
         // s.vs.push_back(5);

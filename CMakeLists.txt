@@ -5,12 +5,73 @@
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX C)
 set(CMAKE_BUILD_TYPE Release)
+include(ExternalProject)
 
 option(BUILD_LIBRARY "Build taskloaf library" ON)
 option(BUILD_TESTS "Build test programs" ON)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_PYTHON "Build python wrappers" OFF)
 option(PYTHON_INCLUDE "Python include directories" "")
+
+
+################################################################################
+#                              Grab MPMC queue
+################################################################################
+
+ExternalProject_Add(
+    concurrentqueue
+    DOWNLOAD_COMMAND git clone --depth 1
+	git@github.com:cameron314/concurrentqueue.git
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    UPDATE_COMMAND ""
+    INSTALL_COMMAND ""
+)
+set(MPMCQUEUE_INCLUDE_DIR 
+    ${PROJECT_BINARY_DIR}/concurrentqueue-prefix/src/concurrentqueue)
+
+################################################################################
+#                              Grab Cereal for serialization
+################################################################################
+
+ExternalProject_Add(
+    cereal
+    DOWNLOAD_COMMAND git clone --depth 1
+        git@github.com:USCiLab/cereal.git
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    UPDATE_COMMAND ""
+    INSTALL_COMMAND ""
+)
+set(CEREAL_INCLUDE_DIR ${PROJECT_BINARY_DIR}/cereal-prefix/src/cereal/include)
+
+################################################################################
+#                              Grab Catch
+################################################################################
+
+ExternalProject_Add(
+    Catch 
+    DOWNLOAD_COMMAND git clone --depth 1 git@github.com:philsquared/Catch.git
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    UPDATE_COMMAND ""
+    INSTALL_COMMAND ""
+)
+set(CATCH_INCLUDE_DIR ${PROJECT_BINARY_DIR}/Catch-prefix/src/Catch/single_include)
+
+################################################################################
+#                              Grab pybind11
+################################################################################
+
+ExternalProject_Add(
+    pybind11 
+    DOWNLOAD_COMMAND git clone --depth 1 git@github.com:pybind/pybind11.git
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    UPDATE_COMMAND ""
+    INSTALL_COMMAND ""
+)
+set(PYBIND11_INCLUDE_DIR ${PROJECT_BINARY_DIR}/pybind11-prefix/src/pybind11/include)
 
 ################################################################################
 #                              setup compiler
@@ -63,9 +124,12 @@ set(TASKLOAF_SRC "src/taskloaf/ivar.cpp;src/taskloaf/worker.cpp;src/taskloaf/tas
 if (BUILD_LIBRARY)
     add_library(taskloaf SHARED ${TASKLOAF_SRC})
 
+    add_dependencies(taskloaf cereal concurrentqueue)
+
     target_include_directories(taskloaf PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${CEREAL_INCLUDE_DIR}
+        ${MPMCQUEUE_INCLUDE_DIR} 
         )
 
     target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
@@ -84,10 +148,12 @@ macro(taskloaf_tests name files)
     add_executable(${name} ${files})
     target_include_directories(${name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+        ${CEREAL_INCLUDE_DIR}
+        ${MPMCQUEUE_INCLUDE_DIR} 
+        ${CATCH_INCLUDE_DIR})
     target_include_directories(${name} SYSTEM PRIVATE
         ${MPI_INCLUDE_PATH})
-    add_dependencies(${name} taskloaf)
+    add_dependencies(${name} taskloaf Catch)
     target_link_libraries(${name} 
         taskloaf
         ${MPI_LIBRARIES}
@@ -117,9 +183,13 @@ if (BUILD_PYTHON)
     add_library(taskloaf_wrapper SHARED ${WRAPPER_SRC})
     SET_TARGET_PROPERTIES(taskloaf_wrapper PROPERTIES PREFIX "")
 
+    add_dependencies(taskloaf_wrapper cereal concurrentqueue pybind11)
+
     target_include_directories(taskloaf_wrapper PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+        ${CEREAL_INCLUDE_DIR}
+        ${MPMCQUEUE_INCLUDE_DIR} 
+        ${PYBIND11_INCLUDE_DIR})
     target_include_directories(taskloaf_wrapper SYSTEM PRIVATE
         ${PYTHON_INCLUDE}
         ${MPI_INCLUDE_PATH})
@@ -137,7 +207,8 @@ macro(taskloaf_example name filename)
     add_executable(${name} ${filename})
     target_include_directories(${name} PRIVATE 
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${CEREAL_INCLUDE_DIR}
+        ${MPMCQUEUE_INCLUDE_DIR} 
     )
     if (MPI_CXX_FOUND)
         target_include_directories(${name} SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
