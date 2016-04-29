@@ -31,7 +31,7 @@
 #endif
 
 #define PYBIND11_VERSION_MAJOR 1
-#define PYBIND11_VERSION_MINOR 5
+#define PYBIND11_VERSION_MINOR 6
 
 /// Include Python header, disable linking to pythonX_d.lib on Windows in debug mode
 #if defined(_MSC_VER)
@@ -46,6 +46,7 @@
 
 #include <Python.h>
 #include <frameobject.h>
+#include <pythread.h>
 
 #ifdef isalnum
 #  undef isalnum
@@ -109,6 +110,13 @@
     extern "C" PYBIND11_EXPORT PyObject *init##name()
 #endif
 
+#if PY_VERSION_HEX >= 0x03050000 && PY_VERSION_HEX < 0x03050200
+extern "C" {
+    struct _Py_atomic_address { void *value; };
+    PyAPI_DATA(_Py_atomic_address) _PyThreadState_Current;
+};
+#endif
+
 #define PYBIND11_TRY_NEXT_OVERLOAD ((PyObject *) 1) // special failure return code
 #define PYBIND11_STRINGIFY(x) #x
 #define PYBIND11_TOSTRING(x) PYBIND11_STRINGIFY(x)
@@ -127,31 +135,58 @@
     } \
     PyObject *pybind11_init()
 
-
 NAMESPACE_BEGIN(pybind11)
 
 typedef Py_ssize_t ssize_t;
 
 /// Approach used to cast a previously unknown C++ instance into a Python object
 enum class return_value_policy : int {
-    /** Automatic: copy objects returned as values and take ownership of objects
-        returned as pointers */
+    /** This is the default return value policy, which falls back to the policy
+        return_value_policy::take_ownership when the return value is a pointer.
+        Otherwise, it uses return_value::move or return_value::copy for rvalue
+        and lvalue references, respectively. See below for a description of what
+        all of these different policies do. */
     automatic = 0,
-    /** Automatic variant 2: copy objects returned as values and reference objects
-        returned as pointers */
+
+    /** As above, but use policy return_value_policy::reference when the return
+        value is a pointer. You probably won't need to use this. */
     automatic_reference,
-    /** Reference the object and take ownership. Python will call the
-        destructor and delete operator when the reference count reaches zero */
+
+    /** Reference an existing object (i.e. do not create a new copy) and take
+        ownership. Python will call the destructor and delete operator when the
+        object’s reference count reaches zero. Undefined behavior ensues when
+        the C++ side does the same.. */
     take_ownership,
-    /** Reference the object, but do not take ownership (dangerous when C++ code
-        deletes it and Python still has a nonzero reference count) */
+
+    /** Create a new copy of the returned object, which will be owned by
+        Python. This policy is comparably safe because the lifetimes of the two
+        instances are decoupled. */
+    copy,
+
+    /** Use std::move to move the return value contents into a new instance
+        that will be owned by Python. This policy is comparably safe because the
+        lifetimes of the two instances (move source and destination) are
+        decoupled. */
+    move,
+
+    /** Reference an existing object, but do not take ownership. The C++ side
+        is responsible for managing the object’s lifetime and deallocating it
+        when it is no longer used. Warning: undefined behavior will ensue when
+        the C++ side deletes an object that is still referenced and used by
+        Python. */
     reference,
-    /** Reference the object, but do not take ownership. The object is considered
-        be owned by the C++ instance whose method or property returned it. The
-        Python object will increase the reference count of this 'parent' by 1 */
-    reference_internal,
-    /// Create a new copy of the returned object, which will be owned by Python
-    copy
+
+    /** This policy only applies to methods and properties. It references the
+        object without taking ownership similar to the above
+        return_value_policy::reference policy. In contrast to that policy, the
+        function or property’s implicit this argument (called the parent) is
+        considered to be the the owner of the return value (the child).
+        pybind11 then couples the lifetime of the parent to the child via a
+        reference relationship that ensures that the parent cannot be garbage
+        collected while Python is still using the child. More advanced
+        variations of this scheme are also possible using combinations of
+        return_value_policy::reference and the keep_alive call policy */
+    reference_internal
 };
 
 /// Format strings for basic number types
@@ -228,6 +263,10 @@ struct internals {
     std::unordered_map<const void *, void*> registered_types_py;     // PyTypeObject* -> type_info
     std::unordered_map<const void *, void*> registered_instances;    // void * -> PyObject*
     std::unordered_set<std::pair<const PyObject *, const char *>, overload_hash> inactive_overload_cache;
+#if defined(WITH_THREAD)
+    int tstate = 0;
+    PyInterpreterState *istate = nullptr;
+#endif
 };
 
 /// Return a reference to the current 'internals' information
@@ -252,10 +291,16 @@ template <typename T> struct intrinsic_type<T&&>                  { typedef type
 template <typename T, size_t N> struct intrinsic_type<const T[N]> { typedef typename intrinsic_type<T>::type type; };
 template <typename T, size_t N> struct intrinsic_type<T[N]>       { typedef typename intrinsic_type<T>::type type; };
 
-/** \brief SFINAE helper class to check if a copy constructor is usable (in contrast to 
+/** \brief SFINAE helper class to check if a copy constructor is usable (in contrast to
  * std::is_copy_constructible, this class also checks if the 'new' operator is accessible */
 template <typename T>  struct is_copy_constructible {
     template <typename T2> static std::true_type test(decltype(new T2(std::declval<typename std::add_lvalue_reference<T2>::type>())) *);
+    template <typename T2> static std::false_type test(...);
+    static const bool value = std::is_same<std::true_type, decltype(test<T>(nullptr))>::value;
+};
+
+template <typename T>  struct is_move_constructible {
+    template <typename T2> static std::true_type test(decltype(new T2(std::declval<T2>())) *);
     template <typename T2> static std::false_type test(...);
     static const bool value = std::is_same<std::true_type, decltype(test<T>(nullptr))>::value;
 };

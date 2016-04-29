@@ -106,7 +106,7 @@ TEST_CASE("Local comm", "[comm]") {
 
 TEST_CASE("Serializing Comm", "[comm]") {
     auto lcq = std::make_shared<LocalCommQueues>(2);
-    SerializingComm a(std::unique_ptr<LocalComm>(new LocalComm(lcq, 0)));
-    SerializingComm b(std::unique_ptr<LocalComm>(new LocalComm(lcq, 1)));
+    SerializingComm a(std::make_unique<LocalComm>(lcq, 0));
+    SerializingComm b(std::make_unique<LocalComm>(lcq, 1));
     test_comm(a, b);
 }

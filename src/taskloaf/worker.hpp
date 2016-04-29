@@ -1,27 +1,27 @@
 #pragma once
+#include "address.hpp"
+#include "ivar.hpp"
+#include "closure.hpp"
 
-#include "task_collection.hpp"
-#include "ivar_tracker.hpp"
+#include <memory>
 
 namespace taskloaf { 
 
 struct Comm;
+struct WorkerInternals;
 struct Worker {
-    std::unique_ptr<Comm> comm;
-    TaskCollection tasks;
-    IVarTracker ivar_tracker;
-    int core_id = -1;
-    bool stealing = false;
-    bool stop = false;
+    std::unique_ptr<WorkerInternals> p;
 
     Worker(std::unique_ptr<Comm> comm);
     Worker(Worker&&) = default;
-    Worker(const Worker&) = delete;
     ~Worker();
+
+    bool is_stopped() const;
+    Comm& get_comm();
+    const Address& get_addr();
 
     void shutdown();
     void introduce(Address addr);
-    const Address& get_addr();
 
     template <typename F, typename... Args>
     void add_task(F&& f, Args&&... args) {

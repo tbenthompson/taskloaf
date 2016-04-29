@@ -46,16 +46,16 @@ auto make_future() {
 }
 
 template <typename F, typename... Ts>
-auto then(const Future<Ts...>& fut, F&& fnc) {
+auto then(Future<Ts...>& fut, F&& fnc) {
     typedef typename std::result_of<F(Ts&...)>::type Return;
-    Function<get_signature<F>> fnc_container(std::forward<F>(fnc));
-    decltype(make_future<Return>()) out_future = make_future<Return>();
-    typedef decltype(out_future) OutT;
-    typedef decltype(fnc_container) FncT;
+    typedef decltype(make_closure(std::forward<F>(fnc))) FncT;
+    FncT fnc_container = make_closure(std::forward<F>(fnc));
+    typedef decltype(make_future<Return>()) OutT;
+    OutT out_future = make_future<Return>();
     fut.add_trigger(
-        [] (OutT out_future, FncT fnc_container, std::tuple<Ts...> val) {
+        [] (OutT& out_future, FncT& fnc_container, std::tuple<Ts...>& val) {
             cur_worker->add_task(
-                [] (OutT out, FncT fnc, std::tuple<Ts...> val) {
+                [] (OutT& out, FncT& fnc, std::tuple<Ts...>& val) {
                     out.fulfill(PossiblyVoidCall<get_signature<F>>::on([&] () {
                         return apply_args(fnc, val);         
                     }));
@@ -74,11 +74,11 @@ auto then(const Future<Ts...>& fut, F&& fnc) {
 //TODO: unwrap doesn't actually need to do anything. It can be
 //lazy and wait for usage.
 template <typename T>
-auto unwrap(const Future<T>& fut) {
+auto unwrap(Future<T>& fut) {
     Future<typename T::type> out_future = make_future<typename T::type>();
     typedef decltype(out_future) OutT;
     fut.add_trigger(
-        [] (OutT out_future, std::tuple<T> result) {
+        [] (OutT& out_future, std::tuple<T>& result) {
             std::get<0>(result).add_trigger(
                 [] (OutT out_future, std::tuple<typename T::type> val) {
                     out_future.fulfill(val); 
@@ -101,12 +101,12 @@ auto ready(T val) {
 template <typename F>
 auto async(F&& fnc) {
     typedef typename std::result_of<F()>::type Return;
-    auto fnc_container = make_function(std::forward<F>(fnc));
+    auto fnc_container = make_closure(std::forward<F>(fnc));
     auto out_future = make_future<Return>();
     using FncT = decltype(fnc_container);
     using OutT = decltype(out_future);
     cur_worker->add_task(
-        [] (OutT fut, FncT fnc) {
+        [] (OutT& fut, FncT& fnc) {
             fut.fulfill(PossiblyVoidCall<get_signature<F>>::on(fnc));
         },
         out_future,
@@ -114,16 +114,6 @@ auto async(F&& fnc) {
     );
     return out_future;
 }
-
-// template <
-//     typename F,
-//     typename std::enable_if<
-//         std::is_void<std::result_of_t<F()>>::value, int
-//     >::type = 0
-// >
-// auto async(F&& fnc) {
-//     return async(make_closure([] (F&& f) { f(); return 0; })
-// }
 
 template <size_t Idx, bool end, typename... Ts>
 struct WhenAllHelper {
@@ -134,9 +124,9 @@ struct WhenAllHelper {
 
         auto next_result = std::get<Idx>(child_results);
         next_result.add_trigger(
-            [] (std::tuple<Future<Ts>...> child_results,
-                std::tuple<Ts...> accum, Future<Ts...> result, 
-                ValT val) 
+            [] (std::tuple<Future<Ts>...>& child_results,
+                std::tuple<Ts...>& accum, Future<Ts...>& result, 
+                ValT& val) 
             {
                 std::get<Idx>(accum) = std::get<0>(val);
                 WhenAllHelper<Idx+1,Idx+2 == sizeof...(Ts),Ts...>::run(
@@ -202,39 +192,46 @@ struct FutureData {
             d.ivar.~IVarRef();
         }
     }
+
+    std::tuple<Ts...>& get_val() { return d.val; }
+    const std::tuple<Ts...>& get_val() const { return d.val; }
+    IVarRef& get_ivar() { return d.ivar; }
+    const IVarRef& get_ivar() const { return d.ivar; }
 };
 
-template <typename... Ts>
-struct Future {
-    using type = typename std::tuple_element<0,std::tuple<Ts...>>::type;
+template <>
+struct FutureData<> {
+    IVarRef ivar;
+    bool ready;
+    std::tuple<> empty;
 
+    std::tuple<>& get_val() { return empty; }
+    const std::tuple<>& get_val() const { return empty; }
+    IVarRef& get_ivar() { return ivar; }
+    const IVarRef& get_ivar() const { return ivar; }
+};
+
+template <typename Derived, typename... Ts>
+struct FutureBase {
     std::shared_ptr<FutureData<Ts...>> data;
 
-    Future(): data(std::make_shared<FutureData<Ts...>>()) {}
+    FutureBase(): 
+        data(std::make_shared<FutureData<Ts...>>())
+    {}
 
-    Future(IVarRef&& ivar): Future() {
-        data->ready = false;
-        data->d.ivar = ivar;
-    }
-
-    Future(std::tuple<Ts...> val): Future() {
-        data->ready = true;
-        data->d.val = std::move(val);
+    auto& derived() {
+        return *static_cast<Derived*>(this);
     }
 
     template <typename F>
-    auto then(F&& f) const {
-        return taskloaf::then(*this, std::forward<F>(f));
-    }
-
-    auto unwrap() const {
-        return taskloaf::unwrap(*this);
+    auto then(F&& f) {
+        return taskloaf::then(derived(), std::forward<F>(f));
     }
 
     template <typename F, typename... Args>
-    void add_trigger(F&& f, Args&&... args) const {
+    void add_trigger(F&& f, Args&&... args) {
         if (data->ready) {
-            f(std::forward<Args>(args)..., data->d.val);
+            f(args..., data->get_val());
         } else {
             auto trigger = make_closure(
                 [f = std::forward<F>(f)] 
@@ -243,88 +240,64 @@ struct Future {
                 },
                 std::forward<Args>(args)...
             );
-            cur_worker->add_trigger(data->d.ivar, std::move(trigger));
+            cur_worker->add_trigger(data->get_ivar(), std::move(trigger));
         }
     }
 
-    void fulfill(std::tuple<Ts...> val) const {
+    void fulfill(std::tuple<Ts...> val) {
         if (data->ready) {
-            data->d.val = std::move(val);
+            data->get_val() = std::move(val);
         } else {
-            cur_worker->fulfill(data->d.ivar, {make_data(std::move(val))});
+            cur_worker->fulfill(data->get_ivar(), {make_data(std::move(val))});
         }
     }
+
 
     template <typename Archive>
     void serialize(Archive& ar) const {
         ar(data->ready);
         if(data->ready) {
-            ar(data->d.val);
+            ar(data->get_val());
         } else {
-            ar(data->d.ivar);
+            ar(data->get_ivar());
         }
     }
 };
 
-template <>
-struct FutureData<> {
-    IVarRef ivar;
-    bool ready;
+template <typename... Ts>
+struct Future: public FutureBase<Future<Ts...>,Ts...> {
+    using type = typename std::tuple_element<0,std::tuple<Ts...>>::type;
+
+    Future(): FutureBase<Future<Ts...>,Ts...>() {}
+
+    Future(IVarRef&& ivar): Future() {
+        this->data->ready = false;
+        this->data->d.ivar = ivar;
+    }
+
+    Future(std::tuple<Ts...> val): Future() {
+        this->data->ready = true;
+        this->data->d.val = std::move(val);
+    }
+
+    auto unwrap() {
+        return taskloaf::unwrap(*this);
+    }
 };
 
 template <>
-struct Future<> {
+struct Future<>: public FutureBase<Future<>> {
     using type = void;
 
-    std::shared_ptr<FutureData<>> data;
-
-    Future(): data(std::make_shared<FutureData<>>()) {}
+    Future(): FutureBase<Future<>>() {}
 
     Future(IVarRef&& ivar): Future() {
-        data->ready = false;
-        data->ivar = ivar;
+        this->data->ready = false;
+        this->data->ivar = ivar;
     }
 
     Future(std::tuple<>): Future() {
-        data->ready = true;
-    }
-
-    template <typename F>
-    auto then(F&& f) const {
-        return taskloaf::then(*this, std::forward<F>(f));
-    }
-
-    template <typename F, typename... Args>
-    void add_trigger(F&& f, Args&&... args) const {
-        if (data->ready) {
-            f(std::forward<Args>(args)..., std::make_tuple());
-        } else {
-            auto trigger = make_closure(
-                [f = std::forward<F>(f)] 
-                (Args&... args, std::vector<Data>&) {
-                    return f(args..., std::make_tuple());
-                },
-                std::forward<Args>(args)...
-            );
-            cur_worker->add_trigger(data->ivar, std::move(trigger));
-        }
-    }
-
-    struct Empty {};
-
-    void fulfill(std::tuple<>) const {
-        if (data->ready) {
-        } else {
-            cur_worker->fulfill(data->ivar, {make_data(Empty())});
-        }
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) const {
-        ar(data->ready);
-        if(!data->ready) {
-            ar(data->ivar);
-        }
+        this->data->ready = true;
     }
 };
 

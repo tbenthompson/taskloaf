@@ -59,7 +59,7 @@ public:
     object(const object &o) : handle(o) { inc_ref(); }
     object(const handle &h, bool borrowed) : handle(h) { if (borrowed) inc_ref(); }
     object(PyObject *ptr, bool borrowed) : handle(ptr) { if (borrowed) inc_ref(); }
-    object(object &&other) { m_ptr = other.m_ptr; other.m_ptr = nullptr; }
+    object(object &&other) noexcept { m_ptr = other.m_ptr; other.m_ptr = nullptr; }
     ~object() { dec_ref(); }
 
     handle release() {
@@ -68,14 +68,14 @@ public:
       return handle(tmp);
     }
 
-    object& operator=(object &other) {
+    object& operator=(const object &other) {
         other.inc_ref();
         dec_ref();
         m_ptr = other.m_ptr;
         return *this;
     }
 
-    object& operator=(object &&other) {
+    object& operator=(object &&other) noexcept {
         if (this != &other) {
             handle temp(m_ptr);
             m_ptr = other.m_ptr;
@@ -212,15 +212,27 @@ private:
     ssize_t pos = 0;
 };
 
-NAMESPACE_END(detail)
+inline bool PyIterable_Check(PyObject *obj) {
+    PyObject *iter = PyObject_GetIter(obj);
+    if (iter) {
+        Py_DECREF(iter);
+        return true;
+    } else {
+        PyErr_Clear();
+        return false;
+    }
+}
+    
+inline bool PyNone_Check(PyObject *o) { return o == Py_None; }
 
+NAMESPACE_END(detail)
 
 #define PYBIND11_OBJECT_CVT(Name, Parent, CheckFun, CvtStmt) \
     Name(const handle &h, bool borrowed) : Parent(h, borrowed) { CvtStmt; } \
     Name(const object& o): Parent(o) { CvtStmt; } \
-    Name(object&& o): Parent(std::move(o)) { CvtStmt; } \
-    Name& operator=(object&& o) { (void) static_cast<Name&>(object::operator=(std::move(o))); CvtStmt; return *this; } \
-    Name& operator=(object& o) { return static_cast<Name&>(object::operator=(o)); CvtStmt; } \
+    Name(object&& o) noexcept : Parent(std::move(o)) { CvtStmt; } \
+    Name& operator=(object&& o) noexcept { (void) object::operator=(std::move(o)); CvtStmt; return *this; } \
+    Name& operator=(const object& o) { return static_cast<Name&>(object::operator=(o)); CvtStmt; } \
     bool check() const { return m_ptr != nullptr && (bool) CheckFun(m_ptr); }
 
 #define PYBIND11_OBJECT(Name, Parent, CheckFun) \
@@ -232,30 +244,75 @@ NAMESPACE_END(detail)
 
 class iterator : public object {
 public:
-    PYBIND11_OBJECT_DEFAULT(iterator, object, PyIter_Check)
-    iterator(handle obj, bool borrowed = false) : object(obj, borrowed) { }
-    iterator& operator++() {
-        if (ptr())
-            value = object(PyIter_Next(m_ptr), false);
+    PYBIND11_OBJECT_CVT(iterator, object, PyIter_Check, value = object(); ready = false)
+    iterator() : object(), value(object()), ready(false) { }
+    iterator(const iterator& it) : object(it), value(it.value), ready(it.ready) { }
+    iterator(iterator&& it) : object(std::move(it)), value(std::move(it.value)), ready(it.ready) { }
+
+    /** Caveat: this copy constructor does not (and cannot) clone the internal
+        state of the Python iterable */
+    iterator &operator=(const iterator &it) {
+        (void) object::operator=(it);
+        value = it.value;
+        ready = it.ready;
         return *this;
     }
+
+    iterator &operator=(iterator &&it) noexcept {
+        (void) object::operator=(std::move(it));
+        value = std::move(it.value);
+        ready = it.ready;
+        return *this;
+    }
+
+    iterator& operator++() {
+        if (m_ptr)
+            advance();
+        return *this;
+    }
+
+    /** Caveat: this postincrement operator does not (and cannot) clone the
+        internal state of the Python iterable. It should only be used to
+        retrieve the current iterate using <tt>operator*()</tt> */
+    iterator operator++(int) {
+        iterator rv(*this);
+        rv.value = value;
+        if (m_ptr)
+            advance();
+        return rv;
+    }
+
     bool operator==(const iterator &it) const { return *it == **this; }
     bool operator!=(const iterator &it) const { return *it != **this; }
+
     const handle &operator*() const {
-        if (m_ptr && !value)
-            value = object(PyIter_Next(m_ptr), false);
+        if (!ready && m_ptr) {
+            auto& self = const_cast<iterator &>(*this);
+            self.advance();
+            self.ready = true;
+        }
         return value;
     }
+
 private:
-    mutable object value;
+    void advance() { value = object(PyIter_Next(m_ptr), false); }
+
+private:
+    object value;
+    bool ready;
+};
+
+class iterable : public object {
+public:
+    PYBIND11_OBJECT_DEFAULT(iterable, object, detail::PyIterable_Check)
 };
 
 inline detail::accessor handle::operator[](handle key) const { return detail::accessor(ptr(), key.ptr(), false); }
 inline detail::accessor handle::operator[](const char *key) const { return detail::accessor(ptr(), key, false); }
 inline detail::accessor handle::attr(handle key) const { return detail::accessor(ptr(), key.ptr(), true); }
 inline detail::accessor handle::attr(const char *key) const { return detail::accessor(ptr(), key, true); }
-inline iterator handle::begin() const { return iterator(PyObject_GetIter(ptr())); }
-inline iterator handle::end() const { return iterator(nullptr); }
+inline iterator handle::begin() const { return iterator(PyObject_GetIter(ptr()), false); }
+inline iterator handle::end() const { return iterator(nullptr, false); }
 
 class str : public object {
 public:
@@ -303,6 +360,12 @@ public:
             pybind11_fail("Unable to extract bytes contents!");
         return std::string(buffer, length);
     }
+};
+
+class none : public object {
+public:
+    PYBIND11_OBJECT(none, object, detail::PyNone_Check)
+    none() : object(Py_None, true) { }
 };
 
 class bool_ : public object {

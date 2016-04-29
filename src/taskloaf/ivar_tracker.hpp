@@ -11,10 +11,10 @@ struct ID;
 struct Data;
 struct Comm;
 
-struct IVarTrackerImpl;
+struct IVarTrackerInternals;
 
 struct IVarTracker {
-    std::unique_ptr<IVarTrackerImpl> impl;
+    std::unique_ptr<IVarTrackerInternals> impl;
 
     IVarTracker(Comm& comm);
     IVarTracker(IVarTracker&&);

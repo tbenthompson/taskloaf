@@ -75,7 +75,7 @@ auto update(const Parameters& p, int chunk_index, const std::vector<double>& tem
 }
 
 auto timestep(const Parameters& p, 
-    const std::vector<tsk::Future<std::vector<double>>>& temp) 
+    std::vector<tsk::Future<std::vector<double>>> temp) 
 {
     std::vector<tsk::Future<double>> left_ghosts(p.n_chunks);
     std::vector<tsk::Future<double>> right_ghosts(p.n_chunks);

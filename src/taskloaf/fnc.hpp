@@ -91,8 +91,7 @@ struct Function<Return(Args...)> {
     template <typename F>
     Function(F f) {
         caller_id = get_call<F,Return,Args...>();
-        auto newf = std::unique_ptr<F>(new F(std::move(f)));
-        closure = std::string(reinterpret_cast<const char*>(newf.get()), sizeof(f));
+        closure = std::string(reinterpret_cast<const char*>(&f), sizeof(F));
     }
 
     template <typename... As>
@@ -100,7 +99,8 @@ struct Function<Return(Args...)> {
         auto caller = reinterpret_cast<FncCaller<Return,Args...>>(
             get_caller_registry().get_function(caller_id)
         );
-        return caller(closure, std::forward<As>(args)...);
+        // No forwarding so that everything becomes an lvalue reference
+        return caller(closure, args...);
     }
 
     Return call(Args... args) {

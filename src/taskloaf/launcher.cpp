@@ -44,15 +44,15 @@ void helper(size_t n_workers, std::function<void()> f,
 void launch_local(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     helper(n_workers, f, [&] (size_t i) {
-        return std::unique_ptr<LocalComm>(new LocalComm(lcq, i));
+        return std::make_unique<LocalComm>(lcq, i);
     });
 }
 void launch_local_serializing(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     helper(n_workers, f, [&] (size_t i) {
-        return std::unique_ptr<SerializingComm>(new SerializingComm(
-            std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
-        ));
+        return std::make_unique<SerializingComm>(
+            std::make_unique<LocalComm>(lcq, i)
+        );
     });
 }
 
@@ -60,10 +60,10 @@ void launch_local_singlethread(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws(n_workers);
     for (size_t i = 0; i < n_workers; i++) { 
-        auto comm = std::unique_ptr<SerializingComm>(new SerializingComm(
-            std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
-        ));
-        ws[i] = std::unique_ptr<Worker>(new Worker(std::move(comm)));
+        auto comm = std::make_unique<SerializingComm>(
+            std::make_unique<LocalComm>(lcq, i)
+        );
+        ws[i] = std::make_unique<Worker>(std::move(comm));
         cur_worker = ws[i].get();
         if (i == 0) {
             f();
@@ -71,7 +71,7 @@ void launch_local_singlethread(size_t n_workers, std::function<void()> f) {
             ws[i]->introduce(ws[0]->get_addr()); 
         }
     }
-    while (!ws[0]->stop) {
+    while (!ws[0]->is_stopped()) {
         for (size_t i = 0; i < n_workers; i++) { 
             cur_worker = ws[i].get();
             ws[i]->one_step();
@@ -89,18 +89,18 @@ int shutdown() {
 void launch_mpi(std::function<void()> f) {
     MPI_Init(NULL, NULL);
 
-    Worker w(std::unique_ptr<SerializingComm>(new SerializingComm(
-        std::unique_ptr<MPIComm>(new MPIComm()))
-    ));
+    Worker w(std::make_unique<SerializingComm>(
+        std::make_unique<MPIComm>())
+    );
     cur_worker = &w;
-    auto& endpts = w.comm->remote_endpoints();
+    auto& endpts = w.get_comm().remote_endpoints();
     for (size_t i = 0; i < endpts.size(); i++) {
         auto& e = endpts[i];
-        if (e.port < w.comm->get_addr().port) {
+        if (e.port < w.get_addr().port) {
             w.introduce(e);
         }
     }
-    if (w.comm->get_addr().port == 0) {
+    if (w.get_addr().port == 0) {
         f();
     }
     w.run();

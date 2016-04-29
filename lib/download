@@ -3,6 +3,7 @@
 # are desired.
 
 git clone --depth 1 git@github.com:USCiLab/cereal.git cereal_git
+[ -d cereal ] && rm -r cereal
 mv cereal_git/include/cereal ./cereal
 rm -rf cereal_git
 
@@ -15,5 +16,6 @@ mv concurrentqueue/concurrentqueue.h ./
 rm -rf concurrentqueue
 
 git clone --depth 1 git@github.com:pybind/pybind11.git pybind11_git
+[ -d pybind11 ] && rm -r pybind11
 mv pybind11_git/include/pybind11 ./pybind11
 rm -rf pybind11_git

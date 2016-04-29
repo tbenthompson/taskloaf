@@ -1,6 +1,7 @@
 #include "catch.hpp"
 
 #include "taskloaf/worker.hpp"
+#include "taskloaf/worker_internals.hpp"
 #include "taskloaf/id.hpp"
 #include "taskloaf/comm.hpp"
 #include "taskloaf/local_comm.hpp"
@@ -21,29 +22,29 @@ void settle(std::vector<std::unique_ptr<Worker>>& ws) {
 
 Worker worker() {
     auto lcq = std::make_shared<LocalCommQueues>(1);
-    return Worker(std::unique_ptr<LocalComm>(new LocalComm(lcq, 0)));
+    return Worker(std::make_unique<LocalComm>(lcq, 0));
 }
 
 std::vector<std::unique_ptr<Worker>> workers(int n_workers) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws;
     for (int i = 0; i < n_workers; i++) {
-        ws.emplace_back(std::unique_ptr<Worker>(new Worker(
-            std::unique_ptr<SerializingComm>(new SerializingComm(
-                std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
-            ))
-        )));
+        ws.emplace_back(std::make_unique<Worker>(
+            std::make_unique<SerializingComm>(
+                std::make_unique<LocalComm>(lcq, i)
+            )
+        ));
         if (i != 0) {
             ws[i]->introduce(ws[0]->get_addr());
         }
-        ws[i]->core_id = i;
+        ws[i]->p->core_id = i;
         settle(ws);
     }
     return ws;
 }
 
 ID id_on_worker(const std::unique_ptr<Worker>& w) {
-    auto id = w->ivar_tracker.get_ring_locs()[0];
+    auto id = w->p->ivar_tracker.get_ring_locs()[0];
     id.secondhalf++;
     return id;
 }
@@ -76,13 +77,13 @@ void stealing_test(int n_steals) {
     }
     settle(ws);
     for (int i = 0; i < n_steals; i++) {
-        ws[1]->tasks.steal();
+        ws[1]->p->tasks.steal();
     }
-    REQUIRE(ws[0]->tasks.size() == n_tasks);
-    REQUIRE(ws[1]->tasks.size() == 0);
+    REQUIRE(ws[0]->p->tasks.size() == n_tasks);
+    REQUIRE(ws[1]->p->tasks.size() == 0);
     settle(ws);
-    REQUIRE(ws[0]->tasks.size() == n_tasks - 1);
-    REQUIRE(ws[1]->tasks.size() == 1);
+    REQUIRE(ws[0]->p->tasks.size() == n_tasks - 1);
+    REQUIRE(ws[1]->p->tasks.size() == 1);
 }
 
 TEST_CASE("Two workers one steal") {
@@ -103,9 +104,9 @@ TEST_CASE("Ref tracking destructor deletes") {
     {
         IVarRef iv(new_id());
         make_ivar_live(w, iv);
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy constructor") {
@@ -117,9 +118,9 @@ TEST_CASE("Ref tracking copy constructor") {
             IVarRef iv(new_id());
             ivarref2.reset(new IVarRef(iv));
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy assignment") {
@@ -131,9 +132,9 @@ TEST_CASE("Ref tracking copy assignment") {
             IVarRef iv(new_id());
             ivarref2 = iv;
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
 }
 
 
@@ -152,9 +153,9 @@ TEST_CASE("Ref tracking move constructor") {
             ivarref2.reset(new IVarRef(std::move(iv)));
             REQUIRE(iv.empty == true);
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking move assignment") {
@@ -168,9 +169,9 @@ TEST_CASE("Ref tracking move assignment") {
             iv = std::move(iv2);
             REQUIRE(iv2.empty == true);
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting") {
@@ -180,30 +181,30 @@ TEST_CASE("Remote reference counting") {
         auto id = id_on_worker(ws[1]);
         IVarRef iv(id);
         settle(ws);
-        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
 
         cur_worker = ws[0].get();
         ws[0]->fulfill(iv, {make_data(1)});
 
-        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[0]->p->ivar_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->p->ivar_tracker.n_vals_here() == 0);
+        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
 
         settle(ws);
-        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 1);
+        REQUIRE(ws[0]->p->ivar_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->p->ivar_tracker.n_vals_here() == 0);
+        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 1);
 
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 0);
-    REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[0]->p->ivar_tracker.n_vals_here() == 0);
+    REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[1]->p->ivar_tracker.n_vals_here() == 0);
+    REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting change location") {
@@ -216,18 +217,18 @@ TEST_CASE("Remote reference counting change location") {
 
         ws[1]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
         ws[0]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
-        REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 1);
-        REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 1);
+        REQUIRE(ws[0]->p->ivar_tracker.n_triggers_here() == 1);
+        REQUIRE(ws[1]->p->ivar_tracker.n_triggers_here() == 1);
 
         ws[1]->recv();
 
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 1);
+        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 1);
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[0]->p->ivar_tracker.n_triggers_here() == 0);
+    REQUIRE(ws[1]->p->ivar_tracker.n_triggers_here() == 0);
+    REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
 }
 
 void remote(int n_workers, int owner_worker, int fulfill_worker,

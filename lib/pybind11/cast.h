@@ -17,21 +17,6 @@
 #include <limits>
 
 NAMESPACE_BEGIN(pybind11)
-
-/// Thin wrapper type used to treat certain data types as opaque (e.g. STL vectors, etc.)
-template <typename Type> class opaque {
-public:
-    template <typename... Args> opaque(Args&&... args) : value(std::forward<Args>(args)...) { }
-    operator Type&() { return value; }
-    operator const Type&() const { return value; }
-    operator Type*() { return &value; }
-    operator const Type*() const { return &value; }
-    Type* operator->() { return &value; }
-    const Type* operator->() const { return &value; }
-private:
-    Type value;
-};
-
 NAMESPACE_BEGIN(detail)
 
 /// Additional type information which does not fit into the PyTypeObject
@@ -55,6 +40,13 @@ PYBIND11_NOINLINE inline internals &get_internals() {
         internals_ptr = caps;
     } else {
         internals_ptr = new internals();
+        #if defined(WITH_THREAD)
+            PyEval_InitThreads();
+            PyThreadState *tstate = PyThreadState_Get();
+            internals_ptr->tstate = PyThread_create_key();
+            PyThread_set_key_value(internals_ptr->tstate, tstate);
+            internals_ptr->istate = tstate->interp;
+        #endif
         builtins[id] = capsule(internals_ptr);
     }
     return *internals_ptr;
@@ -110,6 +102,18 @@ PYBIND11_NOINLINE inline handle get_object_handle(const void *ptr) {
     return handle((PyObject *) it->second);
 }
 
+inline PyThreadState *get_thread_state_unchecked() {
+#if   PY_VERSION_HEX < 0x03000000
+    return _PyThreadState_Current;
+#elif PY_VERSION_HEX < 0x03050000
+    return (PyThreadState*) _Py_atomic_load_relaxed(&_PyThreadState_Current);
+#elif PY_VERSION_HEX < 0x03050200
+    return (PyThreadState*) _PyThreadState_Current.value;
+#else
+    return _PyThreadState_UncheckedGet();
+#endif
+}
+
 class type_caster_generic {
 public:
     PYBIND11_NOINLINE type_caster_generic(const std::type_info &type_info)
@@ -139,6 +143,7 @@ public:
                                          const std::type_info *type_info,
                                          const std::type_info *type_info_backup,
                                          void *(*copy_constructor)(const void *),
+                                         void *(*move_constructor)(const void *),
                                          const void *existing_holder = nullptr) {
         void *src = const_cast<void *>(_src);
         if (src == nullptr)
@@ -185,6 +190,12 @@ public:
             wrapper->value = copy_constructor(wrapper->value);
             if (wrapper->value == nullptr)
                 throw cast_error("return_value_policy = copy, but the object is non-copyable!");
+        } else if (policy == return_value_policy::move) {
+            wrapper->value = move_constructor(wrapper->value);
+            if (wrapper->value == nullptr)
+                wrapper->value = copy_constructor(wrapper->value);
+            if (wrapper->value == nullptr)
+                throw cast_error("return_value_policy = move, but the object is neither movable nor copyable!");
         } else if (policy == return_value_policy::reference) {
             wrapper->owned = false;
         } else if (policy == return_value_policy::reference_internal) {
@@ -212,11 +223,11 @@ using cast_op_type = typename std::conditional<std::is_pointer<typename std::rem
     typename std::add_lvalue_reference<typename intrinsic_type<T>::type>::type>::type;
 
 /// Generic type caster for objects stored on the heap
-template <typename type, typename Enable = void> class type_caster : public type_caster_generic {
+template <typename type> class type_caster_base : public type_caster_generic {
 public:
     static PYBIND11_DESCR name() { return type_descr(_<type>()); }
 
-    type_caster() : type_caster_generic(typeid(type)) { }
+    type_caster_base() : type_caster_generic(typeid(type)) { }
 
     static handle cast(const type &src, return_value_policy policy, handle parent) {
         if (policy == return_value_policy::automatic || policy == return_value_policy::automatic_reference)
@@ -224,8 +235,16 @@ public:
         return cast(&src, policy, parent);
     }
 
+    static handle cast(type &&src, return_value_policy policy, handle parent) {
+        if (policy == return_value_policy::automatic || policy == return_value_policy::automatic_reference)
+            policy = return_value_policy::move;
+        return cast(&src, policy, parent);
+    }
+
     static handle cast(const type *src, return_value_policy policy, handle parent) {
-        return type_caster_generic::cast(src, policy, parent, src ? &typeid(*src) : nullptr, &typeid(type), &copy_constructor);
+        return type_caster_generic::cast(
+            src, policy, parent, src ? &typeid(*src) : nullptr, &typeid(type),
+            &copy_constructor, &move_constructor);
     }
 
     template <typename T> using cast_op_type = pybind11::detail::cast_op_type<T>;
@@ -234,11 +253,24 @@ public:
     operator type&() { return *((type *) value); }
 protected:
     template <typename T = type, typename std::enable_if<detail::is_copy_constructible<T>::value, int>::type = 0>
-    static void *copy_constructor(const void *arg) {
-        return (void *) new type(*((const type *) arg));
-    }
+    static void *copy_constructor(const void *arg) { return (void *) new type(*((const type *) arg)); }
     template <typename T = type, typename std::enable_if<!detail::is_copy_constructible<T>::value, int>::type = 0>
     static void *copy_constructor(const void *) { return nullptr; }
+    template <typename T = type, typename std::enable_if<detail::is_move_constructible<T>::value, int>::type = 0>
+    static void *move_constructor(const void *arg) { return (void *) new type(std::move(*((type *) arg))); }
+    template <typename T = type, typename std::enable_if<!detail::is_move_constructible<T>::value, int>::type = 0>
+    static void *move_constructor(const void *) { return nullptr; }
+};
+
+template <typename type, typename SFINAE = void> class type_caster : public type_caster_base<type> { };
+
+template <typename type> class type_caster<std::reference_wrapper<type>> : public type_caster_base<type> {
+public:
+    static handle cast(const std::reference_wrapper<type> &src, return_value_policy policy, handle parent) {
+        return type_caster_base<type>::cast(&src.get(), policy, parent);
+    }
+    template <typename T> using cast_op_type = std::reference_wrapper<type>;
+    operator std::reference_wrapper<type>() { return std::ref(*((type *) this->value)); }
 };
 
 #define PYBIND11_TYPE_CASTER(type, py_name) \
@@ -416,12 +448,12 @@ protected:
 template <typename type> class type_caster<std::unique_ptr<type>> {
 public:
     static handle cast(std::unique_ptr<type> &&src, return_value_policy policy, handle parent) {
-        handle result = type_caster<type>::cast(src.get(), policy, parent);
+        handle result = type_caster_base<type>::cast(src.get(), policy, parent);
         if (result)
             src.release();
         return result;
     }
-    static PYBIND11_DESCR name() { return type_caster<type>::name(); }
+    static PYBIND11_DESCR name() { return type_caster_base<type>::name(); }
 };
 
 template <> class type_caster<std::wstring> {
@@ -627,13 +659,14 @@ protected:
 };
 
 /// Type caster for holder types like std::shared_ptr, etc.
-template <typename type, typename holder_type> class type_caster_holder : public type_caster<type> {
+template <typename type, typename holder_type> class type_caster_holder : public type_caster_base<type> {
 public:
-    using type_caster<type>::cast;
-    using type_caster<type>::typeinfo;
-    using type_caster<type>::value;
-    using type_caster<type>::temp;
-    using type_caster<type>::copy_constructor;
+    using type_caster_base<type>::cast;
+    using type_caster_base<type>::typeinfo;
+    using type_caster_base<type>::value;
+    using type_caster_base<type>::temp;
+    using type_caster_base<type>::copy_constructor;
+    using type_caster_base<type>::move_constructor;
 
     bool load(handle src, bool convert) {
         if (!src || !typeinfo) {
@@ -674,7 +707,7 @@ public:
         return type_caster_generic::cast(
             src.get(), policy, parent,
             src.get() ? &typeid(*src.get()) : nullptr, &typeid(type),
-            &copy_constructor, &src);
+            &copy_constructor, &move_constructor, &src);
     }
 
 protected:
@@ -743,5 +776,10 @@ template <typename... Args> inline object handle::call(Args&&... args) const {
         throw error_already_set();
     return result;
 }
+
+#define PYBIND11_MAKE_OPAQUE(Type) \
+    namespace pybind11 { namespace detail { \
+        template<> class type_caster<Type> : public type_caster_base<Type> { }; \
+    }}
 
 NAMESPACE_END(pybind11)

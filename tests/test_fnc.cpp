@@ -51,15 +51,15 @@ TEST_CASE("Function capture", "[fnc]") {
 }
 
 TEST_CASE("Closure one param", "[fnc]") {
-    Closure<int(int)> c(
+    Closure<int(int)> c{
         [] (std::vector<Data>& d, int y) { return d[0].get_as<int>() * y; },
         {make_data(12)}
-    ); 
+    }; 
     REQUIRE(c(3) == 36);
 }
 
 TEST_CASE("Closure three params", "[fnc]") {
-    Closure<double(int)> c([] (std::vector<Data>& d, int a) { 
+    Closure<double(int)> c{[] (std::vector<Data>& d, int a) { 
             if (d[2].get_as<bool>()) {
                 return d[0].get_as<int>() * d[1].get_as<double>() * a; 
             } else {
@@ -67,7 +67,7 @@ TEST_CASE("Closure three params", "[fnc]") {
             }
         }, 
         std::vector<Data>{make_data(12), make_data(3.3), make_data(true)}
-    ); 
+    }; 
     REQUIRE(std::fabs(c(3) - 118.8) < 0.001);
 }
 

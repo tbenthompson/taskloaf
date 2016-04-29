@@ -3,13 +3,15 @@
 #include "taskloaf/future.hpp"
 #include "taskloaf/fnc.hpp"
 
+#include "serializable_functor.hpp"
+
 #include <cereal/types/vector.hpp>
 
 using namespace taskloaf;
 
 template <typename T, typename F>
 void test_send(T&& v, F&& f) {
-    SerializingComm c(std::unique_ptr<MPIComm>(new MPIComm()));
+    SerializingComm c(std::make_unique<MPIComm>());
     if (mpi_rank(c) == 0) {
         c.send({"", 1}, Msg(0, make_data(std::forward<T>(v))));
         c.send({"", 1}, Msg(1, make_data(0)));
@@ -62,6 +64,16 @@ void test_send_data() {
     });
 }
 
+void test_send_closure() {
+    SerializableFunctor s{};
+    s.vs = {1,2,3,4};
+    auto f = make_closure(s);
+
+    test_send(f, [] (Comm&, decltype(f) f) {
+        tlassert(f(5) == 120);
+    });
+}
+
 int main() {
     MPI_Init(nullptr, nullptr);
 
@@ -69,6 +81,8 @@ int main() {
     test_send_fnc();
     test_send_nested_fnc();
     test_send_data();
+
+    std::cout << "MPI Tests passed" << std::endl;
 
     MPI_Finalize();
 }

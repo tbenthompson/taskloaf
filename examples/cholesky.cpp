@@ -157,7 +157,7 @@ FutureList submit_input_data(Blocks& blocks)
     return out;
 }
 
-FutureList cholesky_plan(const FutureList& inputs)
+FutureList cholesky_plan(FutureList inputs)
 {
     auto n_b = std::sqrt(inputs.size());
 
@@ -226,7 +226,7 @@ void run(int n, int n_blocks, int n_workers, bool run_blas) {
     TIC
     tsk::launch_local(n_workers, [&] () {
         auto input_futures = submit_input_data(block_A);
-        auto result_futures = cholesky_plan(input_futures);
+        auto result_futures = cholesky_plan(std::move(input_futures));
         if (run_blas) {
             auto correct_futures = submit_input_data(block_correct);
             auto total_error = tsk::ready<double>(0.0);

@@ -14,12 +14,12 @@
 
 namespace taskloaf {
 
-struct IVarTrackerImpl {
+struct IVarTrackerInternals {
     Comm& comm;
     Ring ring;
     IVarDB db;
 
-    IVarTrackerImpl(Comm& comm):
+    IVarTrackerInternals(Comm& comm):
         comm(comm),
         ring(comm, 1)
     {
@@ -245,7 +245,7 @@ struct IVarTrackerImpl {
 
 
 IVarTracker::IVarTracker(Comm& comm):
-    impl(std::unique_ptr<IVarTrackerImpl>(new IVarTrackerImpl(comm)))
+    impl(std::make_unique<IVarTrackerInternals>(comm))
 {}
 
 IVarTracker::IVarTracker(IVarTracker&&) = default;

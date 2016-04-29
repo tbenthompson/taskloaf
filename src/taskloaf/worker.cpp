@@ -1,4 +1,5 @@
 #include "worker.hpp"
+#include "worker_internals.hpp"
 #include "protocol.hpp"
 #include "comm.hpp"
 #include "timing.hpp"
@@ -12,83 +13,89 @@ namespace taskloaf {
 thread_local Worker* cur_worker;
 
 Worker::Worker(std::unique_ptr<Comm> p_comm):
-    comm(std::move(p_comm)),
-    tasks(*comm),
-    ivar_tracker(*comm)
+    p(std::make_unique<WorkerInternals>(std::move(p_comm)))
 {
-    comm->add_handler(Protocol::Shutdown, [&] (Data) {
-        stop = true;
+    p->comm->add_handler(Protocol::Shutdown, [&] (Data) {
+        p->stop = true;
     });
 }
 
 Worker::~Worker() {
     cur_worker = this;
-    stop = true;
+    p->stop = true;
+}
+
+bool Worker::is_stopped() const {
+    return p->stop;
+}
+
+Comm& Worker::get_comm() {
+    return *p->comm;
 }
 
 void Worker::shutdown() {
-    auto& remotes = comm->remote_endpoints();
+    auto& remotes = p->comm->remote_endpoints();
     for (auto& r: remotes) {
-        comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
+        p->comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
     }
-    stop = true;
+    p->stop = true;
 }
 
 void Worker::introduce(Address addr) {
-    ivar_tracker.introduce(addr);
+    p->ivar_tracker.introduce(addr);
 }
 
 const Address& Worker::get_addr() {
-    return comm->get_addr();
+    return get_comm().get_addr();
 }
 
 void Worker::add_task(TaskT f) {
-    tasks.add_task(std::move(f));
+    p->tasks.add_task(std::move(f));
 }
 
 void Worker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
-    ivar_tracker.fulfill(iv, std::move(vals));
+    p->ivar_tracker.fulfill(iv, std::move(vals));
 }
 
 void Worker::add_trigger(const IVarRef& iv, TriggerT trigger) {
-    ivar_tracker.add_trigger(iv, std::move(trigger));
+    p->ivar_tracker.add_trigger(iv, std::move(trigger));
 }
 
 void Worker::dec_ref(const IVarRef& iv) {
     // If the worker is shutting down, there is no need to dec-ref on a 
     // IVarRef destructor call. In fact, if we don't stop here, there will
     // be an infinite recursion.
-    if (stop) {
+    if (p->stop) {
         return;
     }
-    ivar_tracker.dec_ref(iv);
+    p->ivar_tracker.dec_ref(iv);
 }
 
 void Worker::recv() {
-    comm->recv();
+    p->comm->recv();
 }
 
 void Worker::one_step() {
-    if (comm->has_incoming()) {
-        comm->recv();
+    if (p->comm->has_incoming()) {
+        p->comm->recv();
         return;
     }
 
-    tasks.steal();
-    if (tasks.size() > 0) {
-        tasks.next()();
+    p->tasks.steal();
+    if (p->tasks.size() > 0) {
+        p->tasks.next()();
     }
 }
 
 void Worker::run() {
     cur_worker = this;
-    while (!stop) {
+    while (!p->stop) {
         one_step();
     }
 }
 
 void Worker::set_core_affinity(int core_id) {
-    this->core_id = core_id;
+    this->p->core_id = core_id;
     cpu_set_t cs;
     CPU_ZERO(&cs);
     CPU_SET(core_id, &cs);

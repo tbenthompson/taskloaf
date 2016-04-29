@@ -1,7 +1,9 @@
 #include "catch.hpp"
 
 #include "taskloaf/data.hpp"
+#include "taskloaf/closure.hpp"
 
+#include "serializable_functor.hpp"
 #include "delete_tracker.hpp"
 
 using namespace taskloaf;
@@ -92,4 +94,17 @@ TEST_CASE("Deserialized deleter called", "[data]") {
         auto d2 = deserialize(ss);
     }
     REQUIRE(DeleteTracker::deletes == 1);
+}
+
+TEST_CASE("Serializable closure") {
+    Closure<int(int&)> f;
+    {
+        SerializableFunctor s{};
+        s.vs = {1,2,3,4};
+        f = make_closure(s);
+        // s.vs.push_back(5);
+    }
+    auto result = deserialize(serialize(make_data(f)));
+    int five = 5;
+    REQUIRE(result.get_as<decltype(f)>()(five) == 120);
 }
