@@ -13,7 +13,7 @@ struct Closure {};
 
 template <typename Return, typename... Args>
 struct Closure<Return(Args...)> {
-    Function<Return(std::vector<Data>&,Args...)> fnc;
+    Function<Return(std::vector<Data>&,Args&...)> fnc;
     std::vector<Data> input;
 
     Closure() = default;
@@ -86,12 +86,6 @@ struct ClosureArgSeparator<I,T,AllArgs...> {
     }
 };
 
-template <typename F>
-struct is_serializable: std::integral_constant<bool,
-    cereal::traits::is_output_serializable<F,cereal::BinaryOutputArchive>::value &&
-    cereal::traits::is_input_serializable<F,cereal::BinaryInputArchive>::value>
-{};
-
 template <typename... ClosureArgs>
 struct MakeClosureHelper {
     template <typename F>
@@ -99,7 +93,7 @@ struct MakeClosureHelper {
 
     template <typename Return, typename... AllArgs>
     struct Inner<Return(AllArgs...)> {
-        template <typename F, std::enable_if_t<is_serializable<F>::value,int> = 0> 
+        template <typename F, std::enable_if_t<is_serializable_v<F>,int> = 0> 
         static auto make_closure(F&& f, ClosureArgs&&... args) {
             auto tl_fnc = make_function([] (F& f, AllArgs&... all_args) {
                 return f(all_args...);
@@ -116,7 +110,7 @@ struct MakeClosureHelper {
             );
         }
 
-        template <typename F, std::enable_if_t<!is_serializable<F>::value,int> = 0>
+        template <typename F, std::enable_if_t<!is_serializable_v<F>,int> = 0>
         static auto make_closure(F&& f, ClosureArgs&&... args) {
             auto tl_fnc = make_function(std::forward<F>(f));
             std::vector<Data> closure_args{
@@ -141,7 +135,7 @@ auto make_closure(F&& f, Args&&... args) {
         std::forward<Args>(args)...
     );
 }
-    
+
 // template <typename F, typename... Args>
 // struct ClosureWrapper {
 //     F f;

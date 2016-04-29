@@ -25,6 +25,18 @@ Worker::~Worker() {
     p->stop = true;
 }
 
+bool Worker::can_compute_immediately() const {
+    if (!(false &&
+        p->immediate_computes > p->immediates_before_comm) &&
+        !(p->tasks.size() > 0 &&
+        p->immediate_computes > p->immediates_before_tasks))
+    {
+        return true;
+    }
+    p->immediate_computes = 0;
+    return false;
+}
+
 bool Worker::is_stopped() const {
     return p->stop;
 }

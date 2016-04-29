@@ -2,6 +2,7 @@
 
 #include "taskloaf/data.hpp"
 #include "taskloaf/closure.hpp"
+#include "taskloaf/id.hpp"
 
 #include "serializable_functor.hpp"
 #include "delete_tracker.hpp"
@@ -15,19 +16,25 @@ TEST_CASE("make data", "[data]") {
     REQUIRE(d.get_as<std::string>() == "yea!");
 }
 
-std::string serialize(Data d) {
+template <typename T>
+std::string serialize(T&& t) {
     std::stringstream ss;
     cereal::BinaryOutputArchive oarchive(ss);
-    oarchive(d);
+    oarchive(std::forward<T>(t));
     return ss.str();
 }
 
-Data deserialize(std::string s) {
+template <typename T>
+T deserialize(std::string s) {
     std::stringstream ss(s);
     cereal::BinaryInputArchive iarchive(ss);
-    Data d2;
+    T d2;
     iarchive(d2);
     return d2;
+}
+
+Data deserialize(std::string s) {
+    return deserialize<Data>(s);
 }
 
 TEST_CASE("Serialize/deserialize", "[data]") {
@@ -65,9 +72,9 @@ TEST_CASE("Measure serialized size", "[data]") {
         REQUIRE(serialize(d).size() - baseline == 14);
     }
 
-    SECTION("int") {
-        auto d = make_data(10);
-        REQUIRE(serialize(d).size() - baseline == 4);
+    SECTION("ID") {
+        auto d = make_data(new_id());
+        REQUIRE(serialize(d).size() - baseline == 16);
     }
 
     SECTION("double") {
@@ -94,6 +101,11 @@ TEST_CASE("Deserialized deleter called", "[data]") {
         auto d2 = deserialize(ss);
     }
     REQUIRE(DeleteTracker::deletes == 1);
+}
+
+TEST_CASE("Convert raw functions to serializable in make_data") {
+    auto f = make_data([] (int x) { return x * 10; }).get_as<Function<int(int)>>();
+    REQUIRE(f(10) == 100);
 }
 
 TEST_CASE("Serializable closure") {

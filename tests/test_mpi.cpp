@@ -65,7 +65,7 @@ void test_send_data() {
 }
 
 void test_send_closure() {
-    SerializableFunctor s{};
+    SerializableFunctor s;
     s.vs = {1,2,3,4};
     auto f = make_closure(s);
 

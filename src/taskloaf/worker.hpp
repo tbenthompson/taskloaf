@@ -16,21 +16,26 @@ struct Worker {
     Worker(Worker&&) = default;
     ~Worker();
 
-    bool is_stopped() const;
-    Comm& get_comm();
-    const Address& get_addr();
-
-    void shutdown();
-    void introduce(Address addr);
-
     template <typename F, typename... Args>
     void add_task(F&& f, Args&&... args) {
+        if (can_compute_immediately()) {
+            f(args...);
+            return;
+        }
         add_task(make_closure(
             std::forward<F>(f),
             std::forward<Args>(args)...
         ));
     }
 
+    bool can_compute_immediately() const;
+
+    bool is_stopped() const;
+    Comm& get_comm();
+    const Address& get_addr();
+
+    void shutdown();
+    void introduce(Address addr);
     void add_task(TaskT f);
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);

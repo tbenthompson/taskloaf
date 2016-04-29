@@ -12,6 +12,9 @@ struct WorkerInternals {
     int core_id = -1;
     bool stealing = false;
     bool stop = false;
+    int immediate_computes = 0;
+    static const int immediates_before_comm = 8;
+    static const int immediates_before_tasks = 100;
 
     WorkerInternals(std::unique_ptr<Comm> p_comm):
         comm(std::move(p_comm)),

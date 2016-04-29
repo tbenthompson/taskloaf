@@ -91,7 +91,7 @@ endif()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-mismatched-tags")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-literal-suffix")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -Werror -Wno-literal-suffix")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 endif()
@@ -122,7 +122,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/ivar.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/ivar_tracker.cpp;src/taskloaf/id.cpp;src/taskloaf/ring.cpp;src/taskloaf/ref_counting.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp")
+set(TASKLOAF_SRC "src/taskloaf/future.cpp;src/taskloaf/ivar.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/ivar_tracker.cpp;src/taskloaf/id.cpp;src/taskloaf/ring.cpp;src/taskloaf/ref_counting.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp")
 if (BUILD_LIBRARY)
     add_library(taskloaf SHARED ${TASKLOAF_SRC})
 
@@ -222,21 +222,21 @@ macro(taskloaf_example name filename)
 endmacro()
 
 if (BUILD_EXAMPLES)
-    taskloaf_example(totient examples/totient.cpp)
-    taskloaf_example(dot_product examples/dot_product.cpp)
-    taskloaf_example(diffusion examples/diffusion.cpp)
-    taskloaf_example(readme examples/readme.cpp)
-    
-    find_package(BLAS)
-    find_package(LAPACK)
-    if (BLAS_FOUND AND LAPACK_FOUND)
-        taskloaf_example(cholesky examples/cholesky.cpp)
-        target_link_libraries(cholesky 
-            ${BLAS_LIBRARIES}
-            ${LAPACK_LIBRARIES}
-            ${CMAKE_THREAD_LIBS_INIT}
-            )
-    endif()
+    #    taskloaf_example(totient examples/totient.cpp)
+    #    taskloaf_example(dot_product examples/dot_product.cpp)
+    #    taskloaf_example(diffusion examples/diffusion.cpp)
+    #    taskloaf_example(readme examples/readme.cpp)
+    #    
+    #    find_package(BLAS)
+    #    find_package(LAPACK)
+    #    if (BLAS_FOUND AND LAPACK_FOUND)
+    #        taskloaf_example(cholesky examples/cholesky.cpp)
+    #        target_link_libraries(cholesky 
+    #            ${BLAS_LIBRARIES}
+    #            ${LAPACK_LIBRARIES}
+    #            ${CMAKE_THREAD_LIBS_INIT}
+    #            )
+    #    endif()
 
     if (MPI_CXX_FOUND)
         taskloaf_example(fibmpi examples/fibmpi.cpp)
