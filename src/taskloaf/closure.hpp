@@ -131,6 +131,17 @@ struct MakeClosureHelper {
         }
     };
 };
+
+template <typename F, typename... Args>
+auto make_closure(F&& f, Args&&... args) {
+    return MakeClosureHelper<
+        Args...
+    >::template Inner<get_signature<F>>::make_closure(
+        std::forward<F>(f),
+        std::forward<Args>(args)...
+    );
+}
+    
 // template <typename F, typename... Args>
 // struct ClosureWrapper {
 //     F f;
@@ -148,16 +159,6 @@ struct MakeClosureHelper {
 //         ar(closure);
 //     }
 // };
-
-template <typename F, typename... Args>
-auto make_closure(F&& f, Args&&... args) {
-    return MakeClosureHelper<
-        Args...
-    >::template Inner<get_signature<F>>::make_closure(
-        std::forward<F>(f),
-        std::forward<Args>(args)...
-    );
-}
 
 } //end namespace taskloaf
 
