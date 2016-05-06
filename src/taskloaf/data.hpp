@@ -62,14 +62,20 @@ struct Data {
     }
 };
 
-template <typename T, std::enable_if_t<is_serializable_v<std::decay_t<T>>,int> = 0>
+template <typename T, 
+    typename std::enable_if<
+        is_serializable<typename std::decay<T>::type>::value,int
+    >::type = 0>
 Data make_data(T&& a) {
     Data d;
-    d.initialize<std::decay_t<T>>(std::forward<T>(a));
+    d.initialize<typename std::decay<T>::type>(std::forward<T>(a));
     return d;
 }
 
-template <typename F, std::enable_if_t<!is_serializable_v<std::decay_t<F>>,int> = 0>
+template <typename F,
+    typename std::enable_if<
+        !is_serializable<typename std::decay<F>::type>::value,int
+    >::type = 0>
 Data make_data(F&& f) {
     return make_data(make_function(std::forward<F>(f)));
 }

@@ -30,31 +30,15 @@ struct PossiblyVoidCall<void(Args...)> {
 template <typename... Ts>
 auto make_future();
 
-template <typename T>
-struct RemoveFuncPtr {
-    template <typename T2>
-    static auto on(T2&& v) { return std::forward<T2>(v); }
-};
-
-template <typename Return, typename... Args>
-struct RemoveFuncPtr<Return(Args...)> {
-    template <typename T>
-    static auto on(T* v) {
-        return [v] (Args... args) { return v(args...); };
-    }
-};
-
 template <typename F, typename... Ts>
-auto then(Future<Ts...>& fut, F&& fnc) {
+auto then(Future<Ts...>& fut, F fnc) {
     typedef typename std::result_of<F(Ts&...)>::type Return;
     typedef decltype(make_future<Return>()) OutT;
-    typedef decltype(RemoveFuncPtr<F>::on(fnc)) FncT;
-    FncT f = RemoveFuncPtr<F>::on(fnc);
     OutT out_future = make_future<Return>();
     fut.add_trigger(
-        [] (FncT& fnc, OutT& out_future, std::tuple<Ts...>& val) {
+        [] (F& fnc, OutT& out_future, std::tuple<Ts...>& val) {
             cur_worker->add_task(
-                [] (FncT& fnc, OutT& out, std::tuple<Ts...>& val) {
+                [] (F& fnc, OutT& out, std::tuple<Ts...>& val) {
                     out.fulfill(PossiblyVoidCall<get_signature<F>>::on([&] () {
                         return apply_args(fnc, val);         
                     }));
@@ -64,7 +48,7 @@ auto then(Future<Ts...>& fut, F&& fnc) {
                 val
             );
         },
-        std::move(f),
+        std::move(fnc),
         out_future
     );
     return out_future;
@@ -78,7 +62,7 @@ auto unwrap(Future<T>& fut) {
         [] (OutT& out_future, std::tuple<T>& result) {
             std::get<0>(result).add_trigger(
                 [] (OutT& out_future, std::tuple<typename T::type> val) {
-                    out_future.fulfill(val); 
+                    out_future.fulfill(std::move(val)); 
                 },
                 out_future
             );
@@ -96,18 +80,17 @@ auto ready(T val) {
 }
 
 template <typename F>
-auto async(F&& fnc) {
+auto async(F fnc) {
     typedef typename std::result_of<F()>::type Return;
-    auto f = RemoveFuncPtr<F>::on(fnc);
     auto out_future = make_future<Return>();
-    using FncT = decltype(f);
     using OutT = decltype(out_future);
     cur_worker->add_task(
-        [] (OutT& fut, FncT& f) {
-            fut.fulfill(PossiblyVoidCall<get_signature<F>>::on(f));
+        [] (OutT& fut, F& f) {
+            auto out = PossiblyVoidCall<get_signature<F>>::on(f);
+            fut.fulfill(out);
         },
         out_future,
-        std::move(f)
+        std::move(fnc)
     );
     return out_future;
 }
@@ -117,7 +100,9 @@ struct WhenAllHelper {
     static void run(std::tuple<Future<Ts>...>& child_results, 
         std::tuple<Ts...>& accum, Future<Ts...>& result) 
     {
-        typedef std::tuple<std::tuple_element_t<Idx,std::tuple<Ts...>>> ValT;
+        typedef std::tuple<
+            typename std::tuple_element<Idx,std::tuple<Ts...>>::type
+        > ValT;
 
         auto next_result = std::get<Idx>(child_results);
         next_result.add_trigger(
@@ -140,7 +125,9 @@ struct WhenAllHelper<Idx, true, Ts...> {
     static void run(std::tuple<Future<Ts>...>& child_results, 
         std::tuple<Ts...>& accum, Future<Ts...>& result) 
     {
-        typedef std::tuple<std::tuple_element_t<Idx,std::tuple<Ts...>>> ValT;
+        typedef std::tuple<
+            typename std::tuple_element<Idx,std::tuple<Ts...>>::type
+        > ValT;
 
         std::get<Idx>(child_results).add_trigger(
             [] (Future<Ts...>& result, std::tuple<Ts...>& accum, ValT& val) 

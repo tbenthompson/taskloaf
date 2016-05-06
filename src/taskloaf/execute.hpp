@@ -8,9 +8,9 @@ namespace taskloaf {
 
 template <size_t I, typename TupleType>
 auto& extract_data(std::vector<Data>& args) {
-    typedef std::tuple_element_t<I,TupleType> T;
+    typedef typename std::tuple_element<I,TupleType>::type T;
     tlassert(I < args.size());
-    return args[I].get_as<std::decay_t<T>>();
+    return args[I].get_as<typename std::decay<T>::type>();
 }
 
 template <typename Func, typename Args, typename IndexList>
@@ -70,7 +70,7 @@ struct ApplyArgsSpecializer<Function<Return(Args...)>> {
 
 template <typename F, typename... FreeArgs>
 auto apply_data_args(F&& f, std::vector<Data>& args, FreeArgs&&... free_args) {
-    return ApplyArgsSpecializer<std::decay_t<F>>::run(
+    return ApplyArgsSpecializer<typename std::decay<F>::type>::run(
         std::forward<F>(f), args, std::forward<FreeArgs>(free_args)...
     );
 }
@@ -81,9 +81,9 @@ struct TupleApplier;
 template <size_t... I>
 struct TupleApplier<std::index_sequence<I...>> {
     template <typename Func, typename Tuple, typename... FreeArgs>
-    static auto on(Func&& func, Tuple& args, FreeArgs&&... free_args) {
+    static auto on(Func&& func, Tuple&& args, FreeArgs&&... free_args) {
         return func(
-            std::get<I>(args)...,
+            std::get<I>(std::forward<Tuple>(args))...,
             std::forward<FreeArgs>(free_args)...
         );
     }
@@ -91,9 +91,9 @@ struct TupleApplier<std::index_sequence<I...>> {
 
 template <typename F, typename TupleT, typename... FreeArgs>
 auto apply_args(F&& f, TupleT&& args, FreeArgs&&... free_args) {
-    return TupleApplier<
-        std::make_index_sequence<std::tuple_size<std::decay_t<TupleT>>::value>
-    >::on(
+    return TupleApplier<std::make_index_sequence<
+        std::tuple_size<typename std::decay<TupleT>::type>::value
+    >>::on(
         std::forward<F>(f),
         std::forward<TupleT>(args),
         std::forward<FreeArgs>(free_args)...

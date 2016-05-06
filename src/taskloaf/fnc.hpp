@@ -11,10 +11,10 @@
 namespace taskloaf {
 
 template <typename F>
-constexpr bool is_serializable_v =
+struct is_serializable: std::integral_constant<bool,
     cereal::traits::is_output_serializable<F,cereal::BinaryOutputArchive>::value &&
     cereal::traits::is_input_serializable<F,cereal::BinaryInputArchive>::value &&
-    !std::is_pointer<F>::value;
+    !std::is_pointer<F>::value> {};
 
 // Inspired by https://github.com/darabos/pinty/blob/master/pinty.h
 struct CallerRegistry {
@@ -96,7 +96,7 @@ struct Function<Return(Args...)> {
 
     template <typename F>
     Function(F f) {
-        static_assert(!is_serializable_v<std::decay_t<F>>,
+        static_assert(!is_serializable<typename std::decay<F>::type>::value,
             "Do not use Function for serializable types");
         caller_id = get_call<F,Return,Args...>();
         closure = std::string(reinterpret_cast<const char*>(&f), sizeof(F));

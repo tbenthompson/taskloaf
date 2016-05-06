@@ -42,7 +42,8 @@ template <>
 struct ClosureArgSeparator<0> {
     template <typename F, typename... ClosureArgs>
     static auto on(std::vector<Data> args) {
-        return Closure<std::result_of_t<F(ClosureArgs&...)>()>{
+        typedef typename std::result_of<F(ClosureArgs&...)>::type Return;
+        return Closure<Return()>{
             [] (std::vector<Data>& d) {
                 auto runner = 
                     [] (F& f, ClosureArgs&... closure_args) {
@@ -60,7 +61,9 @@ struct ClosureArgSeparator<0,T,FreeArgs...> {
     template <typename F, typename... ClosureArgs>
     static auto on(std::vector<Data> args) {
         return Closure<
-            std::result_of_t<F(ClosureArgs&...,T&,FreeArgs&...)>(T&,FreeArgs&...)
+            typename std::result_of<
+                F(ClosureArgs&...,T&,FreeArgs&...)
+            >::type(T&,FreeArgs&...)
         >{
             [] (std::vector<Data>& d, T& a1, FreeArgs&... args) {
                 auto runner = 
@@ -93,7 +96,8 @@ struct MakeClosureHelper {
 
     template <typename Return, typename... AllArgs>
     struct Inner<Return(AllArgs...)> {
-        template <typename F, std::enable_if_t<is_serializable_v<F>,int> = 0> 
+        template <typename F, 
+            typename std::enable_if<is_serializable<F>::value,int>::type = 0> 
         static auto make_closure(F&& f, ClosureArgs&&... args) {
             auto tl_fnc = make_function([] (F& f, AllArgs&... all_args) {
                 return f(all_args...);
@@ -110,7 +114,8 @@ struct MakeClosureHelper {
             );
         }
 
-        template <typename F, std::enable_if_t<!is_serializable_v<F>,int> = 0>
+        template <typename F,
+            typename std::enable_if<!is_serializable<F>::value,int>::type = 0>
         static auto make_closure(F&& f, ClosureArgs&&... args) {
             auto tl_fnc = make_function(std::forward<F>(f));
             std::vector<Data> closure_args{

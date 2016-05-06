@@ -2,21 +2,10 @@
 
 #include "builders.hpp"
 #include "ivar.hpp"
-#include "memory_pool.hpp"
 
 #include <cereal/types/tuple.hpp>
 
 namespace taskloaf {
-
-template <class T, class U>
-bool operator==(const PoolAllocator<T>&, const PoolAllocator<U>&) {
-    return false; 
-}
-
-template <class T, class U>
-bool operator!=(const PoolAllocator<T>& a, const PoolAllocator<U>& b) {
-    return !(a == b);
-}
 
 template <typename... Ts>
 struct FutureData {
@@ -28,6 +17,17 @@ struct FutureData {
     } d;
     bool local;
     bool fulfilled;
+
+    FutureData(bool local):
+        local(local),
+        fulfilled(false)
+    {
+        if (local) {
+            new (&d.val) std::tuple<Ts...>();
+        } else {
+            new (&d.ivar) IVarRef();
+        }
+    }
 
     ~FutureData() {
         if (local) {
@@ -49,6 +49,11 @@ struct FutureData<> {
     bool local;
     bool fulfilled;
 
+    FutureData(bool local):
+        local(local),
+        fulfilled(false)
+    {}
+
     static std::tuple<> empty;
 
     std::tuple<>& get_val() { return empty; }
@@ -61,17 +66,13 @@ template <typename Derived, typename... Ts>
 struct FutureBase {
     std::shared_ptr<FutureData<Ts...>> data;
 
-    FutureBase(): 
-        data(std::allocate_shared<
-                FutureData<Ts...>,PoolAllocator<FutureData<Ts...>>
-            >(PoolAllocator<FutureData<Ts...>>()))
-    {
-        data->local = true;
-        data->fulfilled = false;
-    }
+    FutureBase():
+        data(std::make_shared<FutureData<Ts...>>(true))
+    {}
 
-    FutureBase(IVarRef&& ivar): FutureBase() {
-        data->local = false;
+    FutureBase(IVarRef&& ivar): 
+        data(std::make_shared<FutureData<Ts...>>(false)) 
+    {
         data->get_ivar() = std::move(ivar);
     }
 

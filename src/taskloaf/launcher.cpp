@@ -44,15 +44,15 @@ void helper(size_t n_workers, std::function<void()> f,
 void launch_local(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     helper(n_workers, f, [&] (size_t i) {
-        return std::make_unique<LocalComm>(lcq, i);
+        return std::unique_ptr<LocalComm>(new LocalComm(lcq, i));
     });
 }
 void launch_local_serializing(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     helper(n_workers, f, [&] (size_t i) {
-        return std::make_unique<SerializingComm>(
-            std::make_unique<LocalComm>(lcq, i)
-        );
+        return std::unique_ptr<SerializingComm>(new SerializingComm(
+            std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
+        ));
     });
 }
 
@@ -60,10 +60,10 @@ void launch_local_singlethread(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
     std::vector<std::unique_ptr<Worker>> ws(n_workers);
     for (size_t i = 0; i < n_workers; i++) { 
-        auto comm = std::make_unique<SerializingComm>(
-            std::make_unique<LocalComm>(lcq, i)
-        );
-        ws[i] = std::make_unique<Worker>(std::move(comm));
+        auto comm = std::unique_ptr<SerializingComm>(new SerializingComm(
+            std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
+        ));
+        ws[i] = std::unique_ptr<Worker>(new Worker(std::move(comm)));
         cur_worker = ws[i].get();
         if (i == 0) {
             f();
@@ -89,9 +89,9 @@ int shutdown() {
 void launch_mpi(std::function<void()> f) {
     MPI_Init(NULL, NULL);
 
-    Worker w(std::make_unique<SerializingComm>(
-        std::make_unique<MPIComm>())
-    );
+    Worker w(std::unique_ptr<SerializingComm>(new SerializingComm(
+        std::unique_ptr<MPIComm>(new MPIComm()))
+    ));
     cur_worker = &w;
     auto& endpts = w.get_comm().remote_endpoints();
     for (size_t i = 0; i < endpts.size(); i++) {

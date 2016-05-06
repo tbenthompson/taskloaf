@@ -3,6 +3,11 @@
 #include <boost/pool/pool.hpp>
 
 namespace taskloaf {
+        // using this in future
+        // #include "memory_pool.hpp"
+        // data(std::allocate_shared<
+        //         FutureData<Ts...>,PoolAllocator<FutureData<Ts...>>
+        //     >(PoolAllocator<FutureData<Ts...>>()))
 
 template <size_t AllocSize>
 struct Pools {
@@ -31,5 +36,15 @@ struct PoolAllocator {
         Pools<sizeof(Tp)>::pool.free(p);
     }
 };
+
+template <class T, class U>
+bool operator==(const PoolAllocator<T>&, const PoolAllocator<U>&) {
+    return false; 
+}
+
+template <class T, class U>
+bool operator!=(const PoolAllocator<T>& a, const PoolAllocator<U>& b) {
+    return !(a == b);
+}
 
 }

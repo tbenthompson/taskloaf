@@ -245,7 +245,7 @@ struct IVarTrackerInternals {
 
 
 IVarTracker::IVarTracker(Comm& comm):
-    impl(std::make_unique<IVarTrackerInternals>(comm))
+    impl(new IVarTrackerInternals(comm))
 {}
 
 IVarTracker::IVarTracker(IVarTracker&&) = default;

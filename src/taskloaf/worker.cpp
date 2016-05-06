@@ -13,7 +13,7 @@ namespace taskloaf {
 thread_local Worker* cur_worker;
 
 Worker::Worker(std::unique_ptr<Comm> p_comm):
-    p(std::make_unique<WorkerInternals>(std::move(p_comm)))
+    p(new WorkerInternals(std::move(p_comm)))
 {
     p->comm->add_handler(Protocol::Shutdown, [&] (Data) {
         p->stop = true;

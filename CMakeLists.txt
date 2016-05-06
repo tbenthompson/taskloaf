@@ -134,7 +134,7 @@ if (BUILD_LIBRARY)
         ${MPMCQUEUE_INCLUDE_DIR} 
         )
 
-    target_link_libraries(taskloaf boost_system ${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
 
     if (MPI_CXX_FOUND)
         target_include_directories(taskloaf SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
@@ -158,7 +158,6 @@ macro(taskloaf_tests name files)
     add_dependencies(${name} taskloaf Catch)
     target_link_libraries(${name} 
         taskloaf
-        boost_system
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
 endmacro()
@@ -198,7 +197,6 @@ if (BUILD_PYTHON)
         ${MPI_INCLUDE_PATH})
 
     target_link_libraries(taskloaf_wrapper
-        boost_system
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
 endif(BUILD_PYTHON)
@@ -224,21 +222,21 @@ macro(taskloaf_example name filename)
 endmacro()
 
 if (BUILD_EXAMPLES)
-    #    taskloaf_example(totient examples/totient.cpp)
-    #    taskloaf_example(dot_product examples/dot_product.cpp)
-    #    taskloaf_example(diffusion examples/diffusion.cpp)
-    #    taskloaf_example(readme examples/readme.cpp)
-    #    
-    #    find_package(BLAS)
-    #    find_package(LAPACK)
-    #    if (BLAS_FOUND AND LAPACK_FOUND)
-    #        taskloaf_example(cholesky examples/cholesky.cpp)
-    #        target_link_libraries(cholesky 
-    #            ${BLAS_LIBRARIES}
-    #            ${LAPACK_LIBRARIES}
-    #            ${CMAKE_THREAD_LIBS_INIT}
-    #            )
-    #    endif()
+    taskloaf_example(totient examples/totient.cpp)
+    taskloaf_example(dot_product examples/dot_product.cpp)
+    taskloaf_example(diffusion examples/diffusion.cpp)
+    taskloaf_example(readme examples/readme.cpp)
+    
+    find_package(BLAS)
+    find_package(LAPACK)
+    if (BLAS_FOUND AND LAPACK_FOUND)
+        taskloaf_example(cholesky examples/cholesky.cpp)
+        target_link_libraries(cholesky 
+            ${BLAS_LIBRARIES}
+            ${LAPACK_LIBRARIES}
+            ${CMAKE_THREAD_LIBS_INIT}
+            )
+    endif()
 
     if (MPI_CXX_FOUND)
         taskloaf_example(fibmpi examples/fibmpi.cpp)

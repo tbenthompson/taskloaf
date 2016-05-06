@@ -12,7 +12,7 @@ http://tbenthompson.com/taskloaf/
 ### Using taskloaf from python is super easy!
 Just run: `pip install taskloaf`
 
-This assumes you have a CMake and a C++14 compiler available (gcc 4.8 or higher and clang 3.4 or higher should be sufficient). Check the documentation (LINK) for how to set up the dependencies if you have trouble. 
+This assumes you have a CMake and a C++14 compiler available (gcc 4.9 or higher and clang 3.4 or higher should be sufficient). Check the documentation (LINK) for how to set up the dependencies if you have trouble. 
 
 An example:
 ```python
@@ -37,7 +37,7 @@ tl.launch_mpi(main);
 
 ### Using taskloaf from C++ is super easy!
 Installation depends on having:
-* C++14-capable compiler -- gcc 4.8+ and clang 3.4+ should work. 
+* C++14-capable compiler -- gcc 4.9+ and clang 3.4+ should work. 
 * CMake 2.8.12+
 * MPI (optional, but required for distributed functionality)
 
