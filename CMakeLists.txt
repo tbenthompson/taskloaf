@@ -120,8 +120,6 @@ if (BUILD_PYTHON)
     add_library(taskloaf_wrapper SHARED ${WRAPPER_SRC})
     SET_TARGET_PROPERTIES(taskloaf_wrapper PROPERTIES PREFIX "")
 
-    add_dependencies(taskloaf_wrapper)
-
     target_include_directories(taskloaf_wrapper PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/lib)

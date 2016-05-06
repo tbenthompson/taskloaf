@@ -1,5 +1,8 @@
 #include "taskloaf.hpp"
 
+#include <chrono>
+#include <thread>
+
 namespace tl = taskloaf;
 
 void sleep() {
@@ -15,7 +18,8 @@ int main() {
         tl::ready(std::string("HI"))
             .then(say)
             .then(sleep)
-            .then([] () { say("BYE"); })
+            .then([] () { return std::string("BYE"); })
+            .then(say)
             .then(tl::shutdown);
     });
 }
