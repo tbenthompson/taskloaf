@@ -4,6 +4,8 @@ theme: yeti
 pages:
     - Home: index.md
     - About: about.md
-    - Quick Start: quick-start.md
     - Installation: installation.md
     - Design: design.md
+    - Quick Start:
+        - Python: python-quick-start.md
+        - C++: cpp-quick-start.md

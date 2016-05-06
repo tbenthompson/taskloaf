@@ -1,0 +1,2 @@
+python dev/gen_readme.py
+mkdocs gh-deploy

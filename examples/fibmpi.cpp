@@ -14,11 +14,13 @@ tl::Future<int> fib(int index, int grouping = 3) {
     if (index < grouping) {
         return tl::async([=] () { return fib_serial(index); });
     } else {
-        auto af = fib(index - 1, grouping);
-        auto bf = fib(index - 2, grouping);
-        return tl::when_all(af, bf).then(
-            [] (int a, int b) { return a + b; }
-        );
+        return tl::async([=] () {
+            auto af = fib(index - 1, grouping);
+            auto bf = fib(index - 2, grouping);
+            return tl::when_all(af, bf).then(
+                [] (int a, int b) { return a + b; }
+            );
+        }).unwrap();
     }
 }
 
