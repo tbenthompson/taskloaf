@@ -37,7 +37,7 @@ auto then(Future<Ts...>& fut, F fnc) {
     OutT out_future = make_future<Return>();
     fut.add_trigger(
         [] (F& fnc, OutT& out_future, std::tuple<Ts...>& val) {
-            cur_worker->add_task(
+            add_task(
                 [] (F& fnc, OutT& out, std::tuple<Ts...>& val) {
                     out.fulfill(PossiblyVoidCall<get_signature<F>>::on([&] () {
                         return apply_args(fnc, val);         
@@ -84,7 +84,7 @@ auto async(F fnc) {
     typedef typename std::result_of<F()>::type Return;
     auto out_future = make_future<Return>();
     using OutT = decltype(out_future);
-    cur_worker->add_task(
+    add_task(
         [] (OutT& fut, F& f) {
             auto out = PossiblyVoidCall<get_signature<F>>::on(f);
             fut.fulfill(out);

@@ -16,18 +16,6 @@ struct Worker {
     Worker(Worker&&) = default;
     ~Worker();
 
-    template <typename F, typename... Args>
-    void add_task(F&& f, Args&&... args) {
-        if (can_compute_immediately()) {
-            f(args...);
-            return;
-        }
-        add_task(make_closure(
-            std::forward<F>(f),
-            std::forward<Args>(args)...
-        ));
-    }
-
     bool can_compute_immediately() const;
 
     bool is_stopped() const;
@@ -47,5 +35,22 @@ struct Worker {
 };
 
 extern thread_local Worker* cur_worker;
+
+inline bool can_run_immediately() {
+    return cur_worker == nullptr || cur_worker->can_compute_immediately();
+}
+
+template <typename F, typename... Args>
+void add_task(F&& f, Args&&... args) {
+    if (can_run_immediately()) {
+        f(args...);
+    } else {
+        cur_worker->add_task(make_closure(
+            std::forward<F>(f),
+            std::forward<Args>(args)...
+        ));
+    }
+}
+
 
 } //end namespace taskloaf

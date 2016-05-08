@@ -87,10 +87,7 @@ struct FutureBase {
 
     template <typename F, typename... Args>
     void add_trigger(F&& f, Args&&... args) {
-        if (data->local 
-            && data->fulfilled 
-            && cur_worker->can_compute_immediately()) 
-        {
+        if (data->local && data->fulfilled && can_run_immediately()) {
             f(args..., data->get_val());
         } else {
             auto trigger = make_closure(
