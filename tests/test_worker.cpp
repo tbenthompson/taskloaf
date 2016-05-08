@@ -63,6 +63,12 @@ TEST_CASE("Worker") {
     REQUIRE(x == 1);
 }
 
+TEST_CASE("Number of workers", "[worker]") {
+    auto ws = workers(4);
+    cur_worker = ws[0].get();
+    REQUIRE(n_workers() == 4);
+}
+
 void stealing_test(int n_steals) {
     auto ws = workers(2);
     int x = 0;

@@ -36,9 +36,8 @@ struct Worker {
 
 extern thread_local Worker* cur_worker;
 
-inline bool can_run_immediately() {
-    return cur_worker == nullptr || cur_worker->can_compute_immediately();
-}
+bool can_run_immediately();
+int n_workers();
 
 template <typename F, typename... Args>
 void add_task(F&& f, Args&&... args) {

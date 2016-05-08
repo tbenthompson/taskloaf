@@ -12,6 +12,14 @@ namespace taskloaf {
 
 thread_local Worker* cur_worker;
 
+bool can_run_immediately() {
+    return cur_worker == nullptr || cur_worker->can_compute_immediately();
+}
+
+int n_workers() {
+    return cur_worker->get_comm().remote_endpoints().size() + 1;
+}
+
 Worker::Worker(std::unique_ptr<Comm> p_comm):
     p(new WorkerInternals(std::move(p_comm)))
 {
