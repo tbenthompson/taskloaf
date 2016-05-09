@@ -3,6 +3,8 @@
 #include "id.hpp"
 #include "ref_counting.hpp"
 
+#include <cereal/archives/binary.hpp>
+
 namespace taskloaf {
 
 // A reference counting "pointer" to an IVar
@@ -20,23 +22,8 @@ struct IVarRef {
     IVarRef& operator=(const IVarRef&);
     ~IVarRef();
 
-    template <typename Archive>
-    void save(Archive& ar) const {
-        ar(empty);
-        if (!empty) {
-            ar(id);
-            ar(copy_ref(data));
-        }
-    }
-
-    template <typename Archive>
-    void load(Archive& ar) {
-        ar(empty);
-        if (!empty) {
-            ar(id);
-            ar(data);
-        }
-    }
+    void save(cereal::BinaryOutputArchive& ar) const;
+    void load(cereal::BinaryInputArchive& ar);
 };
 
 } //end namespace taskloaf

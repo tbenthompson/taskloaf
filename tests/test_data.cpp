@@ -109,13 +109,7 @@ TEST_CASE("Convert raw functions to serializable in make_data") {
 }
 
 TEST_CASE("Serializable closure") {
-    Closure<int(int&)> f;
-    {
-        SerializableFunctor s;
-        s.vs = {1,2,3,4};
-        f = make_closure(s);
-        // s.vs.push_back(5);
-    }
+    auto f = get_serializable_functor();
     auto result = deserialize(serialize(make_data(f)));
     int five = 5;
     REQUIRE(result.get_as<decltype(f)>()(five) == 120);

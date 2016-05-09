@@ -57,4 +57,20 @@ IVarRef& IVarRef::operator=(const IVarRef& ref) {
     return *this;
 }
 
+void IVarRef::save(cereal::BinaryOutputArchive& ar) const {
+    ar(empty);
+    if (!empty) {
+        ar(id);
+        ar(copy_ref(data));
+    }
+}
+
+void IVarRef::load(cereal::BinaryInputArchive& ar) {
+    ar(empty);
+    if (!empty) {
+        ar(id);
+        ar(data);
+    }
+}
+
 } //end namespace taskloaf

@@ -2,11 +2,6 @@
 
 #include "fnc.hpp"
 
-#include <cereal/archives/binary.hpp>
-#include <cereal/types/string.hpp>
-
-#include <memory>
-
 namespace taskloaf {
 
 /* This is a wrapper that hides an arbitrary object inside a shared_ptr and 
@@ -37,18 +32,8 @@ struct Data {
         };
     }
 
-    template <typename Archive>
-    void save(Archive& ar) const {
-        tlassert(ptr != nullptr);
-        ar(deserializer);
-        serializer(*this, ar);
-    }
-
-    template <typename Archive>
-    void load(Archive& ar) {
-        ar(deserializer);
-        deserializer(*this, ar);
-    }
+    void save(cereal::BinaryOutputArchive& ar) const;
+    void load(cereal::BinaryInputArchive& ar);
 
     template <typename T>
     T& get_as() {
@@ -80,8 +65,6 @@ Data make_data(F&& f) {
     return make_data(make_function(std::forward<F>(f)));
 }
 
-inline Data empty_data() {
-    return Data();
-}
+Data empty_data();
 
 } //end namespace taskloaf

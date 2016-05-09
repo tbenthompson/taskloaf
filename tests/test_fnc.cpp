@@ -59,7 +59,8 @@ TEST_CASE("Closure one param", "[fnc]") {
 }
 
 TEST_CASE("Closure three params", "[fnc]") {
-    Closure<double(int)> c{[] (std::vector<Data>& d, int a) { 
+    Closure<double(int)> c{
+        [] (std::vector<Data>& d, int a) { 
             if (d[2].get_as<bool>()) {
                 return d[0].get_as<int>() * d[1].get_as<double>() * a; 
             } else {
@@ -85,38 +86,4 @@ TEST_CASE("Serialize/deserialize fnc", "[fnc]") {
     mult = 255;
     REQUIRE(f(10) == 2560);
     REQUIRE(f2(10) == f(10));
-}
-
-
-TEST_CASE("Make closure", "[fnc]") {
-    SECTION("No free params") {
-        auto v = make_closure([] (double x, int y) { return x * y; }, 10.0, 1)();
-        REQUIRE(v == 10.0);
-    }
-
-    SECTION("One free param") {
-        auto v = make_closure([] (double x, int y) { return x * y; }, 10.0)(1);
-        REQUIRE(v == 10.0);
-    }
-
-    SECTION("Two free params") {
-        auto v = make_closure([] (double x, int y) { return x * y; })(10.0, 1);
-        REQUIRE(v == 10.0);
-    }
-
-    auto f3 = [] (double x, std::string s, int y) {
-        if (s == "hi") {
-            return x * y; 
-        }
-        return 0.0;
-    };
-    SECTION("Three params") {
-        auto v = make_closure(f3, 10.0, std::string("hi"))(1);
-        REQUIRE(v == 10.0);
-    }
-
-    SECTION("Three params two") {
-        auto v = make_closure(f3, 10.0)(std::string("hi"), 1);
-        REQUIRE(v == 10.0);
-    }
 }

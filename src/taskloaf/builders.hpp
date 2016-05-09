@@ -1,6 +1,5 @@
 #pragma once
 
-#include "closure.hpp"
 #include "worker.hpp"
 
 namespace taskloaf {
@@ -13,7 +12,7 @@ struct PossiblyVoidCall {};
 template <typename Return, typename... Args>
 struct PossiblyVoidCall<Return(Args...)> {
     template <typename F>
-    static auto on(F&& f) {
+    static auto on(const F& f) {
         return std::make_tuple(f());
     }
 };
@@ -21,33 +20,37 @@ struct PossiblyVoidCall<Return(Args...)> {
 template <typename... Args>
 struct PossiblyVoidCall<void(Args...)> {
     template <typename F>
-    static auto on(F&& f) {
+    static auto on(const F& f) {
         f();
         return std::make_tuple();
     }
 };
 
-template <typename... Ts>
-auto make_future();
+template <typename F>
+auto possibly_void_call(const F& f) {
+    return PossiblyVoidCall<GetSignature<F>>::on(f);
+}
 
 template <typename F, typename... Ts>
 auto then(Future<Ts...>& fut, F fnc) {
     typedef typename std::result_of<F(Ts&...)>::type Return;
-    typedef decltype(make_future<Return>()) OutT;
-    OutT out_future = make_future<Return>();
+    Future<Return> out_future;
+
+    auto trigger_fnc = [] (F& fnc, Future<Return>& out_future, std::tuple<Ts...>& val) {
+        auto task_fnc = [] (F& fnc, Future<Return>& out, std::tuple<Ts...>& val) {
+            out.fulfill(possibly_void_call([&] () {
+                return apply_args(fnc, val);         
+            }));
+        };
+        add_task(
+            task_fnc,
+            std::move(fnc),
+            out_future,
+            val
+        );
+    };
     fut.add_trigger(
-        [] (F& fnc, OutT& out_future, std::tuple<Ts...>& val) {
-            add_task(
-                [] (F& fnc, OutT& out, std::tuple<Ts...>& val) {
-                    out.fulfill(PossiblyVoidCall<get_signature<F>>::on([&] () {
-                        return apply_args(fnc, val);         
-                    }));
-                },
-                std::move(fnc),
-                out_future, //TODO: It should be possible to avoid this copy and the equivalent ones in unwrap and when_all
-                val
-            );
-        },
+        trigger_fnc,
         std::move(fnc),
         out_future
     );
@@ -56,12 +59,12 @@ auto then(Future<Ts...>& fut, F fnc) {
 
 template <typename T>
 auto unwrap(Future<T>& fut) {
-    Future<typename T::type> out_future = make_future<typename T::type>();
-    typedef decltype(out_future) OutT;
+    typedef Future<typename T::type> FutT;
+    FutT out_future;
     fut.add_trigger(
-        [] (OutT& out_future, std::tuple<T>& result) {
+        [] (FutT& out_future, std::tuple<T>& result) {
             std::get<0>(result).add_trigger(
-                [] (OutT& out_future, std::tuple<typename T::type> val) {
+                [] (FutT& out_future, std::tuple<typename T::type> val) {
                     out_future.fulfill(std::move(val)); 
                 },
                 out_future
@@ -74,7 +77,7 @@ auto unwrap(Future<T>& fut) {
 
 template <typename T>
 auto ready(T val) {
-    auto out_future = make_future<T>();
+    Future<T> out_future;
     out_future.fulfill(std::make_tuple(std::move(val)));
     return out_future;
 }
@@ -82,11 +85,11 @@ auto ready(T val) {
 template <typename F>
 auto async(F fnc) {
     typedef typename std::result_of<F()>::type Return;
-    auto out_future = make_future<Return>();
+    Future<Return> out_future;
     using OutT = decltype(out_future);
     add_task(
         [] (OutT& fut, F& f) {
-            auto out = PossiblyVoidCall<get_signature<F>>::on(f);
+            auto out = possibly_void_call(f);
             fut.fulfill(out);
         },
         out_future,
@@ -143,9 +146,7 @@ struct WhenAllHelper<Idx, true, Ts...> {
 template <typename... FutureTs>
 auto when_all(FutureTs&&... args) {
     auto data = std::make_tuple(std::forward<FutureTs>(args)...);
-    auto out_future = make_future<
-        typename std::decay<FutureTs>::type::type...
-    >();
+    Future<typename std::decay<FutureTs>::type::type...> out_future;
     std::tuple<typename std::decay<FutureTs>::type::type...> accum;
     WhenAllHelper<
         0, sizeof...(FutureTs) == 1,

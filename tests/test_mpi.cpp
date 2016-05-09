@@ -65,9 +65,7 @@ void test_send_data() {
 }
 
 void test_send_closure() {
-    SerializableFunctor s;
-    s.vs = {1,2,3,4};
-    auto f = make_closure(s);
+    auto f = get_serializable_functor();
 
     test_send(f, [] (Comm&, decltype(f) f) {
         tlassert(f(5) == 120);

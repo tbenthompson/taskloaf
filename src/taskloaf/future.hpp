@@ -1,7 +1,6 @@
 #pragma once
 
 #include "builders.hpp"
-#include "ivar.hpp"
 
 #include <cereal/types/tuple.hpp>
 
@@ -90,14 +89,26 @@ struct FutureBase {
         if (data->local && data->fulfilled && can_run_immediately()) {
             f(args..., data->get_val());
         } else {
-            auto trigger = make_closure(
-                [f = std::forward<F>(f)] 
-                (Args&... args, std::vector<Data>& vals) {
-                    return f(args..., vals[0].get_as<std::tuple<Ts...>>());
+            cur_worker->add_trigger(data->get_ivar(), TriggerT{
+                [] (std::vector<Data>& args, std::vector<Data>& trigger_args) {
+                    //TODO: Remove this copying
+                    std::vector<Data> non_fnc_args;
+                    for (size_t i = 1; i < args.size(); i++) {
+                        non_fnc_args.push_back(args[i]);
+                    }
+                    for (size_t i = 1; i < trigger_args.size(); i++) {
+                        non_fnc_args.push_back(trigger_args[i]);
+                    }
+                    apply_data_args(
+                        args[0].get_as<typename std::decay<F>::type>(),
+                        non_fnc_args
+                    );
                 },
-                std::forward<Args>(args)...
-            );
-            cur_worker->add_trigger(data->get_ivar(), std::move(trigger));
+                std::vector<Data>{ 
+                    make_data(std::forward<F>(f)),
+                    make_data(std::forward<Args>(args))...
+                }
+            });
         }
     }
 
@@ -142,29 +153,7 @@ struct Future<>: public FutureBase<Future<>> {
     using FutureBase<Future<>>::FutureBase;
 };
 
-template <typename... Ts>
-struct MakeFuture {
-    static auto on() {
-        auto out = Future<Ts...>();
-        out.data->local = true;
-        // out.data->get_ivar() = IVarRef{new_id()};
-        return out;
-    }
-};
-
 template <>
-struct MakeFuture<void> {
-    static auto on() {
-        auto out = Future<>();
-        out.data->local = true;
-        // out.data->get_ivar() = IVarRef{new_id()};
-        return out;
-    }
-};
-
-template <typename... Ts>
-auto make_future() {
-    return MakeFuture<Ts...>::on();
-}
+struct Future<void>: Future<> {};
 
 } //end namespace taskloaf

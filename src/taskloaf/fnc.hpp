@@ -1,14 +1,14 @@
 #pragma once
 #include "tlassert.hpp"
 
-#include <map>
-#include <vector>
-#include <memory>
-#include <typeindex>
-
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/string.hpp>
 #include <cereal/types/utility.hpp>
 
+#include <memory>
+
 namespace taskloaf {
+// Inspired by https://github.com/darabos/pinty/blob/master/pinty.h
 
 template <typename F>
 struct is_serializable: std::integral_constant<bool,
@@ -16,69 +16,43 @@ struct is_serializable: std::integral_constant<bool,
     cereal::traits::is_input_serializable<F,cereal::BinaryInputArchive>::value &&
     !std::is_pointer<F>::value> {};
 
-// Inspired by https://github.com/darabos/pinty/blob/master/pinty.h
+struct RegistryImpl;
 struct CallerRegistry {
-    std::map<size_t,std::vector<std::pair<std::type_index,void*>>> registry;
+    std::unique_ptr<RegistryImpl> impl;
+    
+    CallerRegistry();
+    ~CallerRegistry();
 
-    template <typename F>
-    void insert(void* f_ptr) {
-        auto tid = typeid(F).hash_code();
-        registry[tid].push_back({std::type_index(typeid(F)), f_ptr});
-    }
-
-    template <typename F>
-    std::pair<size_t,size_t> lookup_location() {
-        auto tid = typeid(F).hash_code();
-        for (size_t i = 0; i < registry[tid].size(); i++) {
-            if (std::type_index(typeid(F)) == registry[tid][i].first) {
-                return {tid, i};
-            }
-        }
-        tlassert(false);
-        return {0, 0};
-    }
-
-    void* get_function(const std::pair<size_t,size_t>& loc) {
-        return registry[loc.first][loc.second].second;
-    }
+    void insert(const std::type_info& t_info, void* f_ptr);
+    std::pair<size_t,size_t> lookup_location(const std::type_info& t_info );
+    void* get_function(const std::pair<size_t,size_t>& loc);
 };
-
-inline auto& get_caller_registry() {
-    static CallerRegistry caller_registry;
-    return caller_registry;
-}
-
-template<typename Return, typename... Args>
-using FncCaller = Return (*)(const std::string&, Args...);
+CallerRegistry& get_caller_registry();
 
 template<typename Func, typename Return, typename... Args>
 struct RegisterCaller
 {
     RegisterCaller() {
-        auto f = [] (const std::string& data, Args... args) {
-            const char* char_arr = data.c_str();
-            auto& closure = *const_cast<Func*>(
-                reinterpret_cast<const Func*>(char_arr)
-            );
-            return closure(args...);
-        };
-        auto f_ptr = static_cast<FncCaller<Return,Args...>>(f);
-        get_caller_registry().insert<Func>(reinterpret_cast<void*>(f_ptr));
+        get_caller_registry().insert(typeid(Func), reinterpret_cast<void*>(call));
     }
+
+    static Return call(const std::string& data, Args... args) {
+        const char* char_arr = data.c_str();
+        auto& closure = *const_cast<Func*>(
+            reinterpret_cast<const Func*>(char_arr)
+        );
+        return closure(args...);
+    }
+
     static RegisterCaller instance;
     static std::pair<size_t,size_t> add_to_registry() {
         (void)instance;
-        return get_caller_registry().lookup_location<Func>();
+        return get_caller_registry().lookup_location(typeid(Func));
     }
 };
 
 template<typename Func, typename Return, typename... Args>
 RegisterCaller<Func,Return,Args...> RegisterCaller<Func,Return,Args...>::instance;
-
-template <typename Func, typename Return, typename... Args>
-static auto get_call() {
-    return RegisterCaller<Func,Return,Args...>::add_to_registry();
-}
 
 template <typename T> 
 struct Function {};
@@ -89,6 +63,8 @@ struct Function {};
 // Use a future to pass a non-POD type to a task.
 template <typename Return, typename... Args>
 struct Function<Return(Args...)> {
+    typedef Return (*FncCaller)(const std::string&, Args...);
+
     std::pair<size_t,size_t> caller_id;
     std::string closure;
 
@@ -96,10 +72,18 @@ struct Function<Return(Args...)> {
 
     template <typename F>
     Function(F f) {
-        static_assert(!is_serializable<typename std::decay<F>::type>::value,
+        typedef typename std::decay<F>::type DecayF;
+        static_assert(!is_serializable<DecayF>::value,
             "Do not use Function for serializable types");
-        caller_id = get_call<F,Return,Args...>();
-        closure = std::string(reinterpret_cast<const char*>(&f), sizeof(F));
+
+        // This copy prevents a buggy "uninitialized" warning from happening in
+        // gcc-5.2. ‘<anonymous>’ is used uninitialized in this function with
+        // non-capturing lambdas. I suspect the copy will be optimized out so
+        // there is no performance hit.
+        auto newf = f;
+        const char* data = reinterpret_cast<const char*>(&newf);
+        closure = std::string(data, sizeof(F));
+        caller_id = RegisterCaller<DecayF,Return,Args...>::add_to_registry();
     }
 
     Function(const Function<Return(Args...)>& f) = default;
@@ -107,21 +91,24 @@ struct Function<Return(Args...)> {
     Function(Function<Return(Args...)>&& f) = default;
     Function& operator=(Function<Return(Args...)>&& f) = default;
 
-    template <typename... As>
-    Return operator()(As&&... args) const {
-        auto caller = reinterpret_cast<FncCaller<Return,Args...>>(
+    Return operator()(Args... args) const {
+        auto caller = reinterpret_cast<FncCaller>(
             get_caller_registry().get_function(caller_id)
         );
         // No forwarding so that everything becomes an lvalue reference
         return caller(closure, args...);
     }
 
-    Return call(Args... args) {
+    Return call(Args... args) const {
         return this->operator()(args...);
     }
 
-    template <typename Archive>
-    void serialize(Archive& ar) {
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar(caller_id);
+        ar(closure);
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
         ar(caller_id);
         ar(closure);
     }
@@ -129,31 +116,35 @@ struct Function<Return(Args...)> {
 
 // From http://stackoverflow.com/a/12283159 to auto convert many function-like
 // things to std::function
-template<typename T> struct remove_class { };
+template<typename T> struct RemoveClass { };
 template<typename C, typename R, typename... A>
-struct remove_class<R(C::*)(A...)> { using type = R(A...); };
+struct RemoveClass<R(C::*)(A...)> { using type = R(A...); };
 template<typename C, typename R, typename... A>
-struct remove_class<R(C::*)(A...) const> { using type = R(A...); };
+struct RemoveClass<R(C::*)(A...) const> { using type = R(A...); };
 template<typename C, typename R, typename... A>
-struct remove_class<R(C::*)(A...) volatile> { using type = R(A...); };
+struct RemoveClass<R(C::*)(A...) volatile> { using type = R(A...); };
 template<typename C, typename R, typename... A>
-struct remove_class<R(C::*)(A...) const volatile> { using type = R(A...); };
+struct RemoveClass<R(C::*)(A...) const volatile> { using type = R(A...); };
 
 template<typename T>
-struct get_signature_impl { using type = typename remove_class<
-    decltype(&std::remove_reference<T>::type::operator())>::type; };
+struct GetSignatureImpl {
+    using type = typename RemoveClass<
+        decltype(&std::remove_reference<T>::type::operator())
+    >::type; 
+};
 template<typename R, typename... A>
-struct get_signature_impl<R(A...)> { using type = R(A...); };
+struct GetSignatureImpl<R(A...)> { using type = R(A...); };
 template<typename R, typename... A>
-struct get_signature_impl<R(&)(A...)> { using type = R(A...); };
+struct GetSignatureImpl<R(&)(A...)> { using type = R(A...); };
 template<typename R, typename... A>
-struct get_signature_impl<R(*)(A...)> { using type = R(A...); };
-template<typename T> using get_signature =
-    typename get_signature_impl<typename std::decay<T>::type>::type;
+struct GetSignatureImpl<R(*)(A...)> { using type = R(A...); };
+
+template <typename T>
+using GetSignature = typename GetSignatureImpl<typename std::decay<T>::type>::type;
 
 template <typename F>
-auto make_function(F&& f) {
-    return Function<get_signature<F>>(std::forward<F>(f));
+Function<GetSignature<F>> make_function(F f) {
+    return Function<GetSignature<F>>(f);
 }
 
 } //end namespace taskloaf

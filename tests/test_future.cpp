@@ -5,8 +5,7 @@
 
 using namespace taskloaf; 
 
-template <typename F>
-void future_tester(F fnc) {
+void future_tester(std::function<Future<int>()> fnc) {
     bool correct = false;
     launch_local(1, [&] () {
         auto fut = fnc();
@@ -122,7 +121,7 @@ TEST_CASE("Outside of launch, just run immediately", "[future]") {
         .then([&] (int y) { x += y; });
     REQUIRE(x == 3);
 }
-
+// 
 // TEST_CASE("Empty when_all", "[future]") {
 //     int x = 0;
 //     launch_local(1, [&] () {
