@@ -11,7 +11,7 @@ struct WhenBothOutT<std::tuple<T1s...>, std::tuple<T2s...>> {
 };
 
 template <typename Future1, size_t... Idx1, typename Future2, size_t... Idx2>
-auto when_all(Future1&& fut1, Future2&& fut2,
+auto when_both(Future1&& fut1, Future2&& fut2,
     std::index_sequence<Idx1...>, std::index_sequence<Idx2...>)
 {
     typedef typename std::decay<Future1>::type DecayF1;
@@ -44,7 +44,7 @@ FutureT&& when_all(FutureT&& fut) {
 template <typename Future1, typename Future2>
 auto when_all(Future1&& tup1, Future2&& tup2)
 {
-    return when_all(
+    return when_both(
         std::forward<Future1>(tup1),
         std::forward<Future2>(tup2),
         std::make_index_sequence<

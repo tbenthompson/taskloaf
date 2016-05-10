@@ -76,7 +76,7 @@ struct PyFuture {
     }
 };
 
-PyFuture when_both(const PyFuture& a, const PyFuture& b) {
+PyFuture when_both(PyFuture& a, PyFuture& b) {
     return PyFuture{tl::when_all(a.fut, b.fut).then(
         [] (py::object& a_o, py::object& b_o) {
             return handle_py_exception([&] () {

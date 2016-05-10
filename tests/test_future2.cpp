@@ -1,7 +1,6 @@
 #include "catch.hpp"
 
 #include "taskloaf/future.hpp"
-#include "taskloaf/when_all.hpp"
 #include "taskloaf/launcher.hpp"
 
 using namespace taskloaf; 
