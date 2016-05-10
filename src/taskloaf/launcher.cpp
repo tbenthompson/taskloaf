@@ -1,5 +1,5 @@
 #include "launcher.hpp"
-#include "worker.hpp"
+#include "default_worker.hpp"
 #include "local_comm.hpp"
 #include "serializing_comm.hpp"
 #include "mpi_comm.hpp"
@@ -19,7 +19,7 @@ void helper(size_t n_workers, std::function<void()> f,
     for (size_t i = 0; i < n_workers; i++) { 
         threads.emplace_back(
             [f, i, comm_builder, &root_addr, &ready] () mutable {
-                Worker w(comm_builder(i));
+                DefaultWorker w(comm_builder(i));
                 cur_worker = &w;
                 w.set_core_affinity(i);
                 if (i == 0) {
@@ -58,12 +58,12 @@ void launch_local_serializing(size_t n_workers, std::function<void()> f) {
 
 void launch_local_singlethread(size_t n_workers, std::function<void()> f) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
-    std::vector<std::unique_ptr<Worker>> ws(n_workers);
+    std::vector<std::unique_ptr<DefaultWorker>> ws(n_workers);
     for (size_t i = 0; i < n_workers; i++) { 
         auto comm = std::unique_ptr<SerializingComm>(new SerializingComm(
             std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
         ));
-        ws[i] = std::unique_ptr<Worker>(new Worker(std::move(comm)));
+        ws[i] = std::unique_ptr<DefaultWorker>(new DefaultWorker(std::move(comm)));
         cur_worker = ws[i].get();
         if (i == 0) {
             f();
@@ -89,7 +89,7 @@ int shutdown() {
 void launch_mpi(std::function<void()> f) {
     MPI_Init(NULL, NULL);
 
-    Worker w(std::unique_ptr<SerializingComm>(new SerializingComm(
+    DefaultWorker w(std::unique_ptr<SerializingComm>(new SerializingComm(
         std::unique_ptr<MPIComm>(new MPIComm()))
     ));
     cur_worker = &w;

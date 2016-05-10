@@ -7,37 +7,21 @@
 
 namespace taskloaf { 
 
-struct Comm;
-struct WorkerInternals;
 struct Worker {
-    std::unique_ptr<WorkerInternals> p;
+    virtual ~Worker() {}
 
-    Worker(std::unique_ptr<Comm> comm);
-    Worker(Worker&&) = default;
-    ~Worker();
-
-    bool can_compute_immediately() const;
-
-    bool is_stopped() const;
-    Comm& get_comm();
-    const Address& get_addr();
-
-    void shutdown();
-    void introduce(Address addr);
-    void add_task(TaskT f);
-    void fulfill(const IVarRef& ivar, std::vector<Data> vals);
-    void add_trigger(const IVarRef& ivar, TriggerT trigger);
-    void dec_ref(const IVarRef& ivar);
-    void recv();
-    void one_step();
-    void run();
-    void set_core_affinity(int core_id);
+    virtual void shutdown() = 0;
+    virtual bool can_compute_immediately() = 0;
+    virtual size_t n_workers() const = 0;
+    virtual void add_task(TaskT f) = 0;
+    virtual void fulfill(const IVarRef& ivar, std::vector<Data> vals) = 0;
+    virtual void add_trigger(const IVarRef& ivar, TriggerT trigger) = 0;
+    virtual void dec_ref(const IVarRef& ivar) = 0;
 };
 
 extern thread_local Worker* cur_worker;
 
 bool can_run_immediately();
-int n_workers();
 
 template <typename F, typename... Args>
 void add_task(F&& f, Args&&... args) {

@@ -1,7 +1,6 @@
 #include "catch.hpp"
 
-#include "taskloaf/worker.hpp"
-#include "taskloaf/worker_internals.hpp"
+#include "taskloaf/default_worker.hpp"
 #include "taskloaf/id.hpp"
 #include "taskloaf/comm.hpp"
 #include "taskloaf/local_comm.hpp"
@@ -11,7 +10,7 @@
 
 using namespace taskloaf;
 
-void settle(std::vector<std::unique_ptr<Worker>>& ws) {
+void settle(std::vector<std::unique_ptr<DefaultWorker>>& ws) {
     for (int i = 0; i < 10; i++) {
         for (size_t j = 0; j < ws.size(); j++) {
             cur_worker = ws[j].get();
@@ -20,16 +19,16 @@ void settle(std::vector<std::unique_ptr<Worker>>& ws) {
     }
 }
 
-Worker worker() {
+DefaultWorker worker() {
     auto lcq = std::make_shared<LocalCommQueues>(1);
-    return Worker(std::make_unique<LocalComm>(lcq, 0));
+    return DefaultWorker(std::make_unique<LocalComm>(lcq, 0));
 }
 
-std::vector<std::unique_ptr<Worker>> workers(int n_workers) {
+std::vector<std::unique_ptr<DefaultWorker>> workers(int n_workers) {
     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
-    std::vector<std::unique_ptr<Worker>> ws;
+    std::vector<std::unique_ptr<DefaultWorker>> ws;
     for (int i = 0; i < n_workers; i++) {
-        ws.emplace_back(std::make_unique<Worker>(
+        ws.emplace_back(std::make_unique<DefaultWorker>(
             std::make_unique<SerializingComm>(
                 std::make_unique<LocalComm>(lcq, i)
             )
@@ -37,19 +36,19 @@ std::vector<std::unique_ptr<Worker>> workers(int n_workers) {
         if (i != 0) {
             ws[i]->introduce(ws[0]->get_addr());
         }
-        ws[i]->p->core_id = i;
+        ws[i]->core_id = i;
         settle(ws);
     }
     return ws;
 }
 
-ID id_on_worker(const std::unique_ptr<Worker>& w) {
-    auto id = w->p->ivar_tracker.get_ring_locs()[0];
+ID id_on_worker(const std::unique_ptr<DefaultWorker>& w) {
+    auto id = w->ivar_tracker.get_ring_locs()[0];
     id.secondhalf++;
     return id;
 }
 
-TEST_CASE("Worker") {
+TEST_CASE("DefaultWorker") {
     auto w = worker();
     int x = 0;
     w.add_task({
@@ -65,8 +64,7 @@ TEST_CASE("Worker") {
 
 TEST_CASE("Number of workers", "[worker]") {
     auto ws = workers(4);
-    cur_worker = ws[0].get();
-    REQUIRE(n_workers() == 4);
+    REQUIRE(ws[0]->n_workers() == 4);
 }
 
 void stealing_test(int n_steals) {
@@ -83,13 +81,13 @@ void stealing_test(int n_steals) {
     }
     settle(ws);
     for (int i = 0; i < n_steals; i++) {
-        ws[1]->p->tasks.steal();
+        ws[1]->tasks.steal();
     }
-    REQUIRE(ws[0]->p->tasks.size() == n_tasks);
-    REQUIRE(ws[1]->p->tasks.size() == 0);
+    REQUIRE(ws[0]->tasks.size() == n_tasks);
+    REQUIRE(ws[1]->tasks.size() == 0);
     settle(ws);
-    REQUIRE(ws[0]->p->tasks.size() == n_tasks - 1);
-    REQUIRE(ws[1]->p->tasks.size() == 1);
+    REQUIRE(ws[0]->tasks.size() == n_tasks - 1);
+    REQUIRE(ws[1]->tasks.size() == 1);
 }
 
 TEST_CASE("Two workers one steal") {
@@ -100,7 +98,7 @@ TEST_CASE("Two workers two steals = second does nothing") {
     stealing_test(2);
 }
 
-void make_ivar_live(Worker& w, const IVarRef& ivar) {
+void make_ivar_live(DefaultWorker& w, const IVarRef& ivar) {
     w.fulfill(ivar, {make_data(1)});
 }
 
@@ -110,9 +108,9 @@ TEST_CASE("Ref tracking destructor deletes") {
     {
         IVarRef iv(new_id());
         make_ivar_live(w, iv);
-        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy constructor") {
@@ -124,9 +122,9 @@ TEST_CASE("Ref tracking copy constructor") {
             IVarRef iv(new_id());
             ivarref2.reset(new IVarRef(iv));
         }
-        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy assignment") {
@@ -138,9 +136,9 @@ TEST_CASE("Ref tracking copy assignment") {
             IVarRef iv(new_id());
             ivarref2 = iv;
         }
-        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
 
@@ -159,9 +157,9 @@ TEST_CASE("Ref tracking move constructor") {
             ivarref2.reset(new IVarRef(std::move(iv)));
             REQUIRE(iv.empty == true);
         }
-        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking move assignment") {
@@ -175,9 +173,9 @@ TEST_CASE("Ref tracking move assignment") {
             iv = std::move(iv2);
             REQUIRE(iv2.empty == true);
         }
-        REQUIRE(w.p->ivar_tracker.n_owned() == 1);
+        REQUIRE(w.ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.p->ivar_tracker.n_owned() == 0);
+    REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting") {
@@ -187,30 +185,30 @@ TEST_CASE("Remote reference counting") {
         auto id = id_on_worker(ws[1]);
         IVarRef iv(id);
         settle(ws);
-        REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 
         cur_worker = ws[0].get();
         ws[0]->fulfill(iv, {make_data(1)});
 
-        REQUIRE(ws[0]->p->ivar_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->p->ivar_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 
         settle(ws);
-        REQUIRE(ws[0]->p->ivar_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->p->ivar_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 1);
+        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
+        REQUIRE(ws[1]->ivar_tracker.n_owned() == 1);
 
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->p->ivar_tracker.n_vals_here() == 0);
-    REQUIRE(ws[0]->p->ivar_tracker.n_owned() == 0);
-    REQUIRE(ws[1]->p->ivar_tracker.n_vals_here() == 0);
-    REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 0);
+    REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
+    REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting change location") {
@@ -223,18 +221,18 @@ TEST_CASE("Remote reference counting change location") {
 
         ws[1]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
         ws[0]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
-        REQUIRE(ws[0]->p->ivar_tracker.n_triggers_here() == 1);
-        REQUIRE(ws[1]->p->ivar_tracker.n_triggers_here() == 1);
+        REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 1);
+        REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 1);
 
         ws[1]->recv();
 
-        REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 1);
+        REQUIRE(ws[1]->ivar_tracker.n_owned() == 1);
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->p->ivar_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->p->ivar_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->p->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 0);
+    REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 0);
+    REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 }
 
 void remote(int n_workers, int owner_worker, int fulfill_worker,
