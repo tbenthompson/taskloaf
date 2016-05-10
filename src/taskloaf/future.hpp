@@ -16,7 +16,8 @@ struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
     mutable bool local = true;
-    mutable std::shared_ptr<TupleT> data;
+    mutable bool fulfilled = false;
+    mutable TupleT data;
     mutable IVarRef ivar;
 
     FutureBase() = default;
@@ -28,7 +29,6 @@ struct FutureBase {
     }
     FutureBase& operator=(const FutureBase& other) {
         other.make_global();
-        data = nullptr;
         local = false;
         ivar = other.ivar;
         return *this;
@@ -40,13 +40,17 @@ struct FutureBase {
         }
         local = false;
         ivar = IVarRef(new_id()); 
-        if (data != nullptr) {
-            fulfill(std::move(*data));
+        if (is_fulfilled()) {
+            fulfill(std::move(get_val()));
         }
     }
 
-    TupleT& get_val() {
-        return *data;
+    bool is_fulfilled() const {
+        return fulfilled;
+    }
+
+    TupleT& get_val() const {
+        return data;
     }
 
     template <typename F>
@@ -55,7 +59,7 @@ struct FutureBase {
     }
 
     bool can_trigger_immediately() {
-        return local && data != nullptr;
+        return local && is_fulfilled();
     }
 
     void add_trigger(TriggerT trigger) {
@@ -65,7 +69,8 @@ struct FutureBase {
 
     void fulfill(std::tuple<Ts...> val) const {
         if (local) {
-            data = std::make_shared<TupleT>(std::move(val));
+            fulfilled = true;
+            data = std::move(val);
         } else {
             cur_worker->fulfill(ivar, {make_data(std::move(val))});
         }
