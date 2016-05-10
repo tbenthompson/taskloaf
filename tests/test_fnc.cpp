@@ -43,6 +43,13 @@ TEST_CASE("Function capture", "[fnc]") {
     REQUIRE(f(3) == 30);
 }
 
+TEST_CASE("Function capture by ref", "[fnc]") {
+    int x = 0;
+    auto f = make_function([&] (int y) { x = y; });
+    f(1);
+    REQUIRE(x == 1);
+}
+
 TEST_CASE("Closure one param", "[fnc]") {
     Closure<int(int)> c{
         [] (std::vector<Data>& d, int y) { return d[0].get_as<int>() * y; },

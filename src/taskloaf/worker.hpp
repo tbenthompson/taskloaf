@@ -23,30 +23,5 @@ extern thread_local Worker* cur_worker;
 
 bool can_run_immediately();
 
-template <typename F, typename... Args>
-void add_task(F&& f, Args&&... args) {
-    if (can_run_immediately()) {
-        f(args...);
-    } else {
-        cur_worker->add_task(TaskT{
-            [] (std::vector<Data>& args) {
-                //TODO: Remove this copying
-                std::vector<Data> non_fnc_args;
-                for (size_t i = 1; i < args.size(); i++) {
-                    non_fnc_args.push_back(args[i]);
-                }
-                apply_data_args(
-                    args[0].get_as<typename std::decay<F>::type>(),
-                    non_fnc_args
-                );
-            },
-            std::vector<Data>{ 
-                make_data(std::forward<F>(f)),
-                make_data(std::forward<Args>(args))...
-            }
-        });
-    }
-}
-
 
 } //end namespace taskloaf

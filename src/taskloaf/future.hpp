@@ -9,40 +9,9 @@ namespace taskloaf {
 
 template <typename... Ts>
 struct FutureData {
-    union Union {
-        Union() {}
-        ~Union() {}
-
-        std::tuple<Ts...> val;
-        IVarRef ivar;
-    } d;
-
-    bool local;
-    bool fulfilled;
-
-    FutureData(bool local):
-        local(local),
-        fulfilled(false)
-    {
-        if (local) {
-            new (&d.val) std::tuple<Ts...>();
-        } else {
-            new (&d.ivar) IVarRef();
-        }
-    }
-
-    ~FutureData() {
-        if (local) {
-            d.val.~tuple();
-        } else {
-            d.ivar.~IVarRef();
-        }
-    }
-
-    std::tuple<Ts...>& get_val() { return d.val; }
-    const std::tuple<Ts...>& get_val() const { return d.val; }
-    IVarRef& get_ivar() { return d.ivar; }
-    const IVarRef& get_ivar() const { return d.ivar; }
+    std::tuple<Ts...> val;
+    bool local = true;
+    bool fulfilled = false;
 };
 
 template <typename Derived, typename... Ts>
@@ -50,73 +19,67 @@ struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
     std::shared_ptr<FutureData<Ts...>> data;
+    IVarRef ivar;
 
-    FutureBase():
-        data(std::make_shared<FutureData<Ts...>>(true))
-    {}
+    FutureBase(): data(std::make_shared<FutureData<Ts...>>()) { 
+        make_global();
+    }
+    FutureBase(FutureBase&& other) = default;
+    FutureBase& operator=(FutureBase&& other) = default;
 
-    FutureBase(IVarRef&& ivar): 
-        data(std::make_shared<FutureData<Ts...>>(false)) 
-    {
-        data->get_ivar() = std::move(ivar);
+    FutureBase(const FutureBase& other) {
+        *this = other; 
+    }
+    FutureBase& operator=(const FutureBase& other) {
+        data = other.data;
+        make_global();
+        return *this;
     }
 
-    auto& derived() {
-        return *static_cast<Derived*>(this);
+    void make_global() {
+        if (!data->local) {
+            return;
+        }
+        data->local = false;
+        ivar = IVarRef(new_id()); 
+        if (data->fulfilled) {
+            fulfill(std::move(data->val));
+        }
     }
 
     template <typename F>
     auto then(F&& f) {
-        return taskloaf::then(derived(), std::forward<F>(f));
+        return taskloaf::then(*static_cast<Derived*>(this), std::forward<F>(f));
     }
 
-    template <typename F, typename... Args>
-    void add_trigger(F&& f, Args&&... args) {
-        if (data->local && data->fulfilled && can_run_immediately()) {
-            f(args..., data->get_val());
-        } else {
-            cur_worker->add_trigger(data->get_ivar(), TriggerT{
-                [] (std::vector<Data>& args, std::vector<Data>& trigger_args) {
-                    //TODO: Remove this copying
-                    std::vector<Data> non_fnc_args;
-                    for (size_t i = 1; i < args.size(); i++) {
-                        non_fnc_args.push_back(args[i]);
-                    }
-                    for (size_t i = 1; i < trigger_args.size(); i++) {
-                        non_fnc_args.push_back(trigger_args[i]);
-                    }
-                    apply_data_args(
-                        args[0].get_as<typename std::decay<F>::type>(),
-                        non_fnc_args
-                    );
-                },
-                std::vector<Data>{ 
-                    make_data(std::forward<F>(f)),
-                    make_data(std::forward<Args>(args))...
-                }
-            });
-        }
+    bool can_trigger_immediately() {
+        return data->local && data->fulfilled;
+    }
+
+    void add_trigger(TriggerT trigger) {
+        make_global();
+        cur_worker->add_trigger(ivar, std::move(trigger));
     }
 
     void fulfill(std::tuple<Ts...> val) {
         data->fulfilled = true;
         if (data->local) {
-            data->get_val() = std::move(val);
+            data->val = std::move(val);
         } else {
-            cur_worker->fulfill(data->get_ivar(), {make_data(std::move(val))});
+            cur_worker->fulfill(ivar, {make_data(std::move(val))});
         }
     }
 
 
     template <typename Archive>
-    void serialize(Archive& ar) const {
+    void serialize(Archive& ar) {
         ar(data->local);
         if(data->local) {
             if (data->fulfilled) {
-                ar(data->get_val());
+                ar(data->val);
             }
         } else {
-            ar(data->get_ivar());
+            ar(ivar);
         }
     }
 };

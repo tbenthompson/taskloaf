@@ -49,6 +49,7 @@ Comm& DefaultWorker::get_comm() {
 
 void DefaultWorker::shutdown() {
     auto& remotes = comm->remote_endpoints();
+
     for (auto& r: remotes) {
         comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
     }

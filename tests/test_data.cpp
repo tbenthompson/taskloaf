@@ -104,7 +104,9 @@ TEST_CASE("Deserialized deleter called", "[data]") {
 }
 
 TEST_CASE("Convert raw functions to serializable in make_data") {
-    auto f = make_data([] (int x) { return x * 10; }).get_as<Function<int(int)>>();
+    auto f = make_data(make_function(
+        [] (int x) { return x * 10; }
+    )).get_as<Function<int(int)>>();
     REQUIRE(f(10) == 100);
 }
 

@@ -23,18 +23,23 @@ auto when_both(Future1&& fut1, Future2&& fut2,
     typedef typename WhenBothOutT<In1,In2>::type OutF;
     OutF out_future;
 
-    fut1.add_trigger(
-        [] (OutF& out_future, Future2& fut2, In1& r1) {
-            fut2.add_trigger(
-                [] (OutF& out_future, In1& r1, In2& r2) {
-                    out_future.fulfill(std::tuple_cat(r1, r2)); 
-                },
-                out_future,
-                r1
-            );
-        },
-        out_future, fut2
-    );
+    if (fut1.can_trigger_immediately() && fut2.can_trigger_immediately()) {
+        out_future.fulfill(std::tuple_cat(fut1.data->val, fut2.data->val));
+    } else {
+        fut1.add_trigger(TriggerT{
+            [] (std::vector<Data>& c_args, std::vector<Data>& args) {
+                c_args[1].get_as<DecayF2>().add_trigger(TriggerT{
+                    [] (std::vector<Data>& c_args, std::vector<Data>& args) {
+                        c_args[0].get_as<OutF>().fulfill(std::tuple_cat(
+                            c_args[1].get_as<In1>(), args[0].get_as<In2>()
+                        ));
+                    },
+                    { c_args[0], args[0] }
+                });
+            },
+            { make_data(out_future), make_data(fut2) }
+        });
+    }
     return out_future;
 }
 

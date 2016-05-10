@@ -47,22 +47,16 @@ struct Data {
     }
 };
 
-template <typename T, 
-    typename std::enable_if<
-        is_serializable<typename std::decay<T>::type>::value,int
-    >::type = 0>
+template <typename T>
 Data make_data(T&& a) {
+    static_assert(
+        is_serializable<typename std::decay<T>::type>::value,
+        "Types encapsulated in Data must be serializable. Please Provide serialization functions for this type."
+    );
+
     Data d;
     d.initialize<typename std::decay<T>::type>(std::forward<T>(a));
     return d;
-}
-
-template <typename F,
-    typename std::enable_if<
-        !is_serializable<typename std::decay<F>::type>::value,int
-    >::type = 0>
-Data make_data(F&& f) {
-    return make_data(make_function(std::forward<F>(f)));
 }
 
 Data empty_data();

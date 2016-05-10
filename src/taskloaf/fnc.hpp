@@ -70,7 +70,12 @@ struct Function<Return(Args...)> {
 
     Function() = default;
 
-    template <typename F>
+    template <
+        typename F,
+        typename std::enable_if<
+            !std::is_same<Function<Return(Args...)>,F>::value
+        >::type* = nullptr
+    >
     Function(F f) {
         typedef typename std::decay<F>::type DecayF;
         static_assert(!is_serializable<DecayF>::value,
@@ -138,9 +143,22 @@ struct GetSignatureImpl<R(*)(A...)> { using type = R(A...); };
 template <typename T>
 using GetSignature = typename GetSignatureImpl<typename std::decay<T>::type>::type;
 
-template <typename F>
+template <
+    typename F,
+    typename std::enable_if<
+        !is_serializable<typename std::decay<F>::type>::value
+    >::type* = nullptr>
 Function<GetSignature<F>> make_function(F f) {
     return Function<GetSignature<F>>(f);
+}
+
+template <
+    typename F,
+    typename std::enable_if<
+        is_serializable<typename std::decay<F>::type>::value
+    >::type* = nullptr>
+auto make_function(F&& f) {
+    return std::forward<F>(f);
 }
 
 } //end namespace taskloaf

@@ -34,8 +34,9 @@ TEST_CASE("Empty futures", "[future]") {
 
 TEST_CASE("Outside of launch, just run immediately", "[future]") {
     int x = 0;
-    when_all(async([&] { x = 1; })
-            .then([&] {x *= 2; return 1; })
+    when_all(
+            async([&] { x = 1; }).then([&] {x *= 2; }),
+            ready(5)
         ).then([] (int) { return ready(1); })
         .unwrap()
         .then([&] (int y) { x += y; });
@@ -44,14 +45,7 @@ TEST_CASE("Outside of launch, just run immediately", "[future]") {
 
 TEST_CASE("Empty when_all", "[future]") {
     int x = 0;
-    launch_local(1, [&] () {
-        auto f = when_all(async([&] {
-                x = 2;
-            }), ready(2))
-            .then([&] (int mult) {
-                x *= mult;
-            });
-        return ready(shutdown());
-    });
+    when_all(async([&] { x = 2; }), ready(2))
+        .then([&] (int mult) { x *= mult; });
     REQUIRE(x == 4);
 }
