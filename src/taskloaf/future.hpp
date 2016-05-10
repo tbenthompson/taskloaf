@@ -9,21 +9,17 @@ namespace taskloaf {
 
 template <typename... Ts>
 struct FutureData {
-    std::tuple<Ts...> val;
-    bool local = true;
-    bool fulfilled = false;
 };
 
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
-    std::shared_ptr<FutureData<Ts...>> data;
-    IVarRef ivar;
+    mutable bool local = true;
+    mutable std::shared_ptr<TupleT> data;
+    mutable IVarRef ivar;
 
-    FutureBase(): data(std::make_shared<FutureData<Ts...>>()) { 
-        make_global();
-    }
+    FutureBase() = default;
     FutureBase(FutureBase&& other) = default;
     FutureBase& operator=(FutureBase&& other) = default;
 
@@ -31,20 +27,26 @@ struct FutureBase {
         *this = other; 
     }
     FutureBase& operator=(const FutureBase& other) {
-        data = other.data;
-        make_global();
+        other.make_global();
+        data = nullptr;
+        local = false;
+        ivar = other.ivar;
         return *this;
     }
 
-    void make_global() {
-        if (!data->local) {
+    void make_global() const {
+        if (!local) {
             return;
         }
-        data->local = false;
+        local = false;
         ivar = IVarRef(new_id()); 
-        if (data->fulfilled) {
-            fulfill(std::move(data->val));
+        if (data != nullptr) {
+            fulfill(std::move(*data));
         }
+    }
+
+    TupleT& get_val() {
+        return *data;
     }
 
     template <typename F>
@@ -53,7 +55,7 @@ struct FutureBase {
     }
 
     bool can_trigger_immediately() {
-        return data->local && data->fulfilled;
+        return local && data != nullptr;
     }
 
     void add_trigger(TriggerT trigger) {
@@ -61,26 +63,22 @@ struct FutureBase {
         cur_worker->add_trigger(ivar, std::move(trigger));
     }
 
-    void fulfill(std::tuple<Ts...> val) {
-        data->fulfilled = true;
-        if (data->local) {
-            data->val = std::move(val);
+    void fulfill(std::tuple<Ts...> val) const {
+        if (local) {
+            data = std::make_shared<TupleT>(std::move(val));
         } else {
             cur_worker->fulfill(ivar, {make_data(std::move(val))});
         }
     }
 
+    void save(cereal::BinaryOutputArchive& ar) const {
+        make_global();
+        ar(ivar);
+    }
 
-    template <typename Archive>
-    void serialize(Archive& ar) {
-        ar(data->local);
-        if(data->local) {
-            if (data->fulfilled) {
-                ar(data->val);
-            }
-        } else {
-            ar(ivar);
-        }
+    void load(cereal::BinaryInputArchive& ar) {
+        local = false;
+        ar(ivar);
     }
 };
 

@@ -47,7 +47,7 @@ auto then(Future<Ts...>& fut, F fnc) {
     
     if (fut.can_trigger_immediately() && can_run_immediately()) {
         out_future.fulfill(possibly_void_call([&] () {
-            return apply_args(fnc, fut.data->val);
+            return apply_args(fnc, fut.get_val());
         }));
     } else if (fut.can_trigger_immediately()) {
         auto f_serializable = make_function(std::forward<F>(fnc));
@@ -56,7 +56,7 @@ auto then(Future<Ts...>& fut, F fnc) {
             { 
                 make_data(std::move(f_serializable)),
                 make_data(out_future),
-                make_data(fut.data->val)
+                make_data(fut.get_val())
             }
         });
     } else {
@@ -83,9 +83,9 @@ auto unwrap(Future<T>& fut) {
     FutT out_future;
 
     if (fut.can_trigger_immediately() &&
-        std::get<0>(fut.data->val).can_trigger_immediately()) 
+        std::get<0>(fut.get_val()).can_trigger_immediately()) 
     {
-        out_future.fulfill(std::get<0>(fut.data->val).data->val);     
+        out_future.fulfill(std::get<0>(fut.get_val()).get_val());     
     } else {
         fut.add_trigger(TriggerT{
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {

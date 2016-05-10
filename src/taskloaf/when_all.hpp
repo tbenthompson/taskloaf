@@ -24,7 +24,7 @@ auto when_both(Future1&& fut1, Future2&& fut2,
     OutF out_future;
 
     if (fut1.can_trigger_immediately() && fut2.can_trigger_immediately()) {
-        out_future.fulfill(std::tuple_cat(fut1.data->val, fut2.data->val));
+        out_future.fulfill(std::tuple_cat(fut1.get_val(), fut2.get_val()));
     } else {
         fut1.add_trigger(TriggerT{
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {
@@ -34,7 +34,7 @@ auto when_both(Future1&& fut1, Future2&& fut2,
                             c_args[1].get_as<In1>(), args[0].get_as<In2>()
                         ));
                     },
-                    { c_args[0], args[0] }
+                    {c_args[0], args[0]}
                 });
             },
             { make_data(out_future), make_data(fut2) }
