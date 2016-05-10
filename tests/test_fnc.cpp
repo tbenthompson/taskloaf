@@ -21,13 +21,6 @@ TEST_CASE("Apply args", "[fnc]") {
         auto out = apply_args(f, args);
         REQUIRE(out == 2.024);
     }
-
-    SECTION("Free args") {
-        Function<double(double,int,int)> f =
-            [] (double x, int y, int z) { return x * y * z; };
-        auto out = apply_args(f, args, 2);
-        REQUIRE(out == 4.048);
-    }
 }
 
 TEST_CASE("Function lambda", "[fnc]") {

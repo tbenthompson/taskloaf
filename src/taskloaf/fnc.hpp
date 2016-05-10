@@ -99,10 +99,6 @@ struct Function<Return(Args...)> {
         return caller(closure, args...);
     }
 
-    Return call(Args... args) const {
-        return this->operator()(args...);
-    }
-
     void save(cereal::BinaryOutputArchive& ar) const {
         ar(caller_id);
         ar(closure);

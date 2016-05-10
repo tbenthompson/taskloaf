@@ -1,6 +1,7 @@
 #pragma once
 
 #include "builders.hpp"
+#include "when_all.hpp"
 
 #include <cereal/types/tuple.hpp>
 
@@ -11,9 +12,11 @@ struct FutureData {
     union Union {
         Union() {}
         ~Union() {}
+
         std::tuple<Ts...> val;
         IVarRef ivar;
     } d;
+
     bool local;
     bool fulfilled;
 
@@ -42,27 +45,10 @@ struct FutureData {
     const IVarRef& get_ivar() const { return d.ivar; }
 };
 
-template <>
-struct FutureData<> {
-    IVarRef ivar;
-    bool local;
-    bool fulfilled;
-
-    FutureData(bool local):
-        local(local),
-        fulfilled(false)
-    {}
-
-    static std::tuple<> empty;
-
-    std::tuple<>& get_val() { return empty; }
-    const std::tuple<>& get_val() const { return empty; }
-    IVarRef& get_ivar() { return ivar; }
-    const IVarRef& get_ivar() const { return ivar; }
-};
-
 template <typename Derived, typename... Ts>
 struct FutureBase {
+    using TupleT = std::tuple<Ts...>;
+
     std::shared_ptr<FutureData<Ts...>> data;
 
     FutureBase():
@@ -137,9 +123,12 @@ struct FutureBase {
 
 template <typename... Ts>
 struct Future: public FutureBase<Future<Ts...>,Ts...> {
-    using type = typename std::tuple_element<0,std::tuple<Ts...>>::type;
-
     using FutureBase<Future<Ts...>,Ts...>::FutureBase;
+};
+
+template <typename T>
+struct Future<T>: public FutureBase<Future<T>,T> {
+    using type = T;
 
     auto unwrap() {
         return taskloaf::unwrap(*this);
@@ -148,9 +137,9 @@ struct Future: public FutureBase<Future<Ts...>,Ts...> {
 
 template <>
 struct Future<>: public FutureBase<Future<>> {
-    using type = void;
-
     using FutureBase<Future<>>::FutureBase;
+
+    using type = void;
 };
 
 template <>
