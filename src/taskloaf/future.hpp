@@ -7,8 +7,9 @@
 
 namespace taskloaf {
 
-template <typename... Ts>
-struct FutureData {
+template <typename T>
+struct FutureVal {
+    T val;
 };
 
 template <typename Derived, typename... Ts>

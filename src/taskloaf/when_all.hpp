@@ -23,7 +23,9 @@ auto when_both(Future1&& fut1, Future2&& fut2,
     typedef typename WhenBothOutT<In1,In2>::type OutF;
     OutF out_future;
 
-    if (fut1.can_trigger_immediately() && fut2.can_trigger_immediately()) {
+    bool immediately = fut1.can_trigger_immediately() && fut2.can_trigger_immediately();
+
+    if (immediately) {
         out_future.fulfill(std::tuple_cat(fut1.get_val(), fut2.get_val()));
     } else {
         fut1.add_trigger(TriggerT{

@@ -30,41 +30,31 @@ auto possibly_void_call(const F& f) {
     return PossiblyVoidCall<GetSignature<F>>::on(f);
 }
 
-template <typename Return, typename F, typename... Ts>
-void then_task(std::vector<Data>& args)  {
-    args[1].get_as<Future<Return>>().fulfill(possibly_void_call([&] () {
-        return apply_args(
-            args[0].get_as<F>(),
-            args[2].get_as<std::tuple<Ts...>>()
-        );
-    }));
-}
-
 template <typename F, typename... Ts>
 auto then(Future<Ts...>& fut, F fnc) {
-    typedef typename std::result_of<F(Ts&...)>::type Return;
+    typedef decltype(apply_args(fnc, fut.get_val())) Return;
     Future<Return> out_future;
     
-    if (fut.can_trigger_immediately() && can_run_immediately()) {
+    bool immediately = fut.can_trigger_immediately() && can_run_immediately();
+
+    if (immediately) {
         out_future.fulfill(possibly_void_call([&] () {
             return apply_args(fnc, fut.get_val());
         }));
-    } else if (fut.can_trigger_immediately()) {
-        auto f_serializable = make_function(std::forward<F>(fnc));
-        cur_worker->add_task(TaskT{
-            then_task<Return,decltype(f_serializable),Ts...>,
-            { 
-                make_data(std::move(f_serializable)),
-                make_data(out_future),
-                make_data(fut.get_val())
-            }
-        });
     } else {
         auto f_serializable = make_function(std::forward<F>(fnc));
         fut.add_trigger(TriggerT{
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {
                 cur_worker->add_task(TaskT{
-                    then_task<Return,decltype(f_serializable),Ts...>,
+                    [] (std::vector<Data>& args)  {
+                        auto& out_future = args[1].get_as<Future<Return>>();
+                        out_future.fulfill(possibly_void_call([&] () {
+                            return apply_args(
+                                args[0].get_as<F>(),
+                                args[2].get_as<std::tuple<Ts...>>()
+                            );
+                        }));
+                    },
                     {c_args[0], c_args[1], args[0]}
                 });
             },
@@ -79,12 +69,14 @@ auto then(Future<Ts...>& fut, F fnc) {
 
 template <typename T>
 auto unwrap(Future<T>& fut) {
+
     typedef Future<typename T::type> FutT;
     FutT out_future;
 
-    if (fut.can_trigger_immediately() &&
-        std::get<0>(fut.get_val()).can_trigger_immediately()) 
-    {
+    bool immediately = fut.can_trigger_immediately() &&
+        std::get<0>(fut.get_val()).can_trigger_immediately();
+
+    if (immediately) {
         out_future.fulfill(std::get<0>(fut.get_val()).get_val());     
     } else {
         fut.add_trigger(TriggerT{
