@@ -24,8 +24,8 @@ struct FreeWorker: public Worker {
     size_t n_workers() const {
         return internal.n_workers();
     }
-    void add_task(TaskT f) {
-        return internal.add_task(std::move(f));
+    void add_task(TaskT f, bool push) {
+        return internal.add_task(std::move(f), push);
     }
     void fulfill(const IVarRef& ivar, std::vector<Data> vals) {
         return internal.fulfill(ivar, std::move(vals));

@@ -48,7 +48,7 @@ ID id_on_worker(const std::unique_ptr<DefaultWorker>& w) {
     return id;
 }
 
-TEST_CASE("DefaultWorker") {
+TEST_CASE("DefaultWorker", "[worker]") {
     auto w = worker();
     int x = 0;
     w.add_task({
@@ -57,7 +57,7 @@ TEST_CASE("DefaultWorker") {
             cur_worker->shutdown(); 
         }, 
         {}
-    });
+    }, false);
     w.run();
     REQUIRE(x == 1);
 }
@@ -65,6 +65,14 @@ TEST_CASE("DefaultWorker") {
 TEST_CASE("Number of workers", "[worker]") {
     auto ws = workers(4);
     REQUIRE(ws[0]->n_workers() == 4);
+}
+
+TEST_CASE("Push task", "[worker]") {
+    auto ws = workers(2);
+    ws[0]->add_task({[&] (std::vector<Data>&) {}, {}}, true);
+    settle(ws);
+    REQUIRE(ws[0]->tasks.size() == 0);
+    REQUIRE(ws[1]->tasks.size() == 1);
 }
 
 void stealing_test(int n_steals) {
@@ -77,7 +85,7 @@ void stealing_test(int n_steals) {
                 x = 1; 
             },
             {}
-        });
+        }, false);
     }
     settle(ws);
     for (int i = 0; i < n_steals; i++) {
@@ -90,11 +98,11 @@ void stealing_test(int n_steals) {
     REQUIRE(ws[1]->tasks.size() == 1);
 }
 
-TEST_CASE("Two workers one steal") {
+TEST_CASE("Two workers one steal", "[worker]") {
     stealing_test(1);
 }
 
-TEST_CASE("Two workers two steals = second does nothing") {
+TEST_CASE("Two workers two steals = second does nothing", "[worker]") {
     stealing_test(2);
 }
 
@@ -102,7 +110,7 @@ void make_ivar_live(DefaultWorker& w, const IVarRef& ivar) {
     w.fulfill(ivar, {make_data(1)});
 }
 
-TEST_CASE("Ref tracking destructor deletes") {
+TEST_CASE("Ref tracking destructor deletes", "[worker]") {
     auto w = worker();
     cur_worker = &w;
     {
@@ -113,7 +121,7 @@ TEST_CASE("Ref tracking destructor deletes") {
     REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
-TEST_CASE("Ref tracking copy constructor") {
+TEST_CASE("Ref tracking copy constructor", "[worker]") {
     auto w = worker();
     cur_worker = &w;
     {
@@ -127,7 +135,7 @@ TEST_CASE("Ref tracking copy constructor") {
     REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
-TEST_CASE("Ref tracking copy assignment") {
+TEST_CASE("Ref tracking copy assignment", "[worker]") {
     auto w = worker();
     cur_worker = &w;
     {
@@ -142,11 +150,11 @@ TEST_CASE("Ref tracking copy assignment") {
 }
 
 
-TEST_CASE("Ref tracking empty") {
+TEST_CASE("Ref tracking empty", "[worker]") {
     IVarRef iv;
 }
 
-TEST_CASE("Ref tracking move constructor") {
+TEST_CASE("Ref tracking move constructor", "[worker]") {
     auto w = worker();
     cur_worker = &w;
     {
@@ -162,7 +170,7 @@ TEST_CASE("Ref tracking move constructor") {
     REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
-TEST_CASE("Ref tracking move assignment") {
+TEST_CASE("Ref tracking move assignment", "[worker]") {
     auto w = worker();
     cur_worker = &w;
     {
@@ -178,7 +186,7 @@ TEST_CASE("Ref tracking move assignment") {
     REQUIRE(w.ivar_tracker.n_owned() == 0);
 }
 
-TEST_CASE("Remote reference counting") {
+TEST_CASE("Remote reference counting", "[worker]") {
     auto ws = workers(2);
     settle(ws);
     {
@@ -211,7 +219,7 @@ TEST_CASE("Remote reference counting") {
     REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 }
 
-TEST_CASE("Remote reference counting change location") {
+TEST_CASE("Remote reference counting change location", "[worker]") {
     auto ws = workers(2);
     {
         auto id = id_on_worker(ws[1]);
@@ -273,7 +281,7 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
     REQUIRE(x == 1);
 }
 
-TEST_CASE("fulfill triggers") {
+TEST_CASE("fulfill triggers", "[worker]") {
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 3; j++) {
             for (int k = 0; k < 2; k++) {

@@ -45,8 +45,23 @@ size_t TaskCollection::size() const {
     return tasks.size();
 }
 
-void TaskCollection::add_task(TaskT f) {
-    tasks.push_front(std::move(f));
+void TaskCollection::add_task(TaskT f, bool push) {
+    auto& remotes = comm.remote_endpoints();
+    if (push && remotes.size() > 0) {
+        if (next_push_dest > remotes.size()) {
+            next_push_dest = 0;
+        } 
+        auto dest = remotes[next_push_dest];
+        if (next_push_dest == remotes.size()) {
+            dest = comm.get_addr();
+        }
+        comm.send(dest, Msg(
+            Protocol::StealResponse, make_data(std::vector<TaskT>{std::move(f)})
+        ));
+        next_push_dest++;
+    } else {
+        tasks.push_front(std::move(f));
+    }
 }
 
 TaskT TaskCollection::next() {

@@ -35,7 +35,7 @@ struct DefaultWorker: public Worker {
 
     void shutdown();
     void introduce(Address addr);
-    void add_task(TaskT f);
+    void add_task(TaskT f, bool push);
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void dec_ref(const IVarRef& ivar);

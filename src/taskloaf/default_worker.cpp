@@ -64,8 +64,8 @@ const Address& DefaultWorker::get_addr() {
     return get_comm().get_addr();
 }
 
-void DefaultWorker::add_task(TaskT f) {
-    tasks.add_task(std::move(f));
+void DefaultWorker::add_task(TaskT f, bool push) {
+    tasks.add_task(std::move(f), push);
 }
 
 void DefaultWorker::fulfill(const IVarRef& iv, std::vector<Data> vals) {

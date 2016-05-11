@@ -50,13 +50,13 @@ auto then(Future<Ts...>& fut, F fnc) {
                         auto& out_future = args[1].get_as<Future<Return>>();
                         out_future.fulfill(possibly_void_call([&] () {
                             return apply_args(
-                                args[0].get_as<F>(),
+                                args[0].get_as<decltype(f_serializable)>(),
                                 args[2].get_as<std::tuple<Ts...>>()
                             );
                         }));
                     },
                     {c_args[0], c_args[1], args[0]}
-                });
+                }, false);
             },
             {
                 make_data(std::move(f_serializable)),
@@ -104,13 +104,15 @@ auto ready(T val) {
     return out_future;
 }
 
+const static bool push = true;
+
 template <typename F>
-auto async(F fnc) {
+auto async(F fnc, bool push = false) {
     typedef typename std::result_of<F()>::type Return;
 
     Future<Return> out_future;
 
-    if (can_run_immediately()) {
+    if (can_run_immediately() && !push) {
         out_future.fulfill(possibly_void_call(fnc));
     } else {
         auto f_serializable = make_function(fnc);
@@ -124,7 +126,7 @@ auto async(F fnc) {
                 make_data(f_serializable),
                 make_data(out_future)
             }
-        });
+        }, push);
     }
     return out_future;
 }
