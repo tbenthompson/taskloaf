@@ -65,6 +65,7 @@ const Address& DefaultWorker::get_addr() {
 }
 
 void DefaultWorker::add_task(TaskT f, bool push) {
+    std::cout << "HI2!" << std::endl;
     tasks.add_task(std::move(f), push);
 }
 

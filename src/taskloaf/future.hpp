@@ -22,6 +22,12 @@ struct FutureBase {
     mutable IVarRef ivar;
 
     FutureBase() = default;
+
+    FutureBase(TupleT&& data):
+        fulfilled(true),
+        data(data)
+    {}
+
     FutureBase(FutureBase&& other) = default;
     FutureBase& operator=(FutureBase&& other) = default;
 
@@ -95,6 +101,8 @@ struct Future: public FutureBase<Future<Ts...>,Ts...> {
 
 template <typename T>
 struct Future<T>: public FutureBase<Future<T>,T> {
+    using FutureBase<Future<T>,T>::FutureBase;
+
     using type = T;
 
     auto unwrap() {
@@ -110,6 +118,8 @@ struct Future<>: public FutureBase<Future<>> {
 };
 
 template <>
-struct Future<void>: Future<> {};
+struct Future<void>: Future<> {
+    using Future<>::Future;
+};
 
 } //end namespace taskloaf

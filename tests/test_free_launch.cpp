@@ -24,8 +24,9 @@ struct FreeWorker: public Worker {
     size_t n_workers() const {
         return internal.n_workers();
     }
-    void add_task(TaskT f, bool push) {
-        return internal.add_task(std::move(f), push);
+    void add_task(TaskT f, bool) {
+        std::cout << "HI!" << std::endl;
+        return internal.add_task(std::move(f), true);
     }
     void fulfill(const IVarRef& ivar, std::vector<Data> vals) {
         return internal.fulfill(ivar, std::move(vals));
@@ -57,11 +58,12 @@ struct Context {
         fw(std::move(other.fw))
     {
         other.moved = true;
+        cur_worker = &fw;
     }
 
     ~Context() {
         if (!moved) {
-            fw.shutdown();
+            // fw.shutdown();
             for (auto& t: threads) {
                 t.join();
             }
@@ -72,7 +74,7 @@ struct Context {
 Context launch(size_t n_workers) {
     Context c(n_workers);
 
-    Address root_addr;
+    Address root_addr = c.fw.internal.get_addr();
     std::atomic<bool> ready(false);
     for (size_t i = 0; i < n_workers; i++) { 
         c.threads.emplace_back(
@@ -80,25 +82,29 @@ Context launch(size_t n_workers) {
                 DefaultWorker w(std::unique_ptr<LocalComm>(new LocalComm(lcq, i)));
                 cur_worker = &w;
                 w.set_core_affinity(i);
-                if (i == 0) {
-                    root_addr = w.get_addr();
-                    ready = true;
-                } else {
-                    while (!ready) {}
-                    w.introduce(root_addr); 
-                }
+                w.introduce(root_addr); 
                 w.run();
             }
         );
+    }
+    for (size_t i = 0; i < n_workers; i++) {
+        c.fw.internal.recv();
     }
 
     return c;
 }
 
+void sleep() {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::cout << "Good morning!" << std::endl;
+}
+
 TEST_CASE("Free launch") {
-    // auto c = launch(1);
-    // async([] () { 
-    //     std::cout << "HI!" << std::endl; 
-    // });
-    // std::cout << "BYE" << std::endl;
+    auto c = launch(2);
+    when_all(
+        async(sleep, push),
+        async(sleep, push),
+        async(sleep, push)
+    ).then([&] () { c.fw.shutdown(); });
+    std::cout << "BYE" << std::endl;
 }

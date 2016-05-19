@@ -77,7 +77,9 @@ auto when_all(Head1Future&& fut1, Head2Future&& fut2, TailFutures&&... tail)
             std::forward<Head1Future>(fut1),
             std::forward<Head2Future>(fut2)
         ),
-        std::forward<TailFutures>(tail)...
+        when_all(
+            std::forward<TailFutures>(tail)...
+        )
     );
 }
 
