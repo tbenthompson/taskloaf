@@ -12,18 +12,18 @@ int fib_serial(int index) {
 
 tl::Future<int> fib(int index) {
     if (index < 3) {
-        return tl::async([] () { return 1; });
+        return tl::ready(1);//([] () { return 1; });
     } else {
-        // return tl::when_both(fib(index - 1), fib(index - 2))
-        //     .then([] (int a, int b) { return a + b; });
-        return tl::async([=] () {
-            return tl::when_all(
-                fib(index - 1),
-                fib(index - 2)
-            ).then(
-                [] (int a, int b) { return a + b; }
-            );
-        }).unwrap();
+        return tl::when_both(fib(index - 1), fib(index - 2))
+            .then([] (int a, int b) { return a + b; });
+        // return tl::async([=] () {
+        //     return tl::when_all(
+        //         fib(index - 1),
+        //         fib(index - 2)
+        //     ).then(
+        //         [] (int a, int b) { return a + b; }
+        //     );
+        // }).unwrap();
     }
 }
 

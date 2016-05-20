@@ -30,7 +30,10 @@ size_t DefaultWorker::n_workers() const {
 bool DefaultWorker::can_compute_immediately() {
     if (immediate_computes > immediates_allowed) {
         immediate_computes = 0;
-        if (comm->has_incoming() || tasks.size() > 0) {
+        if (tasks.size() > 0) {
+            return false;
+        }
+        if (comm->remote_endpoints().size() > 0 && comm->has_incoming()) {
             return false;
         }
     }
