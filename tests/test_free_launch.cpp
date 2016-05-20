@@ -99,12 +99,12 @@ void sleep() {
     std::cout << "Good morning!" << std::endl;
 }
 
-TEST_CASE("Free launch") {
-    auto c = launch(2);
-    when_all(
-        async(sleep, push),
-        async(sleep, push),
-        async(sleep, push)
-    ).then([&] () { c.fw.shutdown(); });
-    std::cout << "BYE" << std::endl;
-}
+// TEST_CASE("Free launch") {
+//     auto c = launch(2);
+//     when_all(
+//         async(sleep, push),
+//         async(sleep, push),
+//         async(sleep, push)
+//     ).then([&] () { c.fw.shutdown(); });
+//     std::cout << "BYE" << std::endl;
+// }

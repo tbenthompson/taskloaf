@@ -31,11 +31,11 @@ auto when_both(Future1&& fut1, Future2&& fut2)
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {
                 c_args[1].get_as<DecayF2>().add_trigger(TriggerT{
                     [] (std::vector<Data>& c_args, std::vector<Data>& args) {
-                        c_args[0].get_as<OutF>().fulfill(std::tuple_cat(
-                            c_args[1].get_as<In1>(), args[0].get_as<In2>()
-                        ));
+                        std::vector<Data> d = c_args[1].get_as<std::vector<Data>>();
+                        d.insert(d.end(), args.begin(), args.end());
+                        c_args[0].get_as<OutF>().fulfill(d);
                     },
-                    {c_args[0], args[0]}
+                    {c_args[0], make_data(args)}
                 });
             },
             { make_data(out_future), make_data(fut2) }

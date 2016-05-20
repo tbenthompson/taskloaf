@@ -70,14 +70,18 @@ TEST_CASE("Then fnc", "[future]") {
     });
 }
 
-TEST_CASE("Then member fnc", "[future]") {
-    struct ABC {
-        void plan() {
-            auto val = ready(*this).then([] (ABC abc) { return abc.rocks(); });
-        }
+struct ABC {
+    void plan() {
+        auto val = ready(*this).then([] (ABC abc) { return abc.rocks(); });
+    }
 
-        std::string rocks() { return "jump!"; }
-    };
+    template <typename Archive>
+    void serialize(Archive&) {}
+
+    std::string rocks() { return "jump!"; }
+};
+
+TEST_CASE("Then member fnc", "[future]") {
     future_tester([] () {
         ABC abc;
         abc.plan();
