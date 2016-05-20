@@ -19,7 +19,7 @@ struct DefaultWorker: public Worker {
     bool stealing = false;
     bool stop = false;
     int immediate_computes = 0;
-    static const int immediates_allowed = 10000;
+    static const int immediates_allowed = 100;
 
     DefaultWorker(std::unique_ptr<Comm> comm);
     DefaultWorker(DefaultWorker&&) = default;

@@ -21,7 +21,6 @@ auto when_both(Future1&& fut1, Future2&& fut2)
     typedef typename DecayF2::TupleT In2;
     typedef typename WhenBothOutT<In1,In2>::type OutF;
 
-
     bool immediately = fut1.can_trigger_immediately() && fut2.can_trigger_immediately();
     if (immediately) {
         return OutF(fut1.owner, std::tuple_cat(fut1.get(), fut2.get()));

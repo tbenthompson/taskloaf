@@ -14,12 +14,20 @@ auto tuple_to_data_vector(Tuple&& t, std::index_sequence<I...>) {
     return std::vector<Data>{make_data(std::get<I>(std::forward<Tuple>(t)))...};
 }
 
+template <typename... Ts>
+struct SharedLocalData {
+    bool fulfilled = false;
+    std::vector<Data> data;
+    std::vector<TriggerT> triggers;
+};
+
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
+    using LocalT = SharedLocalData<Ts...>;
 
     Worker* owner;
-    mutable mapbox::util::variant<TupleT,IVarRef> d;
+    mutable mapbox::util::variant<TupleT,LocalT,IVarRef> d;
 
     FutureBase(): owner(cur_worker), d(IVarRef(new_id())) {}
     FutureBase(Worker* owner): owner(owner), d(IVarRef(new_id())) {}
@@ -40,12 +48,12 @@ struct FutureBase {
     FutureBase& operator=(FutureBase&& other) = default;
     FutureBase& operator=(const FutureBase& other) {
         owner = other.owner;
-        other.make_global();
-        d.template set<IVarRef>(other.d.template get<IVarRef>());
+        other.ensure_at_least_shared();
+        d = other.d;
         return *this;
     }
 
-    bool can_trigger_immediately() {
+    bool can_trigger_immediately() const {
         return d.template is<TupleT>();
     }
 
@@ -53,33 +61,77 @@ struct FutureBase {
         return d.template get<TupleT>();
     }
 
-    void make_global() const {
-        if (d.template is<IVarRef>()) {
-            return;
-        }
-        auto temp_val = std::move(d.template get<TupleT>());
-        d.template set<IVarRef>(IVarRef(new_id()));
-        fulfill(tuple_to_data_vector(
-            std::move(temp_val), std::index_sequence_for<Ts...>{}
-        ));
-    }
-
     template <typename F>
     auto then(F&& f) {
         return taskloaf::then(*static_cast<Derived*>(this), std::forward<F>(f));
     }
 
-    void add_trigger(TriggerT trigger) {
-        make_global();
-        cur_worker->add_trigger(d.template get<IVarRef>(), std::move(trigger));
+    void add_trigger(TriggerT trigger) const {
+        ensure_at_least_shared();
+        if (d.template is<LocalT>()) {
+            local_add_trigger(std::move(trigger));
+        } else {
+            cur_worker->add_trigger(d.template get<IVarRef>(), std::move(trigger));
+        }
+    }
+
+    void local_add_trigger(TriggerT trigger) const {
+        auto& local_d = d.template get<LocalT>();
+        if (local_d.fulfilled) {
+            trigger(local_d.data);
+        } else {
+            local_d.triggers.push_back(std::move(trigger));
+        }
     }
 
     void fulfill(std::vector<Data> vals) const {
-        cur_worker->fulfill(d.template get<IVarRef>(), vals);
+        if (d.template is<LocalT>()) {
+            local_fulfill(std::move(vals));
+        } else {
+            cur_worker->fulfill(d.template get<IVarRef>(), vals);
+        }
     }
 
+    void local_fulfill(std::vector<Data> vals) const {
+        auto& local_d = d.template get<LocalT>();
+        local_d.data = std::move(vals);
+        local_d.fulfilled = true;
+        for (auto& t: local_d.triggers) {
+            t(local_d.data);
+        }
+    }
+
+    void ensure_at_least_shared() const {
+        if (!d.template is<TupleT>()) {
+            return;
+        }
+        auto temp_val = std::move(d.template get<TupleT>());
+        d.template set<LocalT>();
+        local_fulfill(tuple_to_data_vector(
+            std::move(temp_val), std::index_sequence_for<Ts...>{}
+        ));
+    }
+
+    void ensure_at_least_global() const {
+        if (d.template is<IVarRef>()) {
+            return;
+        }
+        ensure_at_least_shared();
+        tlassert(d.template is<LocalT>());
+        auto local_d = std::move(d.template get<LocalT>());
+        d.template set<IVarRef>(IVarRef(new_id()));
+        if (local_d.fulfilled) {
+            fulfill(std::move(local_d.data));
+        } else {
+            for (auto& t: local_d.triggers) {
+                add_trigger(std::move(t));
+            }
+        }
+    }
+
+
     void save(cereal::BinaryOutputArchive& ar) const {
-        make_global();
+        ensure_at_least_global();
         ar(d.template get<IVarRef>());
     }
 
