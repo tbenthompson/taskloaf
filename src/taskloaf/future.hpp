@@ -4,7 +4,6 @@
 #include "when_all.hpp"
 
 #include <cereal/types/tuple.hpp>
-#include <mapbox/variant.hpp>
 
 namespace taskloaf {
 

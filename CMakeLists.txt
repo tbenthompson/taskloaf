@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX C)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 include(ExternalProject)
 
 option(BUILD_LIBRARY "Build taskloaf library" ON)
@@ -41,9 +41,9 @@ endif()
 find_package(Threads REQUIRED)
 
 # Turn on taskloaf assertions
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_definitions(-DTLASSERT)
-endif()
+#endif()
 
 ################################################################################
 #                              Check for MPI!
@@ -102,19 +102,19 @@ macro(taskloaf_tests name files)
         ${CMAKE_THREAD_LIBS_INIT})
 endmacro()
 
-#if(BUILD_TESTS)
-#    taskloaf_tests(run_tests
-#        "tests/test_main.cpp;tests/test_future.cpp;tests/test_future2.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp;tests/test_free_launch.cpp"
-#    )
-#
-#    enable_testing()
-#    add_test(main-tests run_tests)
-#
-#    if (MPI_CXX_FOUND)
-#        taskloaf_tests(mpi_tests "tests/test_mpi.cpp")
-#        add_test(mpi-tests mpirun -n 2 mpi_tests)
-#    endif()
-#endif(BUILD_TESTS)
+if(BUILD_TESTS)
+    taskloaf_tests(run_tests
+        "tests/test_main.cpp;tests/test_future.cpp;tests/test_future2.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp;tests/test_free_launch.cpp;tests/test_thread.cpp"
+    )
+
+    enable_testing()
+    add_test(main-tests run_tests)
+
+    if (MPI_CXX_FOUND)
+        taskloaf_tests(mpi_tests "tests/test_mpi.cpp")
+        add_test(mpi-tests mpirun -n 2 mpi_tests)
+    endif()
+endif(BUILD_TESTS)
 
 ################################################################################
 #                              taskloaf python bindings
@@ -156,24 +156,24 @@ macro(taskloaf_example name filename)
         ${CMAKE_THREAD_LIBS_INIT})
 endmacro()
 
-if (BUILD_EXAMPLES)
-    #taskloaf_example(totient examples/totient.cpp)
-    #taskloaf_example(dot_product examples/dot_product.cpp)
-    #taskloaf_example(diffusion examples/diffusion.cpp)
-    #taskloaf_example(readme examples/readme.cpp)
-    #
-    #find_package(BLAS)
-    #find_package(LAPACK)
-    #if (BLAS_FOUND AND LAPACK_FOUND)
-    #    taskloaf_example(cholesky examples/cholesky.cpp)
-    #    target_link_libraries(cholesky 
-    #        ${BLAS_LIBRARIES}
-    #        ${LAPACK_LIBRARIES}
-    #        ${CMAKE_THREAD_LIBS_INIT}
-    #        )
-    #endif()
-
-    if (MPI_CXX_FOUND)
-        taskloaf_example(fibmpi examples/fibmpi.cpp)
-    endif()
-endif(BUILD_EXAMPLES)
+#if (BUILD_EXAMPLES)
+#    taskloaf_example(totient examples/totient.cpp)
+#    taskloaf_example(dot_product examples/dot_product.cpp)
+#    taskloaf_example(diffusion examples/diffusion.cpp)
+#    taskloaf_example(readme examples/readme.cpp)
+#    
+#    find_package(BLAS)
+#    find_package(LAPACK)
+#    if (BLAS_FOUND AND LAPACK_FOUND)
+#        taskloaf_example(cholesky examples/cholesky.cpp)
+#        target_link_libraries(cholesky 
+#            ${BLAS_LIBRARIES}
+#            ${LAPACK_LIBRARIES}
+#            ${CMAKE_THREAD_LIBS_INIT}
+#            )
+#    endif()
+#
+#    if (MPI_CXX_FOUND)
+#        taskloaf_example(fibmpi examples/fibmpi.cpp)
+#    endif()
+#endif(BUILD_EXAMPLES)
