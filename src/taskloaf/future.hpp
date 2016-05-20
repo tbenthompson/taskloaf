@@ -4,60 +4,55 @@
 #include "when_all.hpp"
 
 #include <cereal/types/tuple.hpp>
+#include <mapbox/variant.hpp>
 
 namespace taskloaf {
-
-template <typename T>
-struct FutureVal {
-    T val;
-};
 
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
-    mutable bool local = true;
-    mutable bool fulfilled = false;
-    mutable TupleT data;
-    mutable IVarRef ivar;
+    Worker* owner;
+    mutable mapbox::util::variant<TupleT,IVarRef> d;
 
-    FutureBase() = default;
+    FutureBase(): owner(cur_worker), d(IVarRef(new_id())) {}
+    FutureBase(Worker* owner): owner(owner), d(IVarRef(new_id())) {}
 
-    FutureBase(TupleT&& data):
-        fulfilled(true),
-        data(data)
-    {}
+    template <
+        typename T,
+        typename std::enable_if<
+            std::is_same<typename std::decay<T>::type, TupleT>::value,void
+        >::type* = nullptr
+    >
+    explicit FutureBase(Worker* owner, T&& val): owner(owner), d(std::move(val)) {}
 
     FutureBase(FutureBase&& other) = default;
-    FutureBase& operator=(FutureBase&& other) = default;
+
+    FutureBase& operator=(FutureBase&& other) = delete;
+    FutureBase& operator=(const FutureBase& other) = delete;
 
     FutureBase(const FutureBase& other) {
-        *this = other; 
-    }
-    FutureBase& operator=(const FutureBase& other) {
+        owner = other.owner;
         other.make_global();
-        local = false;
-        ivar = other.ivar;
-        return *this;
+        d.template set<IVarRef>(other.d.template get<IVarRef>());
+    }
+
+    bool can_trigger_immediately() {
+        return d.template is<TupleT>();
+    }
+
+    TupleT& get() const {
+        tlassert(local);
+        return d.template get<TupleT>();
     }
 
     void make_global() const {
-        if (!local) {
+        if (d.template is<IVarRef>()) {
             return;
         }
-        local = false;
-        ivar = IVarRef(new_id()); 
-        if (is_fulfilled()) {
-            fulfill(std::move(get_val()));
-        }
-    }
-
-    bool is_fulfilled() const {
-        return fulfilled;
-    }
-
-    TupleT& get_val() const {
-        return data;
+        auto temp_val = std::move(d.template get<TupleT>());
+        d.template set<IVarRef>(IVarRef(new_id()));
+        fulfill(std::move(temp_val));
     }
 
     template <typename F>
@@ -65,32 +60,23 @@ struct FutureBase {
         return taskloaf::then(*static_cast<Derived*>(this), std::forward<F>(f));
     }
 
-    bool can_trigger_immediately() {
-        return local && is_fulfilled();
-    }
-
     void add_trigger(TriggerT trigger) {
         make_global();
-        cur_worker->add_trigger(ivar, std::move(trigger));
+        cur_worker->add_trigger(d.template get<IVarRef>(), std::move(trigger));
     }
 
-    void fulfill(std::tuple<Ts...> val) const {
-        if (local) {
-            fulfilled = true;
-            data = std::move(val);
-        } else {
-            cur_worker->fulfill(ivar, {make_data(std::move(val))});
-        }
+    void fulfill(TupleT val) const {
+        tlassert(!local);
+        cur_worker->fulfill(d.template get<IVarRef>(), {make_data(std::move(val))});
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {
         make_global();
-        ar(ivar);
+        ar(d.template get<IVarRef>());
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        local = false;
-        ar(ivar);
+        ar(d.template get<IVarRef>());
     }
 };
 

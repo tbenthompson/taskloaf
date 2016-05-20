@@ -78,7 +78,8 @@ public:
 
     enum {
         c_style = API::NPY_C_CONTIGUOUS_,
-        f_style = API::NPY_F_CONTIGUOUS_
+        f_style = API::NPY_F_CONTIGUOUS_,
+        forcecast = API::NPY_ARRAY_FORCECAST_
     };
 
     template <typename Type> array(size_t size, const Type *ptr) {
@@ -124,20 +125,20 @@ protected:
     }
 };
 
-template <typename T, int ExtraFlags = 0> class array_t : public array {
+template <typename T, int ExtraFlags = array::forcecast> class array_t : public array {
 public:
     PYBIND11_OBJECT_CVT(array_t, array, is_non_null, m_ptr = ensure(m_ptr));
     array_t() : array() { }
+    array_t(const buffer_info& info) : array(info) {}
     static bool is_non_null(PyObject *ptr) { return ptr != nullptr; }
     static PyObject *ensure(PyObject *ptr) {
         if (ptr == nullptr)
             return nullptr;
         API &api = lookup_api();
         PyObject *descr = api.PyArray_DescrFromType_(detail::npy_format_descriptor<T>::value);
-        PyObject *result = api.PyArray_FromAny_(
-            ptr, descr, 0, 0,
-            API::NPY_ENSURE_ARRAY_ | API::NPY_ARRAY_FORCECAST_ | ExtraFlags,
-            nullptr);
+        PyObject *result = api.PyArray_FromAny_(ptr, descr, 0, 0, API::NPY_ENSURE_ARRAY_ | ExtraFlags, nullptr);
+        if (!result)
+            PyErr_Clear();
         Py_DECREF(ptr);
         return result;
     }
@@ -147,7 +148,7 @@ NAMESPACE_BEGIN(detail)
 
 template <typename T> struct npy_format_descriptor<T, typename std::enable_if<std::is_integral<T>::value>::type> {
 private:
-    constexpr static const int values[] = {
+    constexpr static const int values[8] = {
         array::API::NPY_BYTE_, array::API::NPY_UBYTE_, array::API::NPY_SHORT_,    array::API::NPY_USHORT_,
         array::API::NPY_INT_,  array::API::NPY_UINT_,  array::API::NPY_LONGLONG_, array::API::NPY_ULONGLONG_ };
 public:
@@ -317,11 +318,11 @@ struct vectorize_helper {
     template <typename T>
     vectorize_helper(T&&f) : f(std::forward<T>(f)) { }
 
-    object operator()(array_t<Args>... args) {
+    object operator()(array_t<Args, array::c_style | array::forcecast>... args) {
         return run(args..., typename make_index_sequence<sizeof...(Args)>::type());
     }
 
-    template <size_t ... Index> object run(array_t<Args>&... args, index_sequence<Index...> index) {
+    template <size_t ... Index> object run(array_t<Args, array::c_style | array::forcecast>&... args, index_sequence<Index...> index) {
         /* Request buffers from all parameters */
         const size_t N = sizeof...(Args);
 
@@ -331,7 +332,7 @@ struct vectorize_helper {
         int ndim = 0;
         std::vector<size_t> shape(0);
         bool trivial_broadcast = broadcast(buffers, ndim, shape);
-                
+
         size_t size = 1;
         std::vector<size_t> strides(ndim);
         if (ndim > 0) {
@@ -383,7 +384,7 @@ struct vectorize_helper {
     }
 };
 
-template <typename T> struct handle_type_name<array_t<T>> {
+template <typename T, int Flags> struct handle_type_name<array_t<T, Flags>> {
     static PYBIND11_DESCR name() { return _("numpy.ndarray[dtype=") + type_caster<T>::name() + _("]"); }
 };
 

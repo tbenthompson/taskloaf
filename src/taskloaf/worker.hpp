@@ -19,9 +19,8 @@ struct Worker {
     virtual void dec_ref(const IVarRef& ivar) = 0;
 };
 
-extern thread_local Worker* cur_worker;
+thread_local extern Worker* cur_worker;
 
-bool can_run_immediately();
-
+bool can_run_immediately(Worker* w);
 
 } //end namespace taskloaf

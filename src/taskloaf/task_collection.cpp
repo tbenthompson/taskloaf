@@ -47,7 +47,6 @@ size_t TaskCollection::size() const {
 
 void TaskCollection::add_task(TaskT f, bool push) {
     auto& remotes = comm.remote_endpoints();
-    std::cout << remotes.size() << std::endl;
     if (push && remotes.size() > 0) {
         if (next_push_dest > remotes.size()) {
             next_push_dest = 0;

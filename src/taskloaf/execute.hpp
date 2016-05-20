@@ -52,15 +52,27 @@ auto apply_data_args(F&& f, std::vector<Data>& args) {
     >::run(std::forward<F>(f), args);
 }
 
-template <typename F, typename... Args, std::size_t... I>
-auto 
-apply_args_helper(const F& f, std::tuple<Args...>& args, std::index_sequence<I...>) {
-    return f(std::get<I>(args)...);
-}
+template <typename IndexList>
+struct apply_args_helper;
 
-template <typename F, typename... Args>
-auto apply_args(const F& f, std::tuple<Args...>& args) {
-    return apply_args_helper(f, args, std::index_sequence_for<Args...>{});
+template <size_t... I>
+struct apply_args_helper<std::index_sequence<I...>> {
+    template <typename F, typename Tuple>
+    static auto apply(F&& func, Tuple&& args) {
+        return std::forward<F>(func)(
+            std::get<I>(std::forward<Tuple>(args))...
+        );
+    }
+};
+
+template <typename F, typename Tuple>
+auto apply_args(F&& f, Tuple&& t) {
+    using helper = apply_args_helper<
+        std::make_index_sequence<std::tuple_size<
+            typename std::decay<Tuple>::type>::value
+        >
+    >;
+    return helper::apply(std::forward<F>(f), std::forward<Tuple>(t));
 }
 
 } //end namespace taskloaf

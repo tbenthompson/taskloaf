@@ -28,15 +28,14 @@ size_t DefaultWorker::n_workers() const {
 }
 
 bool DefaultWorker::can_compute_immediately() {
-    if (!(false &&
-        immediate_computes > immediates_before_comm) &&
-        !(tasks.size() > 0 &&
-        immediate_computes > immediates_before_tasks))
-    {
-        return true;
+    if (immediate_computes > immediates_allowed) {
+        immediate_computes = 0;
+        if (comm->has_incoming() || tasks.size() > 0) {
+            return false;
+        }
     }
-    immediate_computes = 0;
-    return false;
+    immediate_computes++;
+    return true;
 }
 
 bool DefaultWorker::is_stopped() const {
@@ -65,7 +64,6 @@ const Address& DefaultWorker::get_addr() {
 }
 
 void DefaultWorker::add_task(TaskT f, bool push) {
-    std::cout << "HI2!" << std::endl;
     tasks.add_task(std::move(f), push);
 }
 

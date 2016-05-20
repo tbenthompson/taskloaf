@@ -1,6 +1,6 @@
 /*
- *  Catch v1.5.1
- *  Generated: 2016-04-28 08:12:37.387488
+ *  Catch v1.5.4
+ *  Generated: 2016-05-12 19:16:01.957320
  *  ----------------------------------------------------------
  *  This file has been merged from multiple headers. Please don't edit it directly
  *  Copyright (c) 2012 Two Blue Cubes Ltd. All rights reserved.
@@ -2065,7 +2065,7 @@ namespace Catch {
             __catchResult.useActiveException( Catch::ResultDisposition::Normal ); \
         } \
         INTERNAL_CATCH_REACT( __catchResult ) \
-    } while( Catch::isTrue( false && static_cast<bool>(expr) ) ) // expr here is never evaluated at runtime but it forces the compiler to give it a look
+    } while( Catch::isTrue( false && !!(expr) ) ) // expr here is never evaluated at runtime but it forces the compiler to give it a look
 
 ///////////////////////////////////////////////////////////////////////////////
 #define INTERNAL_CATCH_IF( expr, resultDisposition, macroName ) \
@@ -3618,7 +3618,7 @@ namespace Catch {
 #define STITCH_CLARA_OPEN_NAMESPACE namespace Catch {
 // #included from: ../external/clara.h
 
-// Version 0.0.2.3
+// Version 0.0.2.4
 
 // Only use header guard if we are not using an outer namespace
 #if !defined(TWOBLUECUBES_CLARA_H_INCLUDED) || defined(STITCH_CLARA_OPEN_NAMESPACE)
@@ -4177,7 +4177,7 @@ namespace Clara {
             }
         }
         Mode handleOpt( std::size_t i, char c, std::string const& arg, std::vector<Token>& tokens ) {
-            if( std::string( " \t:=\0", 5 ).find( c ) == std::string::npos )
+            if( std::string( ":=\0", 5 ).find( c ) == std::string::npos )
                 return mode;
 
             std::string optName = arg.substr( from, i-from );
@@ -4191,7 +4191,7 @@ namespace Clara {
             return None;
         }
         Mode handlePositional( std::size_t i, char c, std::string const& arg, std::vector<Token>& tokens ) {
-            if( inQuotes || std::string( " \t\0", 3 ).find( c ) == std::string::npos )
+            if( inQuotes || std::string( "\0", 3 ).find( c ) == std::string::npos )
                 return mode;
 
             std::string data = arg.substr( from, i-from );
@@ -6480,13 +6480,15 @@ namespace Catch {
             it != itEnd;
             ++it ) {
             std::pair<std::set<TestCase>::const_iterator, bool> prev = seenFunctions.insert( *it );
-            if( !prev.second ){
-                Catch::cerr()
-                << Colour( Colour::Red )
-                << "error: TEST_CASE( \"" << it->name << "\" ) already defined.\n"
-                << "\tFirst seen at " << prev.first->getTestCaseInfo().lineInfo << "\n"
-                << "\tRedefined at " << it->getTestCaseInfo().lineInfo << std::endl;
-                exit(1);
+            if( !prev.second ) {
+                std::ostringstream ss;
+
+                ss  << Colour( Colour::Red )
+                    << "error: TEST_CASE( \"" << it->name << "\" ) already defined.\n"
+                    << "\tFirst seen at " << prev.first->getTestCaseInfo().lineInfo << "\n"
+                    << "\tRedefined at " << it->getTestCaseInfo().lineInfo << std::endl;
+
+                throw std::runtime_error(ss.str());
             }
         }
     }
@@ -7545,7 +7547,7 @@ namespace Catch {
         return os;
     }
 
-    Version libraryVersion( 1, 5, 1, "", 0 );
+    Version libraryVersion( 1, 5, 4, "", 0 );
 
 }
 

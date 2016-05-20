@@ -30,18 +30,19 @@ auto possibly_void_call(const F& f) {
     return PossiblyVoidCall<GetSignature<F>>::on(f);
 }
 
-template <typename F, typename... Ts>
-auto then(Future<Ts...>& fut, F fnc) {
-    typedef decltype(apply_args(fnc, fut.get_val())) Return;
-    Future<Return> out_future;
+template <typename Fut, typename F>
+auto then(Fut&& fut, F&& fnc) {
+    typedef typename std::decay<Fut>::type DecayFut;
+    typedef decltype(apply_args(fnc, fut.get())) Return;
     
-    bool immediately = fut.can_trigger_immediately() && can_run_immediately();
-
+    bool immediately = fut.can_trigger_immediately() && \
+        can_run_immediately(fut.owner);
     if (immediately) {
-        out_future.fulfill(possibly_void_call([&] () {
-            return apply_args(fnc, fut.get_val());
+        return Future<Return>(fut.owner, possibly_void_call([&] () {
+            return apply_args(std::forward<F>(fnc), fut.get());
         }));
     } else {
+        Future<Return> out_future;
         auto f_serializable = make_function(std::forward<F>(fnc));
         fut.add_trigger(TriggerT{
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {
@@ -51,7 +52,7 @@ auto then(Future<Ts...>& fut, F fnc) {
                         out_future.fulfill(possibly_void_call([&] () {
                             return apply_args(
                                 args[0].get_as<decltype(f_serializable)>(),
-                                args[2].get_as<std::tuple<Ts...>>()
+                                args[2].get_as<typename DecayFut::TupleT>()
                             );
                         }));
                     },
@@ -63,22 +64,22 @@ auto then(Future<Ts...>& fut, F fnc) {
                 make_data(out_future)
             }
         });
+        return out_future;
     }
-    return out_future;
 }
 
-template <typename T>
-auto unwrap(Future<T>& fut) {
-
+template <typename Fut>
+auto unwrap(Fut&& fut) {
+    typedef typename std::decay<Fut>::type::type T;
     typedef Future<typename T::type> FutT;
-    FutT out_future;
 
     bool immediately = fut.can_trigger_immediately() &&
-        std::get<0>(fut.get_val()).can_trigger_immediately();
+        std::get<0>(fut.get()).can_trigger_immediately();
 
     if (immediately) {
-        out_future.fulfill(std::get<0>(fut.get_val()).get_val());     
+        return FutT(fut.owner, std::get<0>(std::forward<Fut>(fut).get()).get());     
     } else {
+        FutT out_future;
         fut.add_trigger(TriggerT{
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {
                 T& inner_fut = std::get<0>(args[0].get_as<std::tuple<T>>());
@@ -93,30 +94,28 @@ auto unwrap(Future<T>& fut) {
             },
             {make_data(out_future)}
         });
+        return out_future;
     }
-    return out_future;
 }
 
 template <typename T>
 auto ready(T val) {
-    Future<T> out_future;
-    out_future.fulfill(std::make_tuple(std::move(val)));
-    return out_future;
+    return Future<T>(cur_worker, std::make_tuple(std::move(val)));
 }
 
 const static bool push = true;
 
 template <typename F>
-auto async(F fnc, bool push = false) {
+auto async(F&& fnc, bool push = false) {
     typedef typename std::result_of<F()>::type Return;
 
-    Future<Return> out_future;
-
-    if (can_run_immediately() && !push) {
-        out_future.fulfill(possibly_void_call(fnc));
+    auto* cw = cur_worker;
+    if (can_run_immediately(cw) && !push) {
+        return Future<Return>(cw, possibly_void_call(std::forward<F>(fnc)));
     } else {
+        Future<Return> out_future;
         auto f_serializable = make_function(fnc);
-        cur_worker->add_task(TaskT{
+        cw->add_task(TaskT{
             [] (std::vector<Data>& args) {
                 args[1].get_as<Future<Return>>().fulfill(possibly_void_call([&] () {
                     return args[0].get_as<decltype(f_serializable)>()();
@@ -127,8 +126,8 @@ auto async(F fnc, bool push = false) {
                 make_data(out_future)
             }
         }, push);
+        return out_future;
     }
-    return out_future;
 }
 
 } //end namespace taskloaf
