@@ -57,22 +57,14 @@ TEST_CASE("DefaultWorker", "[worker]") {
             cur_worker->shutdown(); 
         }, 
         {}
-    }, false);
-    w.run();
+    });
+    w.run([] {});
     REQUIRE(x == 1);
 }
 
 TEST_CASE("Number of workers", "[worker]") {
     auto ws = workers(4);
     REQUIRE(ws[0]->n_workers() == 4);
-}
-
-TEST_CASE("Push task", "[worker]") {
-    auto ws = workers(2);
-    ws[0]->add_task({[&] (std::vector<Data>&) {}, {}}, true);
-    settle(ws);
-    REQUIRE(ws[0]->tasks.size() == 0);
-    REQUIRE(ws[1]->tasks.size() == 1);
 }
 
 void stealing_test(int n_steals) {
@@ -85,7 +77,7 @@ void stealing_test(int n_steals) {
                 x = 1; 
             },
             {}
-        }, false);
+        });
     }
     settle(ws);
     for (int i = 0; i < n_steals; i++) {
@@ -250,32 +242,29 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
     int x = 0;
 
     auto id = id_on_worker(ws[owner_worker]);
-    cur_worker = ws[owner_worker].get();
     IVarRef iv(id);
 
-    auto setup_trigger = [&] () {
+    auto trigger = [&] () {
         ws[trigger_worker]->add_trigger(iv, {
             [&] (std::vector<Data>&, std::vector<Data>& vals) {
                 x = vals[0].get_as<int>(); 
             },
             {}
         });
+        if (trigger_worker != fulfill_worker) {
+            settle(ws);
+        }
     };
 
     if (trigger_first) {
-        cur_worker = ws[trigger_worker].get();
-        setup_trigger();
-        settle(ws);
+        trigger();
     }
 
-    cur_worker = ws[fulfill_worker].get();
     ws[fulfill_worker]->fulfill(iv, {make_data(1)});
     settle(ws);
 
     if (!trigger_first) {
-        cur_worker = ws[trigger_worker].get();
-        setup_trigger();
-        settle(ws);
+        trigger();
     }
 
     REQUIRE(x == 1);

@@ -41,9 +41,9 @@ endif()
 find_package(Threads REQUIRED)
 
 # Turn on taskloaf assertions
-#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_definitions(-DTLASSERT)
-#endif()
+endif()
 
 ################################################################################
 #                              Check for MPI!
@@ -104,7 +104,7 @@ endmacro()
 
 if(BUILD_TESTS)
     taskloaf_tests(run_tests
-        "tests/test_main.cpp;tests/test_future.cpp;tests/test_future2.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp;tests/test_free_launch.cpp;tests/test_thread.cpp"
+        "tests/test_main.cpp;tests/test_future.cpp;tests/test_empty_futures.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp;tests/test_free_launch.cpp;tests/test_thread.cpp"
     )
 
     enable_testing()

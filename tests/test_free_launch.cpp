@@ -24,9 +24,8 @@ struct FreeWorker: public Worker {
     size_t n_workers() const {
         return internal.n_workers();
     }
-    void add_task(TaskT f, bool) {
-        std::cout << "HI!" << std::endl;
-        return internal.add_task(std::move(f), true);
+    void add_task(TaskT f) {
+        return internal.add_task(std::move(f));
     }
     void fulfill(const IVarRef& ivar, std::vector<Data> vals) {
         return internal.fulfill(ivar, std::move(vals));
@@ -36,6 +35,9 @@ struct FreeWorker: public Worker {
     }
     void dec_ref(const IVarRef& ivar) {
         return internal.dec_ref(ivar);
+    }
+    void yield() {
+        internal.yield();
     }
 };
 
@@ -83,7 +85,7 @@ Context launch(size_t n_workers) {
                 cur_worker = &w;
                 w.set_core_affinity(i);
                 w.introduce(root_addr); 
-                w.run();
+                w.run([] {});
             }
         );
     }

@@ -45,6 +45,37 @@ auto possibly_void_data(const F& f) {
 }
 
 template <typename Fut, typename F>
+auto thend(Fut&& fut, F&& fnc) {
+    typedef decltype(apply_args(fnc, fut.get())) Return;
+
+    Future<Return> out_future;
+    auto f_serializable = make_function(std::forward<F>(fnc));
+    fut.add_trigger(TriggerT{
+        [] (std::vector<Data>& c_args, std::vector<Data>& args) {
+            cur_worker->add_task(TaskT{
+                [] (std::vector<Data>& args)  {
+                    auto& out_future = args[1].get_as<Future<Return>>();
+                    out_future.fulfill(possibly_void_data(
+                        [&] () {
+                            return apply_data_args(
+                                args[0].get_as<decltype(f_serializable)>(),
+                                args[2].get_as<std::vector<Data>>()
+                            );
+                        }
+                    ));
+                },
+                {c_args[0], c_args[1], make_data(args)}
+            });
+        },
+        {
+            make_data(std::move(f_serializable)),
+            make_data(out_future)
+        }
+    });
+    return out_future;
+}
+
+template <typename Fut, typename F>
 auto then(Fut&& fut, F&& fnc) {
     typedef decltype(apply_args(fnc, fut.get())) Return;
     
@@ -55,37 +86,13 @@ auto then(Fut&& fut, F&& fnc) {
             [&] () { return apply_args(std::forward<F>(fnc), fut.get()); }
         ));
     } else {
-        Future<Return> out_future;
-        auto f_serializable = make_function(std::forward<F>(fnc));
-        fut.add_trigger(TriggerT{
-            [] (std::vector<Data>& c_args, std::vector<Data>& args) {
-                cur_worker->add_task(TaskT{
-                    [] (std::vector<Data>& args)  {
-                        auto& out_future = args[1].get_as<Future<Return>>();
-                        out_future.fulfill(possibly_void_data(
-                            [&] () {
-                                return apply_data_args(
-                                    args[0].get_as<decltype(f_serializable)>(),
-                                    args[2].get_as<std::vector<Data>>()
-                                );
-                            }
-                        ));
-                    },
-                    {c_args[0], c_args[1], make_data(args)}
-                }, false);
-            },
-            {
-                make_data(std::move(f_serializable)),
-                make_data(out_future)
-            }
-        });
-        return out_future;
+        return thend(std::forward<Fut>(fut), std::forward<F>(fnc));
     }
 }
 
 template <typename Fut>
 auto unwrap(Fut&& fut) {
-    typedef typename std::decay<Fut>::type::type T;
+    typedef typename std::decay_t<Fut>::type T;
     typedef Future<typename T::type> FutT;
 
     bool immediately = fut.can_trigger_immediately() &&
@@ -119,29 +126,35 @@ auto ready(T val) {
 const static bool push = true;
 
 template <typename F>
-auto async(F&& fnc, bool push = false) {
-    typedef typename std::result_of<F()>::type Return;
+auto asyncd(F&& fnc) {
+    typedef std::result_of_t<F()> Return;
+    Future<Return> out_future;
+    auto f_serializable = make_function(fnc);
+    cur_worker->add_task(TaskT{
+        [] (std::vector<Data>& args) {
+            args[1].get_as<Future<Return>>().fulfill(possibly_void_data(
+                [&] () {
+                    return args[0].get_as<decltype(f_serializable)>()();
+                }
+            ));
+        },
+        {
+            make_data(f_serializable),
+            make_data(out_future)
+        }
+    });
+    return out_future;
+}
+
+template <typename F>
+auto async(F&& fnc) {
+    typedef std::result_of_t<F()> Return;
 
     auto* cw = cur_worker;
-    if (can_run_immediately(cw) && !push) {
+    if (can_run_immediately(cw)) {
         return Future<Return>(cw, possibly_void_tuple(std::forward<F>(fnc)));
     } else {
-        Future<Return> out_future;
-        auto f_serializable = make_function(fnc);
-        cw->add_task(TaskT{
-            [] (std::vector<Data>& args) {
-                args[1].get_as<Future<Return>>().fulfill(possibly_void_data(
-                    [&] () {
-                        return args[0].get_as<decltype(f_serializable)>()();
-                    }
-                ));
-            },
-            {
-                make_data(f_serializable),
-                make_data(out_future)
-            }
-        }, push);
-        return out_future;
+        return asyncd(std::forward<F>(fnc));
     }
 }
 

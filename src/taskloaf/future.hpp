@@ -53,9 +53,18 @@ struct FutureBase {
         return val;
     }
 
+    Derived& derived() {
+        return *static_cast<Derived*>(this);
+    }
+
     template <typename F>
     auto then(F&& f) {
-        return taskloaf::then(*static_cast<Derived*>(this), std::forward<F>(f));
+        return taskloaf::then(derived(), std::forward<F>(f));
+    }
+
+    template <typename F>
+    auto thend(F&& f) {
+        return taskloaf::thend(derived(), std::forward<F>(f));
     }
 
     void add_trigger(TriggerT trigger) const {

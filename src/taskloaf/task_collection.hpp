@@ -15,7 +15,7 @@ struct TaskCollection {
     TaskCollection(Comm& comm);
 
     size_t size() const;
-    void add_task(TaskT f, bool push);
+    void add_task(TaskT f);
     TaskT next();
     void steal();
 };

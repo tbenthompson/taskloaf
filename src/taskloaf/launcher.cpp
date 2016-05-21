@@ -25,12 +25,11 @@ void helper(size_t n_workers, std::function<void()> f,
                 if (i == 0) {
                     root_addr = w.get_addr();
                     ready = true;
-                    f();
                 } else {
                     while (!ready) {}
                     w.introduce(root_addr); 
                 }
-                w.run();
+                w.run(f);
             }
         );
     }
@@ -100,10 +99,7 @@ void launch_mpi(std::function<void()> f) {
             w.introduce(e);
         }
     }
-    if (w.get_addr().port == 0) {
-        f();
-    }
-    w.run();
+    w.run(f);
 
     MPI_Finalize();
 }

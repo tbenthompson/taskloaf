@@ -5,10 +5,11 @@
 
 using namespace taskloaf; 
 
-void future_tester(std::function<Future<int>()> fnc) {
+template <typename FTest, typename FAsync, typename FThen>
+void future_tester_helper(FTest fnc, FAsync fasync, FThen fthen) {
     bool correct = false;
     launch_local(1, [&] () {
-        auto fut = fnc();
+        auto fut = fnc(fasync, fthen);
         return fut.then([&] (int x) {
             correct = (x == 1);
             return shutdown();
@@ -17,20 +18,32 @@ void future_tester(std::function<Future<int>()> fnc) {
     REQUIRE(correct);
 }
 
+template <typename FTest>
+void future_tester(FTest fnc) {
+    future_tester_helper(fnc, 
+        [] (auto f) { return async(f); }, 
+        [] (auto fut, auto f) { return then(fut, f); }
+    );
+    future_tester_helper(fnc, 
+        [] (auto f) { return asyncd(f); }, 
+        [] (auto fut, auto f) { return thend(fut, f); }
+    );
+}
+
 TEST_CASE("Ready", "[future]") {
-    future_tester([] () { return ready(1); });
+    future_tester([] (auto, auto) { return ready(1); });
 }
 
 TEST_CASE("Then", "[future]") {
-    future_tester([] () {
-        return ready(0).then([] (int x) { return x + 1; }); 
+    future_tester([] (auto, auto then) {
+        return then(ready(0), [] (int x) { return x + 1; }); 
     });
 }
 
 TEST_CASE("Unwrap", "[future]") {
-    future_tester([] () {
+    future_tester([] (auto, auto then) {
         auto f = ready(1);  
-        return f.then([] (int x) {
+        return then(f, [] (int x) {
             if (x < 5) {
                 return ready(1);
             } else {
@@ -41,22 +54,23 @@ TEST_CASE("Unwrap", "[future]") {
 }
 
 TEST_CASE("When all", "[future]") {
-    future_tester([] () {
-        return when_all(ready(0.2), ready(5)).then(
+    future_tester([] (auto, auto then) {
+        return then(
+            when_all(ready(0.2), ready(5)), 
             [] (double a, int b) { return static_cast<int>(a * b); }
         );
     });
 }
 
 TEST_CASE("Async", "[future]") {
-    future_tester([] () {
+    future_tester([] (auto async, auto) {
         return async([] () { return 1; });
     });
 }
 
 std::string bark() { return "arf"; }
 TEST_CASE("Async fnc", "[future]") {
-    future_tester([] () {
+    future_tester([] (auto async, auto) {
         auto f = async(bark);
         return ready(1);
     });
@@ -64,8 +78,8 @@ TEST_CASE("Async fnc", "[future]") {
 
 std::string make_sound(int x) { return "llamasound" + std::to_string(x); }
 TEST_CASE("Then fnc", "[future]") {
-    future_tester([] () {
-        auto f = ready(2).then(make_sound);;
+    future_tester([] (auto, auto then) {
+        auto f = then(ready(2), make_sound);
         return ready(1);
     });
 }
@@ -82,7 +96,7 @@ struct ABC {
 };
 
 TEST_CASE("Then member fnc", "[future]") {
-    future_tester([] () {
+    future_tester([] (auto, auto) {
         ABC abc;
         abc.plan();
         return ready(1);

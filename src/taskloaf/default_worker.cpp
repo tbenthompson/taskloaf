@@ -66,8 +66,8 @@ const Address& DefaultWorker::get_addr() {
     return get_comm().get_addr();
 }
 
-void DefaultWorker::add_task(TaskT f, bool push) {
-    tasks.add_task(std::move(f), push);
+void DefaultWorker::add_task(TaskT f) {
+    tasks.add_task(std::move(f));
 }
 
 void DefaultWorker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
@@ -99,16 +99,50 @@ void DefaultWorker::one_step() {
     }
 
     tasks.steal();
+    run_a_task();
+}
+
+void DefaultWorker::run_a_task() {
     if (tasks.size() > 0) {
         tasks.next()();
     }
 }
 
-void DefaultWorker::run() {
+void DefaultWorker::new_thread(std::function<void()> start_task) {
+    waiting_threads.push(std::make_unique<Thread>(
+        [&, start_task = std::move(start_task)] () {
+            if (start_task != nullptr) {
+                start_task();
+            }
+            while (!stop && waiting_threads.size() == 0) {
+                one_step();
+            }
+        }
+    ));
+}
+
+void DefaultWorker::run(std::function<void()> start_task) {
     cur_worker = this;
     while (!stop) {
-        one_step();
+        if (waiting_threads.size() == 0) {
+            new_thread(std::move(start_task));
+        }
+        cur_thread = std::move(waiting_threads.front());
+        waiting_threads.pop();
+        cur_thread->switch_in();
     }
+}
+
+/* Yield is tricky because there are two situations:
+ * 1) We are inside a task with a delayed launch. This is great and easy.
+ * 2) We are inside a task with an immediate launch. In this situations, there
+ * is no straightforward way to delay the task. As a result, yield only responds
+ * to the asyncd and thend contexts.
+ */
+void DefaultWorker::yield() {
+    new_thread([&] { run_a_task(); });
+    waiting_threads.push(std::move(cur_thread));
+    waiting_threads.back()->switch_out();
 }
 
 void DefaultWorker::set_core_affinity(int core_id) {

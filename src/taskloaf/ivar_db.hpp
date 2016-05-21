@@ -16,6 +16,7 @@ struct IVarOwnershipData {
 };
 
 struct IVarData {
+    bool fulfilled_here = false;
     std::vector<Data> vals;
     std::vector<TriggerT> triggers;
     IVarOwnershipData ownership;
@@ -33,6 +34,7 @@ void run_triggers(std::vector<TriggerT>& triggers, std::vector<Data>& vals) {
     triggers.clear();
 }
 
+// TODO: Separate ownership from storage data.
 struct IVarDB {
     std::unordered_map<ID,IVarData> db;
 
@@ -40,8 +42,21 @@ struct IVarDB {
         return db[id];
     }
 
-    bool is_fulfilled(const ID& id) const {
-        return db.at(id).vals.size() > 0; 
+    void fulfill(const ID& id, std::vector<Data> input) {
+        db[id].fulfilled_here = true;
+        db[id].vals = std::move(input); 
+    }
+
+    bool is_fulfilled_somewhere(const ID& id) {
+        return db[id].ownership.val_locs.size() > 0;
+    }
+
+    bool is_fulfilled_here(const ID& id) const {
+        return db.count(id) > 0 && db.at(id).fulfilled_here; 
+    }
+
+    bool no_triggers(const ID& id) const {
+        return db.at(id).ownership.trigger_locs.size() == 0; 
     }
 
     void erase(const ID& id) {
@@ -68,16 +83,19 @@ struct IVarDB {
         db[id].ownership.trigger_locs.insert(loc);
     }
 
-    bool is_fulfilled(const ID& id) {
-        return db[id].ownership.val_locs.size() > 0;
-    }
-
     void run_remote_triggers(const ID& id, std::vector<TriggerT> triggers) {
-        taskloaf::run_triggers(triggers, db[id].vals);
+        tlassert(db[id].triggers.size() == 0);
+        db[id].triggers = std::move(triggers);
+        run_triggers(id);
     }
 
     void run_local_triggers(const ID& id, std::vector<Data>& input) {
-        taskloaf::run_triggers(db[id].triggers, input);
+        db[id].vals = input;
+        run_triggers(id);
+    }
+
+    void run_triggers(const ID& id) {
+        taskloaf::run_triggers(db[id].triggers, db[id].vals);
     }
 };
 
