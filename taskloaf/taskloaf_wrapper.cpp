@@ -13,7 +13,7 @@ namespace cereal {
         auto pickle_module = py::module::import("dill"); 
         py::object dumps = pickle_module.attr("dumps");
         py::object loads = pickle_module.attr("loads");
-        ar(dumps.call(o).cast<std::string>());
+        ar(dumps(o).cast<std::string>());
     }
 
     template<class Archive>
@@ -24,7 +24,7 @@ namespace cereal {
         py::object loads = pickle_module.attr("loads");
         std::string dump;
         ar(dump);
-        o = loads.call(py::bytes(dump));
+        o = loads(py::bytes(dump));
     }
 } // end namespace cereal
 
@@ -45,7 +45,7 @@ struct PyFuture {
     PyFuture then(const py::object& f) {
         return {tl::when_all(tl::ready(f), fut).then(
             [] (py::object& f, py::object& val) {
-                return handle_py_exception([&] () { return f.call(val); });
+                return handle_py_exception([&] () { return f(val); });
             }
         )};
     }
@@ -93,7 +93,7 @@ PyFuture ready(py::object& val) {
 PyFuture async(const py::object& f) {
     return {tl::ready(f).then([] (const py::object& f) {
         auto out = handle_py_exception([&] () {
-            auto ret = f.call();
+            auto ret = f();
             return ret;
         });
         return out;
@@ -105,9 +105,7 @@ int shutdown() {
 }
 
 void launch_local_wrapper(int n_workers, const py::object& f) {
-    tl::launch_local(n_workers, [&] () {
-        f.call();
-    });
+    tl::launch_local(n_workers, [&] () { f(); });
 }
 
 PYBIND11_PLUGIN(taskloaf_wrapper) {
@@ -130,9 +128,7 @@ PYBIND11_PLUGIN(taskloaf_wrapper) {
 
 #ifdef MPI_FOUND
     m.def("launch_mpi", [] (const py::object& f) {
-        tl::launch_mpi([&] () {
-            f.call();
-        });
+        tl::launch_mpi([&] () { f(); });
     });
 #endif
 
