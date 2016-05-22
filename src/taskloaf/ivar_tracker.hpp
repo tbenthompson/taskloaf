@@ -24,6 +24,10 @@ struct IVarTracker {
     void fulfill(const IVarRef& ivar, std::vector<Data> vals);
     void add_trigger(const IVarRef& ivar, TriggerT trigger);
     void dec_ref(const IVarRef& ivar);
+    void ignore_decrefs();
+
+    bool is_fulfilled_here(const IVarRef& ivar) const;
+    std::vector<Data> get_vals(const IVarRef& ivar) const;
 
     size_t n_owned() const;
     size_t n_triggers_here() const;

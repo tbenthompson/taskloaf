@@ -1,6 +1,8 @@
 #pragma once
 #include "tlassert.hpp"
 
+#include "get_signature.hpp"
+
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/utility.hpp>
@@ -114,34 +116,6 @@ struct Function<Return(Args...)> {
         ar(closure);
     }
 };
-
-// From http://stackoverflow.com/a/12283159 to auto convert many function-like
-// things to std::function
-template<typename T> struct RemoveClass { };
-template<typename C, typename R, typename... A>
-struct RemoveClass<R(C::*)(A...)> { using type = R(A...); };
-template<typename C, typename R, typename... A>
-struct RemoveClass<R(C::*)(A...) const> { using type = R(A...); };
-template<typename C, typename R, typename... A>
-struct RemoveClass<R(C::*)(A...) volatile> { using type = R(A...); };
-template<typename C, typename R, typename... A>
-struct RemoveClass<R(C::*)(A...) const volatile> { using type = R(A...); };
-
-template<typename T>
-struct GetSignatureImpl {
-    using type = typename RemoveClass<
-        decltype(&std::remove_reference<T>::type::operator())
-    >::type; 
-};
-template<typename R, typename... A>
-struct GetSignatureImpl<R(A...)> { using type = R(A...); };
-template<typename R, typename... A>
-struct GetSignatureImpl<R(&)(A...)> { using type = R(A...); };
-template<typename R, typename... A>
-struct GetSignatureImpl<R(*)(A...)> { using type = R(A...); };
-
-template <typename T>
-using GetSignature = typename GetSignatureImpl<typename std::decay<T>::type>::type;
 
 template <
     typename F,

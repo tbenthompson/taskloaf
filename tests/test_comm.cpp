@@ -90,10 +90,10 @@ void test_comm(Comm& a, Comm& b) {
 
     SECTION("Delete msg after handling") {
         a.send(b.get_addr(), Msg{0, make_data(DeleteTracker())});
-        DeleteTracker::deletes = 0;
+        DeleteTracker::get_deletes() = 0;
         b.add_handler(0, [&] (Data) {});
         b.recv();
-        REQUIRE(DeleteTracker::deletes == 1);
+        REQUIRE(DeleteTracker::get_deletes() == 1);
     }
 }
 

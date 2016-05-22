@@ -5,7 +5,7 @@
 
 using namespace taskloaf;
 
-TEST_CASE("Thread") {
+TEST_CASE("Thread", "[thread]") {
     int x = 0;
     Thread t([&] () {
         x = 1; 
@@ -14,7 +14,7 @@ TEST_CASE("Thread") {
     REQUIRE(x == 1);
 }
 
-TEST_CASE("Switch out") {
+TEST_CASE("Switch out", "[thread]") {
     int x = 0;
     Thread t([&] () {
         t.switch_out();
@@ -24,7 +24,7 @@ TEST_CASE("Switch out") {
     REQUIRE(x == 0);
 }
 
-TEST_CASE("Switch back in") {
+TEST_CASE("Switch back in", "[thread]") {
     int x = 0;
     Thread t([&] () {
         t.switch_out();
@@ -35,7 +35,7 @@ TEST_CASE("Switch back in") {
     REQUIRE(x == 1);
 }
 
-TEST_CASE("Bounce between threads") {
+TEST_CASE("Bounce between threads", "[thread]") {
     int x = 0;
     Thread t([&] () {
         REQUIRE(x == 0);
@@ -48,7 +48,7 @@ TEST_CASE("Bounce between threads") {
     t2.switch_in();
 }
 
-TEST_CASE("Yield") {
+TEST_CASE("Yield", "[thread]") {
     int x = 0;
     launch_local(1, [&] () {
         auto f = [&] () {

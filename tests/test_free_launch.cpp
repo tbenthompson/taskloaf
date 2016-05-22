@@ -27,14 +27,8 @@ struct FreeWorker: public Worker {
     void add_task(TaskT f) {
         return internal.add_task(std::move(f));
     }
-    void fulfill(const IVarRef& ivar, std::vector<Data> vals) {
-        return internal.fulfill(ivar, std::move(vals));
-    }
-    void add_trigger(const IVarRef& ivar, TriggerT trigger) {
-        return internal.add_trigger(ivar, std::move(trigger));
-    }
-    void dec_ref(const IVarRef& ivar) {
-        return internal.dec_ref(ivar);
+    IVarTracker& get_ivar_tracker() {
+        return internal.get_ivar_tracker();
     }
     void yield() {
         internal.yield();

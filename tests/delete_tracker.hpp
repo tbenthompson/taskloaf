@@ -1,10 +1,13 @@
 #pragma once
 
 struct DeleteTracker {
-    static int deletes;
+    static int& get_deletes() {
+        static int deletes;
+        return deletes; 
+    }
 
     ~DeleteTracker() {
-        deletes++;
+        get_deletes()++;
     }
 
     template <typename Archive>

@@ -14,13 +14,22 @@ DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     ivar_tracker(*comm)
 {
     comm->add_handler(Protocol::Shutdown, [&] (Data) {
-        stop = true;
+        stop();
     });
 }
 
 DefaultWorker::~DefaultWorker() {
     cur_worker = this;
-    stop = true;
+    stop();
+}
+
+void DefaultWorker::stop() {
+    ivar_tracker.ignore_decrefs();
+    should_stop = true;
+}
+
+IVarTracker& DefaultWorker::get_ivar_tracker() {
+    return ivar_tracker;
 }
 
 size_t DefaultWorker::n_workers() const {
@@ -42,7 +51,7 @@ bool DefaultWorker::can_compute_immediately() {
 }
 
 bool DefaultWorker::is_stopped() const {
-    return stop;
+    return should_stop;
 }
 
 Comm& DefaultWorker::get_comm() {
@@ -55,7 +64,7 @@ void DefaultWorker::shutdown() {
     for (auto& r: remotes) {
         comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
     }
-    stop = true;
+    stop();
 }
 
 void DefaultWorker::introduce(Address addr) {
@@ -68,24 +77,6 @@ const Address& DefaultWorker::get_addr() {
 
 void DefaultWorker::add_task(TaskT f) {
     tasks.add_task(std::move(f));
-}
-
-void DefaultWorker::fulfill(const IVarRef& iv, std::vector<Data> vals) {
-    ivar_tracker.fulfill(iv, std::move(vals));
-}
-
-void DefaultWorker::add_trigger(const IVarRef& iv, TriggerT trigger) {
-    ivar_tracker.add_trigger(iv, std::move(trigger));
-}
-
-void DefaultWorker::dec_ref(const IVarRef& iv) {
-    // If the worker is shutting down, there is no need to dec-ref on a 
-    // IVarRef destructor call. In fact, if we don't stop here, there will
-    // be an infinite recursion.
-    if (stop) {
-        return;
-    }
-    ivar_tracker.dec_ref(iv);
 }
 
 void DefaultWorker::recv() {
@@ -114,7 +105,7 @@ void DefaultWorker::new_thread(std::function<void()> start_task) {
             if (start_task != nullptr) {
                 start_task();
             }
-            while (!stop && waiting_threads.size() == 0) {
+            while (!is_stopped() && waiting_threads.size() == 0) {
                 one_step();
             }
         }
@@ -123,7 +114,7 @@ void DefaultWorker::new_thread(std::function<void()> start_task) {
 
 void DefaultWorker::run(std::function<void()> start_task) {
     cur_worker = this;
-    while (!stop) {
+    while (!is_stopped()) {
         if (waiting_threads.size() == 0) {
             new_thread(std::move(start_task));
         }

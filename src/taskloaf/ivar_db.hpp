@@ -31,7 +31,6 @@ void run_triggers(std::vector<TriggerT>& triggers, std::vector<Data>& vals) {
         triggers.pop_back();
         t(vals);
     }
-    triggers.clear();
 }
 
 // TODO: Separate ownership from storage data.

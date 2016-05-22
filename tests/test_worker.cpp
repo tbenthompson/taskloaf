@@ -99,7 +99,7 @@ TEST_CASE("Two workers two steals = second does nothing", "[worker]") {
 }
 
 void make_ivar_live(DefaultWorker& w, const IVarRef& ivar) {
-    w.fulfill(ivar, {make_data(1)});
+    w.get_ivar_tracker().fulfill(ivar, {make_data(1)});
 }
 
 TEST_CASE("Ref tracking destructor deletes", "[worker]") {
@@ -189,7 +189,7 @@ TEST_CASE("Remote reference counting", "[worker]") {
         REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
 
         cur_worker = ws[0].get();
-        ws[0]->fulfill(iv, {make_data(1)});
+        ws[0]->get_ivar_tracker().fulfill(iv, {make_data(1)});
 
         REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
         REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
@@ -219,8 +219,10 @@ TEST_CASE("Remote reference counting change location", "[worker]") {
         cur_worker = ws[0].get();
         IVarRef iv(id);
 
-        ws[1]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
-        ws[0]->add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
+        ws[1]->get_ivar_tracker().add_trigger(
+            iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}}
+        );
+        ws[0]->get_ivar_tracker().add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
         REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 1);
         REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 1);
 
@@ -236,7 +238,7 @@ TEST_CASE("Remote reference counting change location", "[worker]") {
 }
 
 void remote(int n_workers, int owner_worker, int fulfill_worker,
-    int trigger_worker, bool trigger_first) 
+    int trigger_worker, bool trigger_first, bool always_settle) 
 {
     auto ws = workers(n_workers);
     int x = 0;
@@ -245,13 +247,13 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
     IVarRef iv(id);
 
     auto trigger = [&] () {
-        ws[trigger_worker]->add_trigger(iv, {
+        ws[trigger_worker]->get_ivar_tracker().add_trigger(iv, {
             [&] (std::vector<Data>&, std::vector<Data>& vals) {
                 x = vals[0].get_as<int>(); 
             },
             {}
         });
-        if (trigger_worker != fulfill_worker) {
+        if (always_settle || trigger_worker != fulfill_worker) {
             settle(ws);
         }
     };
@@ -260,8 +262,11 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
         trigger();
     }
 
-    ws[fulfill_worker]->fulfill(iv, {make_data(1)});
-    settle(ws);
+    ws[fulfill_worker]->get_ivar_tracker().fulfill(iv, {make_data(1)});
+
+    if (always_settle || trigger_worker != fulfill_worker) {
+        settle(ws);
+    }
 
     if (!trigger_first) {
         trigger();
@@ -270,12 +275,20 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
     REQUIRE(x == 1);
 }
 
-TEST_CASE("fulfill triggers", "[worker]") {
+void fulfill_triggers_test(bool always_settle) {
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 3; j++) {
             for (int k = 0; k < 2; k++) {
-                remote(std::max(j + 1, 2), 0, i, j, k == 0);
+                remote(std::max(j + 1, 2), 0, i, j, k == 0, always_settle);
             }
         }
     }
+}
+
+TEST_CASE("fulfill triggers", "[worker]") {
+    fulfill_triggers_test(false);
+}
+
+TEST_CASE("fulfill triggers with settling", "[worker]") {
+    fulfill_triggers_test(true);
 }

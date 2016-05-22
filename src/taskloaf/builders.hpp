@@ -46,7 +46,7 @@ auto possibly_void_data(const F& f) {
 
 template <typename Fut, typename F>
 auto thend(Fut&& fut, F&& fnc) {
-    typedef decltype(apply_args(fnc, fut.get())) Return;
+    typedef decltype(fut.apply_to(fnc)) Return;
 
     Future<Return> out_future;
     auto f_serializable = make_function(std::forward<F>(fnc));
@@ -77,13 +77,13 @@ auto thend(Fut&& fut, F&& fnc) {
 
 template <typename Fut, typename F>
 auto then(Fut&& fut, F&& fnc) {
-    typedef decltype(apply_args(fnc, fut.get())) Return;
+    typedef decltype(fut.apply_to(fnc)) Return;
     
-    bool immediately = fut.can_trigger_immediately() && \
+    bool immediately = fut.can_trigger_immediately2() && \
         can_run_immediately(fut.owner);
     if (immediately) {
         return Future<Return>(fut.owner, possibly_void_tuple(
-            [&] () { return apply_args(std::forward<F>(fnc), fut.get()); }
+            [&] () { return fut.apply_to(std::forward<F>(fnc)); }
         ));
     } else {
         return thend(std::forward<Fut>(fut), std::forward<F>(fnc));

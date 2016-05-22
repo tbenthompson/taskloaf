@@ -90,32 +90,44 @@ endif(BUILD_LIBRARY)
 #                              taskloaf tests
 ################################################################################
 
-macro(taskloaf_tests name files)
-    add_executable(${name} ${files})
+macro(taskloaf_tests name ADDTEST)
+    add_executable(${name} "$<TARGET_OBJECTS:test_runner>;tests/test_${name}.cpp")
     target_include_directories(${name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
     target_include_directories(${name} SYSTEM PRIVATE
         ${MPI_INCLUDE_PATH})
-    add_dependencies(${name} taskloaf)
     target_link_libraries(${name} 
         taskloaf
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
+    if (${ADDTEST}) 
+        add_test(${name} ${name})
+    endif()
 endmacro()
 
 if(BUILD_TESTS)
-    taskloaf_tests(run_tests
-        "tests/test_main.cpp;tests/test_future.cpp;tests/test_empty_futures.cpp;tests/test_fnc.cpp;tests/test_data.cpp;tests/test_worker.cpp;tests/test_id.cpp;tests/test_ring.cpp;tests/test_comm.cpp;tests/test_ref_counting.cpp;tests/test_free_launch.cpp;tests/test_thread.cpp"
-    )
-
+    add_library(test_runner OBJECT tests/test_main.cpp)
+    target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
     enable_testing()
-    add_test(main-tests run_tests)
+
+    taskloaf_tests(future True)
+    taskloaf_tests(empty_futures True)
+    taskloaf_tests(fnc True)
+    taskloaf_tests(data True)
+    taskloaf_tests(worker True)
+    taskloaf_tests(id True)
+    taskloaf_tests(ring True)
+    taskloaf_tests(comm True)
+    taskloaf_tests(ref_counting True)
+    taskloaf_tests(free_launch True)
+    taskloaf_tests(thread True)
+    taskloaf_tests(promotion True)
 
     if (MPI_CXX_FOUND)
-        taskloaf_tests(mpi_tests "tests/test_mpi.cpp")
-        add_test(mpi-tests mpirun -n 2 mpi_tests)
+        taskloaf_tests(mpi False)
+        add_test(mpi mpirun -n 2 mpi)
     endif()
 endif(BUILD_TESTS)
 
@@ -153,7 +165,6 @@ macro(taskloaf_example name filename)
     if (MPI_CXX_FOUND)
         target_include_directories(${name} SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
     endif()
-    add_dependencies(${name} taskloaf)
     target_link_libraries(${name} 
         taskloaf
         ${CMAKE_THREAD_LIBS_INIT})

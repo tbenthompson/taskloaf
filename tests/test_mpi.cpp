@@ -1,3 +1,5 @@
+#include "catch.hpp"
+
 #include "taskloaf/mpi_comm.hpp"
 #include "taskloaf/serializing_comm.hpp"
 #include "taskloaf/future.hpp"
@@ -72,7 +74,7 @@ void test_send_closure() {
     });
 }
 
-int main() {
+TEST_CASE("MPI") {
     MPI_Init(nullptr, nullptr);
 
     test_send_simple();
@@ -84,4 +86,3 @@ int main() {
 
     MPI_Finalize();
 }
-

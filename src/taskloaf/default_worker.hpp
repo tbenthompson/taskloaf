@@ -21,7 +21,7 @@ struct DefaultWorker: public Worker {
     IVarTracker ivar_tracker;
     int core_id = -1;
     bool stealing = false;
-    bool stop = false;
+    bool should_stop = false;
     int immediate_computes = 0;
     static const int immediates_allowed = 100;
 
@@ -29,21 +29,19 @@ struct DefaultWorker: public Worker {
     DefaultWorker(DefaultWorker&&) = default;
     ~DefaultWorker();
 
-    bool can_compute_immediately();
+    void shutdown() override;
+    bool can_compute_immediately() override;
+    size_t n_workers() const override;
+    void add_task(TaskT f) override;
+    void yield() override;
+    IVarTracker& get_ivar_tracker() override;
 
+    void introduce(Address addr);
     bool is_stopped() const;
     Comm& get_comm();
-    size_t n_workers() const;
     const Address& get_addr();
 
-    void shutdown();
-    void introduce(Address addr);
-    void add_task(TaskT f);
-    void fulfill(const IVarRef& ivar, std::vector<Data> vals);
-    void add_trigger(const IVarRef& ivar, TriggerT trigger);
-    void dec_ref(const IVarRef& ivar);
-    void yield();
-
+    void stop();
     void recv();
     void one_step();
     void run_a_task();

@@ -45,12 +45,30 @@ struct FutureBase {
         return *this;
     }
 
+    bool is_global() const {
+        return ivar != nullptr;
+    }
+
     bool can_trigger_immediately() const {
         return ivar == nullptr;
     }
 
+    bool can_trigger_immediately2() const {
+        return !is_global() || owner->get_ivar_tracker().is_fulfilled_here(*ivar);
+    }
+
     TupleT& get() const {
         return val;
+    }
+
+    template <typename F>
+    auto apply_to(F&& f) {
+        if (is_global()) {
+            auto data = owner->get_ivar_tracker().get_vals(*ivar);
+            return apply_data_args(std::forward<F>(f), data);
+        } else {
+            return apply_args(std::forward<F>(f), val);
+        }
     }
 
     Derived& derived() {
@@ -69,11 +87,11 @@ struct FutureBase {
 
     void add_trigger(TriggerT trigger) const {
         ensure_at_least_global();
-        cur_worker->add_trigger(*ivar, std::move(trigger));
+        owner->get_ivar_tracker().add_trigger(*ivar, std::move(trigger));
     }
 
     void fulfill(std::vector<Data> vals) const {
-        cur_worker->fulfill(*ivar, vals);
+        owner->get_ivar_tracker().fulfill(*ivar, vals);
     }
 
     void ensure_at_least_global() const {

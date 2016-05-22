@@ -3,6 +3,7 @@
 #include <tuple>
 
 #include "data.hpp"
+#include "get_signature.hpp"
 
 namespace taskloaf {
 
@@ -26,11 +27,11 @@ struct Applier<Func, Tuple, std::index_sequence<I...>> {
 template <typename T>
 struct ApplyArgsHelper {};
 
-template <typename ClassType, typename ReturnType, typename... Args>
-struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...)>
+template <typename Return, typename... Args>
+struct ApplyArgsHelper<Return(Args...)>
 {
     template <typename F>
-    static ReturnType run(F&& f, std::vector<Data>& args) {
+    static Return run(F&& f, std::vector<Data>& args) {
         return Applier<
             F,std::tuple<Args...>,
             std::make_index_sequence<sizeof...(Args)>
@@ -38,18 +39,10 @@ struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...)>
     }
 };
 
-// Overload for const member functions
-template <typename ClassType, typename ReturnType, typename... Args>
-struct ApplyArgsHelper<ReturnType(ClassType::*)(Args...) const>: 
-    public ApplyArgsHelper<ReturnType(ClassType::*)(Args...)>
-{};
-
 template <typename F>
 auto apply_data_args(F&& f, std::vector<Data>& args) {
     typedef typename std::decay<F>::type DecayF;
-    return ApplyArgsHelper<
-        decltype(&DecayF::operator())
-    >::run(std::forward<F>(f), args);
+    return ApplyArgsHelper<GetSignature<DecayF>>::run(std::forward<F>(f), args);
 }
 
 template <typename IndexList>
