@@ -6,7 +6,7 @@
 
 #include "serialize.hpp"
 #include "serializable_functor.hpp"
-#include "delete_tracker.hpp"
+#include "ownership_tracker.hpp"
 
 using namespace taskloaf;
 
@@ -67,23 +67,23 @@ TEST_CASE("Measure serialized size", "[data]") {
 }
 
 TEST_CASE("Deleter called", "[data]") {
-    DeleteTracker::get_deletes() = 0;
-    DeleteTracker a;
+    OwnershipTracker::reset();
+    OwnershipTracker a;
     {
         auto d = make_data(a);
     }
-    REQUIRE(DeleteTracker::get_deletes() == 1);
+    REQUIRE(OwnershipTracker::deletes() == 1);
 }
     
 TEST_CASE("Deserialized deleter called", "[data]") {
-    DeleteTracker a;
+    OwnershipTracker a;
     auto d = make_data(a);
-    DeleteTracker::get_deletes() = 0;
+    OwnershipTracker::deletes() = 0;
     {
         auto ss = serialize(d);
         auto d2 = deserialize(ss);
     }
-    REQUIRE(DeleteTracker::get_deletes() == 1);
+    REQUIRE(OwnershipTracker::deletes() == 1);
 }
 
 TEST_CASE("Convert raw functions to serializable in make_data") {

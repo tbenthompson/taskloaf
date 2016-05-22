@@ -63,3 +63,11 @@ TEST_CASE("Yield", "[thread]") {
     });
     REQUIRE(x == 4);
 }
+
+// TEST_CASE("Get", "[thread]") {
+//     launch_local(1, [&] () {
+//         auto f = asyncd([] () { return 1; });
+//         REQUIRE(f.get() == 1);
+//         shutdown();
+//     });
+// }

@@ -46,7 +46,7 @@ auto possibly_void_data(const F& f) {
 
 template <typename Fut, typename F>
 auto thend(Fut&& fut, F&& fnc) {
-    typedef decltype(fut.apply_to(fnc)) Return;
+    typedef decltype(apply_to(fut,fnc)) Return;
 
     Future<Return> out_future;
     auto f_serializable = make_function(std::forward<F>(fnc));
@@ -77,13 +77,14 @@ auto thend(Fut&& fut, F&& fnc) {
 
 template <typename Fut, typename F>
 auto then(Fut&& fut, F&& fnc) {
-    typedef decltype(fut.apply_to(fnc)) Return;
+    typedef decltype(apply_to(fut,fnc)) Return;
     
-    bool immediately = fut.can_trigger_immediately2() && \
+    bool immediately = fut.can_trigger_immediately() && \
         can_run_immediately(fut.owner);
+
     if (immediately) {
         return Future<Return>(fut.owner, possibly_void_tuple(
-            [&] () { return fut.apply_to(std::forward<F>(fnc)); }
+            [&] () { return apply_to(std::forward<Fut>(fut), std::forward<F>(fnc)); }
         ));
     } else {
         return thend(std::forward<Fut>(fut), std::forward<F>(fnc));
@@ -95,11 +96,10 @@ auto unwrap(Fut&& fut) {
     typedef typename std::decay_t<Fut>::type T;
     typedef Future<typename T::type> FutT;
 
-    bool immediately = fut.can_trigger_immediately() &&
-        std::get<0>(fut.get()).can_trigger_immediately();
+    bool immediately = fut.is_local() && fut.get().is_local();
 
     if (immediately) {
-        return FutT(fut.owner, std::get<0>(std::forward<Fut>(fut).get()).get());     
+        return std::forward<Fut>(fut).get();
     } else {
         FutT out_future;
         fut.add_trigger(TriggerT{
@@ -119,8 +119,10 @@ auto unwrap(Fut&& fut) {
 }
 
 template <typename T>
-auto ready(T val) {
-    return Future<T>(cur_worker, std::make_tuple(std::move(val)));
+auto ready(T&& val) {
+    return Future<std::decay_t<T>>(
+        cur_worker, std::make_tuple(std::forward<T>(val))
+    );
 }
 
 const static bool push = true;

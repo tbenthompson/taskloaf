@@ -124,6 +124,7 @@ if(BUILD_TESTS)
     taskloaf_tests(free_launch True)
     taskloaf_tests(thread True)
     taskloaf_tests(promotion True)
+    taskloaf_tests(future_ownership True)
 
     if (MPI_CXX_FOUND)
         taskloaf_tests(mpi False)

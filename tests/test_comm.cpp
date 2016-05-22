@@ -4,7 +4,7 @@
 #include "taskloaf/serializing_comm.hpp"
 #include "taskloaf/fnc.hpp"
 
-#include "delete_tracker.hpp"
+#include "ownership_tracker.hpp"
 
 #include <cereal/archives/binary.hpp>
 
@@ -89,11 +89,11 @@ void test_comm(Comm& a, Comm& b) {
     }
 
     SECTION("Delete msg after handling") {
-        a.send(b.get_addr(), Msg{0, make_data(DeleteTracker())});
-        DeleteTracker::get_deletes() = 0;
+        a.send(b.get_addr(), Msg{0, make_data(OwnershipTracker())});
+        OwnershipTracker::reset();
         b.add_handler(0, [&] (Data) {});
         b.recv();
-        REQUIRE(DeleteTracker::get_deletes() == 1);
+        REQUIRE(OwnershipTracker::deletes() == 1);
     }
 }
 

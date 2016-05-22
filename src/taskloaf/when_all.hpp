@@ -21,10 +21,17 @@ auto when_both(Future1&& fut1, Future2&& fut2)
     typedef typename DecayF2::TupleT In2;
     typedef typename WhenBothOutT<In1,In2>::type OutF;
 
-    bool immediately = fut1.can_trigger_immediately() && fut2.can_trigger_immediately();
+    bool immediately = fut1.is_local() && fut2.is_local();
     if (immediately) {
-        return OutF(fut1.owner, std::tuple_cat(fut1.get(), fut2.get()));
+
+        auto combined = std::tuple_cat(
+            std::forward<Future1>(fut1).get_tuple(),
+            std::forward<Future2>(fut2).get_tuple()
+        );
+        return OutF(fut1.owner, std::move(combined));
+
     } else {
+
         OutF out_future;
         fut1.add_trigger(TriggerT{
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {
@@ -40,6 +47,7 @@ auto when_both(Future1&& fut1, Future2&& fut2)
             { make_data(out_future), make_data(fut2) }
         });
         return out_future;
+
     }
 }
 
