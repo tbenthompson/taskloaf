@@ -70,6 +70,8 @@ endif()
 ################################################################################
 
 set(TASKLOAF_SRC "src/taskloaf/ivar.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/ivar_tracker.cpp;src/taskloaf/id.cpp;src/taskloaf/ring.cpp;src/taskloaf/ref_counting.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_HDR "src/taskloaf/when_all.hpp;src/taskloaf/timing.hpp;src/taskloaf/builders.hpp;src/taskloaf/protocol.hpp;src/taskloaf/fnc.hpp;src/taskloaf/ivar.hpp;src/taskloaf/mpi_comm.hpp;src/taskloaf/memory_pool.hpp;src/taskloaf/task_collection.hpp;src/taskloaf/ring.hpp;src/taskloaf/id.hpp;src/taskloaf/ref_counting.hpp;src/taskloaf/ivar_db.hpp;src/taskloaf/execute.hpp;src/taskloaf/data.hpp;src/taskloaf/worker.hpp;src/taskloaf/local_comm.hpp;src/taskloaf/launcher.hpp;src/taskloaf/get_signature.hpp;src/taskloaf/default_worker.hpp;src/taskloaf/address.hpp;src/taskloaf/future.hpp;src/taskloaf/comm.hpp;src/taskloaf/ivar_tracker.hpp;src/taskloaf/serializing_comm.hpp;src/taskloaf/tlassert.hpp;src/taskloaf/closure.hpp")
+
 if (BUILD_LIBRARY)
     add_library(taskloaf SHARED ${TASKLOAF_SRC})
 
@@ -84,6 +86,8 @@ if (BUILD_LIBRARY)
         target_include_directories(taskloaf SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
         target_link_libraries(taskloaf ${MPI_LIBRARIES})
     endif()
+    install(TARGETS taskloaf DESTINATION lib)
+    install(FILES ${TASKLOAF_HDR} DESTINATION include)
 endif(BUILD_LIBRARY)
 
 ################################################################################
