@@ -48,7 +48,7 @@ struct FutureBase {
 
     FutureBase& operator=(FutureBase&& other) = default;
     FutureBase& operator=(const FutureBase& other) {
-        owner = other.owner;
+        owner = cur_worker;
         if (owner != nullptr) {
             other.ensure_at_least_global();
             ivar = std::make_unique<IVarRef>(*other.ivar);

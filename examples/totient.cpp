@@ -26,7 +26,7 @@ int totient(int index) {
 //TODO: Needs reduce skeleton
 Future<int> sum_totient(int lower, int upper) {
     if (lower == upper) {
-        return async([=] () { return totient(lower); });
+        return ready(lower).then(totient);
     } else {
         auto middle = (lower + upper) / 2;
         return when_all(

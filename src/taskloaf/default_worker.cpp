@@ -87,9 +87,10 @@ void DefaultWorker::one_step() {
         comm->recv();
         return;
     }
-
-    tasks.steal();
-    if (tasks.size() > 0) {
+    
+    if (tasks.size() == 0) {
+        tasks.steal();
+    } else {
         tasks.run_next();
     }
 }

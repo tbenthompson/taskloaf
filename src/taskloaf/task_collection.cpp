@@ -10,11 +10,11 @@
 namespace taskloaf {
     
 size_t steal_count(size_t n_remote, size_t n_local) {
-    if (n_local >= 2 + n_remote) {
-        return (size_t)std::ceil(((double)(n_local - n_remote - 1)) / 4.0);
-    } else {
-        return 0;
+    tlassert(n_remote == 0);
+    if (n_local > 1) {
+        return 1;
     }
+    return 0;
 }
 
 TaskCollection::TaskCollection(Comm& comm):
