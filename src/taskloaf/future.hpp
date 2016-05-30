@@ -17,6 +17,9 @@ struct FutureBase {
     using TupleT = std::tuple<Ts...>;
     static std::index_sequence_for<Ts...> idxs;
 
+    template <typename F>
+    using ThenResultT = std::result_of_t<F(Ts&...)>;
+
     Worker* owner;
     mutable TupleT val;
     mutable std::unique_ptr<IVarRef> ivar = nullptr;
@@ -46,8 +49,13 @@ struct FutureBase {
     FutureBase& operator=(FutureBase&& other) = default;
     FutureBase& operator=(const FutureBase& other) {
         owner = other.owner;
-        other.ensure_at_least_global();
-        ivar = std::make_unique<IVarRef>(*other.ivar);
+        if (owner != nullptr) {
+            other.ensure_at_least_global();
+            ivar = std::make_unique<IVarRef>(*other.ivar);
+        } else {
+            val = other.val;
+            ivar = nullptr;
+        }
         return *this;
     }
 
@@ -59,8 +67,8 @@ struct FutureBase {
         return !is_global() || owner->get_ivar_tracker().is_fulfilled_here(*ivar);
     }
 
-    auto& get_tuple() & { return val; }
-    auto&& get_tuple() && { return std::move(val); }
+    TupleT& get_tuple() & { return val; }
+    TupleT&& get_tuple() && { return std::move(val); }
 
     void add_trigger(TriggerT trigger) const {
         ensure_at_least_global();
@@ -95,23 +103,33 @@ struct FutureBase {
     }
 
     template <typename F>
-    auto then(F&& f) & {
-        return taskloaf::then(derived(), std::forward<F>(f));
-    }
-
-    template <typename F>
-    auto then(F&& f) && {
-        return taskloaf::then(std::move(derived()), std::forward<F>(f));
-    }
-
-    template <typename F>
-    auto thend(F&& f) & {
+    auto thend(F&& f) {
         return taskloaf::thend(derived(), std::forward<F>(f));
     }
 
     template <typename F>
-    auto thend(F&& f) && {
-        return taskloaf::thend(std::move(derived()), std::forward<F>(f));
+    Future<ThenResultT<F>> then(F&& f) & {
+        return taskloaf::then(derived(), std::forward<F>(f));
+    }
+
+    template <typename F>
+    Future<ThenResultT<F>> then(F&& f) && {
+        return taskloaf::then(std::move(derived()), std::forward<F>(f));
+    }
+
+    void wait() { 
+        if (is_local()) {
+            return;
+        }
+        bool already_thenned = false;
+        //TODO: Need to mark this task as local to the current worker!
+        this->then([&] (Ts&...) {
+            owner->stop();
+            already_thenned = true;
+        });
+        if (!already_thenned) {
+            this->owner->run();
+        }
     }
 };
 
@@ -126,11 +144,23 @@ struct Future<T>: public FutureBase<Future<T>,T> {
 
     using type = T;
 
-    auto& get() & { return std::get<0>(this->get_tuple()); }
-    auto&& get() && { return std::get<0>(std::move(*this).get_tuple()); }
-
     auto unwrap() & { return taskloaf::unwrap(*this); }
     auto unwrap() && { return taskloaf::unwrap(std::move(*this)); }
+
+    // Always return by reference here, so that the user can decide what
+    // data handling they would like: move vs. reference vs. copy.
+    auto& get() { 
+        if (this->is_local()) {
+            return std::get<0>(this->get_tuple()); 
+        }
+
+        auto& iv_tracker = this->owner->get_ivar_tracker();
+        if (!iv_tracker.is_fulfilled_here(*this->ivar)) {
+            this->wait();
+        }
+
+        return iv_tracker.get_vals(*this->ivar)[0].template get_as<T>();
+    }
 };
 
 template <>
@@ -146,7 +176,7 @@ struct Future<void>: Future<> {
 };
 
 template <typename Fut, typename F>
-auto apply_to(Fut&& fut, F&& fnc) {
+typename std::decay_t<Fut>::template ThenResultT<F> apply_to(Fut&& fut, F&& fnc) {
     if (fut.is_global()) {
         auto data = fut.owner->get_ivar_tracker().get_vals(*fut.ivar);
         return apply_data_args(std::forward<F>(fnc), data);

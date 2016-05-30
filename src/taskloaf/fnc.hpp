@@ -83,11 +83,11 @@ struct Function<Return(Args...)> {
         static_assert(!is_serializable<DecayF>::value,
             "Do not use Function for serializable types");
 
-        // This copy prevents a buggy "uninitialized" warning from happening in
+        // This move prevents a buggy "uninitialized" warning from happening in
         // gcc-5.2. ‘<anonymous>’ is used uninitialized in this function with
-        // non-capturing lambdas. I suspect the copy will be optimized out so
-        // there is no performance hit.
-        auto newf = f;
+        // non-capturing lambdas. 
+        auto newf = std::move(f);
+
         const char* data = reinterpret_cast<const char*>(&newf);
         closure = std::string(data, sizeof(F));
         caller_id = RegisterCaller<DecayF,Return,Args...>::add_to_registry();
@@ -122,8 +122,8 @@ template <
     typename std::enable_if<
         !is_serializable<typename std::decay<F>::type>::value
     >::type* = nullptr>
-Function<GetSignature<F>> make_function(F f) {
-    return Function<GetSignature<F>>(f);
+Function<GetSignature<F>> make_function(F&& f) {
+    return Function<GetSignature<F>>(std::forward<F>(f));
 }
 
 template <

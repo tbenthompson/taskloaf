@@ -11,7 +11,8 @@ namespace taskloaf {
 DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     comm(std::move(p_comm)),
     tasks(*comm),
-    ivar_tracker(*comm)
+    ivar_tracker(*comm),
+    should_stop(false)
 {
     comm->add_handler(Protocol::Shutdown, [&] (Data) {
         stop();
@@ -19,12 +20,19 @@ DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
 }
 
 DefaultWorker::~DefaultWorker() {
-    cur_worker = this;
+    stop();
+}
+
+void DefaultWorker::shutdown() {
+    auto& remotes = comm->remote_endpoints();
+
+    for (auto& r: remotes) {
+        comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
+    }
     stop();
 }
 
 void DefaultWorker::stop() {
-    ivar_tracker.ignore_decrefs();
     should_stop = true;
 }
 
@@ -58,15 +66,6 @@ Comm& DefaultWorker::get_comm() {
     return *comm;
 }
 
-void DefaultWorker::shutdown() {
-    auto& remotes = comm->remote_endpoints();
-
-    for (auto& r: remotes) {
-        comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
-    }
-    stop();
-}
-
 void DefaultWorker::introduce(Address addr) {
     ivar_tracker.introduce(addr);
 }
@@ -90,50 +89,16 @@ void DefaultWorker::one_step() {
     }
 
     tasks.steal();
-    run_a_task();
-}
-
-void DefaultWorker::run_a_task() {
     if (tasks.size() > 0) {
         tasks.run_next();
     }
 }
 
-void DefaultWorker::new_thread(std::function<void()> start_task) {
-    waiting_threads.push(std::make_unique<Thread>(
-        [&, start_task = std::move(start_task)] () {
-            if (start_task != nullptr) {
-                start_task();
-            }
-            while (!is_stopped() && waiting_threads.size() == 0) {
-                one_step();
-            }
-        }
-    ));
-}
-
-void DefaultWorker::run(std::function<void()> start_task) {
+void DefaultWorker::run() {
     cur_worker = this;
     while (!is_stopped()) {
-        if (waiting_threads.size() == 0) {
-            new_thread(std::move(start_task));
-        }
-        cur_thread = std::move(waiting_threads.front());
-        waiting_threads.pop();
-        cur_thread->switch_in();
+        one_step();
     }
-}
-
-/* Yield is tricky because there are two situations:
- * 1) We are inside a task with a delayed launch. This is great and easy.
- * 2) We are inside a task with an immediate launch. In this situations, there
- * is no straightforward way to delay the task. As a result, yield only responds
- * to the asyncd and thend contexts.
- */
-void DefaultWorker::yield() {
-    new_thread([&] { run_a_task(); });
-    waiting_threads.push(std::move(cur_thread));
-    waiting_threads.back()->switch_out();
 }
 
 void DefaultWorker::set_core_affinity(int core_id) {

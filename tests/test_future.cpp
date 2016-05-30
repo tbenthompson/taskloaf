@@ -7,14 +7,13 @@ using namespace taskloaf;
 
 template <typename FTest, typename FAsync, typename FThen>
 void future_tester_helper(FTest fnc, FAsync fasync, FThen fthen) {
+
+    auto ctx = launch_local(2);
     bool correct = false;
-    launch_local(1, [&] () {
-        auto fut = fnc(fasync, fthen);
-        return fut.then([&] (int x) {
-            correct = (x == 1);
-            return shutdown();
-        });
+    auto fut = fnc(fasync, fthen).then([&] (int x) {
+        correct = (x == 1);
     });
+    fut.wait();
     REQUIRE(correct);
 }
 
@@ -101,4 +100,9 @@ TEST_CASE("Then member fnc", "[future]") {
         abc.plan();
         return ready(1);
     });
+}
+
+TEST_CASE("Wait without context", "[future]") {
+    auto f = async([] {});
+    f.wait();
 }

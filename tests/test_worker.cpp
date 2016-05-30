@@ -19,9 +19,9 @@ void settle(std::vector<std::unique_ptr<DefaultWorker>>& ws) {
     }
 }
 
-DefaultWorker worker() {
+std::unique_ptr<DefaultWorker> worker() {
     auto lcq = std::make_shared<LocalCommQueues>(1);
-    return DefaultWorker(std::make_unique<LocalComm>(lcq, 0));
+    return std::make_unique<DefaultWorker>(std::make_unique<LocalComm>(lcq, 0));
 }
 
 std::vector<std::unique_ptr<DefaultWorker>> workers(int n_workers) {
@@ -51,14 +51,14 @@ ID id_on_worker(const std::unique_ptr<DefaultWorker>& w) {
 TEST_CASE("DefaultWorker", "[worker]") {
     auto w = worker();
     int x = 0;
-    w.add_task({
+    w->add_task({
         [&] (std::vector<Data>&) {
             x = 1; 
             cur_worker->shutdown(); 
         }, 
         {}
     });
-    w.run([] {});
+    w->run();
     REQUIRE(x == 1);
 }
 
@@ -104,41 +104,41 @@ void make_ivar_live(DefaultWorker& w, const IVarRef& ivar) {
 
 TEST_CASE("Ref tracking destructor deletes", "[worker]") {
     auto w = worker();
-    cur_worker = &w;
+    cur_worker = w.get();
     {
         IVarRef iv(new_id());
-        make_ivar_live(w, iv);
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        make_ivar_live(*w, iv);
+        REQUIRE(w->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy constructor", "[worker]") {
     auto w = worker();
-    cur_worker = &w;
+    cur_worker = w.get();
     {
         std::unique_ptr<IVarRef> ivarref2;
         {
             IVarRef iv(new_id());
             ivarref2.reset(new IVarRef(iv));
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy assignment", "[worker]") {
     auto w = worker();
-    cur_worker = &w;
+    cur_worker = w.get();
     {
         IVarRef ivarref2;
         {
             IVarRef iv(new_id());
             ivarref2 = iv;
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ivar_tracker.n_owned() == 0);
 }
 
 
@@ -148,34 +148,34 @@ TEST_CASE("Ref tracking empty", "[worker]") {
 
 TEST_CASE("Ref tracking move constructor", "[worker]") {
     auto w = worker();
-    cur_worker = &w;
+    cur_worker = w.get();
     {
         std::unique_ptr<IVarRef> ivarref2;
         {
             IVarRef iv(new_id());
-            make_ivar_live(w, iv);
+            make_ivar_live(*w, iv);
             ivarref2.reset(new IVarRef(std::move(iv)));
             REQUIRE(iv.empty == true);
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking move assignment", "[worker]") {
     auto w = worker();
-    cur_worker = &w;
+    cur_worker = w.get();
     {
         IVarRef iv;
         {
             IVarRef iv2(new_id());
-            make_ivar_live(w, iv2);
+            make_ivar_live(*w, iv2);
             iv = std::move(iv2);
             REQUIRE(iv2.empty == true);
         }
-        REQUIRE(w.ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ivar_tracker.n_owned() == 1);
     }
-    REQUIRE(w.ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ivar_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting", "[worker]") {

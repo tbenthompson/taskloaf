@@ -284,13 +284,6 @@ void IVarTracker::add_trigger(const IVarRef& iv, TriggerT trigger) {
 }
 
 void IVarTracker::dec_ref(const IVarRef& iv) {
-    // If the worker is shutting down, there is no need to dec-ref on a 
-    // IVarRef destructor call. In fact, if we don't stop here, there will
-    // be an infinite recursion.
-    if (impl == nullptr || impl->should_ignore_decrefs) {
-        return;
-    }
-
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
         impl->local_dec_ref(iv.id, iv.data);
@@ -308,10 +301,6 @@ bool IVarTracker::is_fulfilled_here(const IVarRef& ivar) const {
 std::vector<Data> IVarTracker::get_vals(const IVarRef& ivar) const {
     tlassert(is_fulfilled_here(ivar));
     return impl->db[ivar.id].vals;
-}
-
-void IVarTracker::ignore_decrefs() {
-    impl->should_ignore_decrefs = true;
 }
 
 void IVarTracker::introduce(Address addr) {

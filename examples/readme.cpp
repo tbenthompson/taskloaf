@@ -12,10 +12,7 @@ auto fib(int index) {
 
 int main() {
     int n_cores = 2;
-    tl::launch_local(n_cores, [] () {
-        return fib(25).then([] (int x) {
-            std::cout << "fib(25) = " << x << std::endl;
-            return tl::shutdown();
-        });
-    });
+    auto ctx = tl::launch_local(n_cores);
+    auto x = fib(25).get();
+    std::cout << "fib(25) = " << x << std::endl;
 }

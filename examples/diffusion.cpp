@@ -111,7 +111,7 @@ auto timestep(const Parameters& p,
     return new_temp;
 }
 
-auto wait(std::vector<tsk::Future<std::vector<double>>> futures) 
+auto when_all(std::vector<tsk::Future<std::vector<double>>> futures) 
 {
     return reduce(futures, [] (const std::vector<double>&, const std::vector<double>&) {
         return std::vector<double>{};
@@ -119,18 +119,16 @@ auto wait(std::vector<tsk::Future<std::vector<double>>> futures)
 }
 
 void diffusion(int n_workers, int n_cells, int time_steps, int n_chunks) {
-    // TODO: Figure out how to optimize so that the multiplier here gets down to 1.
     Parameters p{-10, 10, 3.0, 1.0, 0.375, n_cells, n_chunks, time_steps};
 
-    tsk::launch_local(n_workers, [=] () {
-        auto temp = spawn_initial_conditions(p);
+    tsk::launch_local(n_workers);
+    auto temp = spawn_initial_conditions(p);
 
-        for (int i = 0; i < time_steps; i++) {
-            temp = timestep(p, temp);
-        }
+    for (int i = 0; i < time_steps; i++) {
+        temp = timestep(p, temp);
+    }
 
-        return wait(temp).then([] (std::vector<double>) { return tsk::shutdown(); });
-    });
+    return when_all(temp).wait();
 }
 
 int main(int, char** argv) {

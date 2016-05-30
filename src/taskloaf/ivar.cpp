@@ -21,7 +21,7 @@ IVarRef::IVarRef(ID id, RefData data):
 {}
 
 IVarRef::~IVarRef() {
-    if (!empty) {
+    if (!empty && cur_worker != nullptr) {
         cur_worker->get_ivar_tracker().dec_ref(*this);
     }
 }

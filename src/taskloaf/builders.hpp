@@ -96,10 +96,10 @@ auto unwrap(Fut&& fut) {
     typedef typename std::decay_t<Fut>::type T;
     typedef Future<typename T::type> FutT;
 
-    bool immediately = fut.is_local() && fut.get().is_local();
+    bool immediately = fut.is_local() && std::get<0>(fut.get_tuple()).is_local();
 
     if (immediately) {
-        return std::forward<Fut>(fut).get();
+        return std::get<0>(std::forward<Fut>(fut).get_tuple());
     } else {
         FutT out_future;
         fut.add_trigger(TriggerT{

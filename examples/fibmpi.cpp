@@ -1,4 +1,5 @@
 #include "taskloaf.hpp"
+#include <mpi.h>
 
 namespace tl = taskloaf;
 
@@ -28,12 +29,12 @@ tl::Future<int> fib(int index) {
 }
 
 int main(int, char** argv) {
-    int n = std::stoi(std::string(argv[1]));
-
-    tl::launch_mpi([&] () {
-        return fib(n).then([&] (int x) {
-            std::cout << "fib(" << n << ") = " << x << std::endl;
-            return tl::shutdown();
-        });
-    });
+    MPI_Init(NULL, NULL);
+    {
+        int n = std::stoi(std::string(argv[1]));
+        auto ctx = tl::launch_mpi();
+        int x = fib(n).get();
+        std::cout << "fib(" << n << ") = " << x << std::endl;
+    }
+    MPI_Finalize();
 }

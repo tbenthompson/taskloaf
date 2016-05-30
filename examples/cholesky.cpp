@@ -85,7 +85,6 @@ Matrix dpotrf_task(Matrix& matrix)
     char uplo = 'L';
     int info;
     int n = static_cast<int>(std::sqrt(matrix.size()));
-    std::cout << n << std::endl;
     dpotrf_(&uplo, &n, matrix.data(), &n, &info);
     // TOC("POTRF");
     return std::move(matrix);
@@ -167,7 +166,6 @@ FutureList cholesky_plan(FutureList inputs)
         return FutureList{upper_left};
     }
 
-    std::cout << n_b << std::endl;
     FutureList lower_left(n_b - 1);
     for (size_t i = 1; i < n_b; i++) {
         lower_left[i - 1] = when_all(
@@ -226,36 +224,31 @@ void run(int n, int n_blocks, int n_workers, bool run_blas) {
     auto block_correct = to_blocks(correct, n_blocks);
 
     TIC
-    tsk::launch_local(n_workers, [&] () {
-        auto input_futures = submit_input_data(block_A);
-        auto result_futures = cholesky_plan(std::move(input_futures));
-        if (run_blas) {
-            auto correct_futures = submit_input_data(block_correct);
-            auto total_error = tsk::ready<double>(0.0);
-            for (int i = 0; i < n_blocks; i++) {
-                for (int j = 0; j < n_blocks; j++) {
-                    if (j > i) {
-                        continue;
-                    }
-                    auto idx = MATIDX(i, j, n_blocks);
-                    auto block_error = when_all(
-                        correct_futures[idx], result_futures[idx]
-                    ).then(check_error);
-                    total_error = when_all(
-                        block_error, total_error
-                    ).then(std::plus<double>());
+    auto ctx = tsk::launch_local(n_workers);
+    auto input_futures = submit_input_data(block_A);
+    auto result_futures = cholesky_plan(std::move(input_futures));
+    if (run_blas) {
+        auto correct_futures = submit_input_data(block_correct);
+        auto total_error = tsk::ready<double>(0.0);
+        for (int i = 0; i < n_blocks; i++) {
+            for (int j = 0; j < n_blocks; j++) {
+                if (j > i) {
+                    continue;
                 }
+                auto idx = MATIDX(i, j, n_blocks);
+                auto block_error = when_all(
+                    correct_futures[idx], result_futures[idx]
+                ).then(check_error);
+                total_error = when_all(
+                    block_error, total_error
+                ).then(std::plus<double>());
             }
-            return total_error.then([] (double x) {
-                std::cout << x << std::endl;
-                return tsk::shutdown();
-            });
-        } else {
-            return result_futures.back().then([] (Matrix a) {
-                (void)a; return tsk::shutdown(); 
-            });
         }
-    });
+        auto error = total_error.get();
+        std::cout << error << std::endl;
+    } else {
+        result_futures.back().wait();
+    }
     TOC("Taskloaf");
 }
 

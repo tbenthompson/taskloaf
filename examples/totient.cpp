@@ -38,20 +38,12 @@ Future<int> sum_totient(int lower, int upper) {
 
 int main() {
     int n = 2000;
-    TIC
-    launch_local(1, [=] () {
-        return sum_totient(1, n).then([] (int x) {
-            std::cout << x << std::endl;
-            return shutdown();
-        });
-    });
-    TOC("1");
-    TIC2
-    launch_local(4, [=] () {
-        return sum_totient(1, n).then([] (int x) {
-            std::cout << x << std::endl;
-            return shutdown();
-        });
-    });
-    TOC("4");
+
+    for (size_t i = 1; i <= 4; i++) {
+        TIC
+        auto ctx = launch_local(i);
+        auto x = sum_totient(1, n).get();
+        std::cout << x << std::endl;
+        TOC(std::to_string(i));
+    }
 }
