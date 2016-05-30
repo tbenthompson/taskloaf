@@ -11,6 +11,7 @@ concatenate(std::vector<taskloaf::Future<std::vector<T>>>& chunks) {
     });
 }
 
+
 // parallelize, map, aggregate
 // 
 // template <typename T>

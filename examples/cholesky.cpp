@@ -85,6 +85,7 @@ Matrix dpotrf_task(Matrix& matrix)
     char uplo = 'L';
     int info;
     int n = static_cast<int>(std::sqrt(matrix.size()));
+    std::cout << n << std::endl;
     dpotrf_(&uplo, &n, matrix.data(), &n, &info);
     // TOC("POTRF");
     return std::move(matrix);
@@ -166,6 +167,7 @@ FutureList cholesky_plan(FutureList inputs)
         return FutureList{upper_left};
     }
 
+    std::cout << n_b << std::endl;
     FutureList lower_left(n_b - 1);
     for (size_t i = 1; i < n_b; i++) {
         lower_left[i - 1] = when_all(

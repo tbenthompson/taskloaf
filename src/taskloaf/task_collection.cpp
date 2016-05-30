@@ -49,10 +49,10 @@ void TaskCollection::add_task(TaskT f) {
     tasks.push_front(std::move(f));
 }
 
-TaskT TaskCollection::next() {
+void TaskCollection::run_next() {
     auto t = std::move(tasks.front());
     tasks.pop_front();
-    return t;
+    t();
 }
 
 void TaskCollection::steal() {

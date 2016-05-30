@@ -4,36 +4,14 @@
 #include "ownership_tracker.hpp"
 
 /* Rvalue-ness or lvalue-ness of a future should propagate to the contained
- * value. For example, 
- * 
- * valid:
- * async([] { return Object(); }).then([] (Object) {}) 
- * async([] { return Object(); }).then([] (Object&&) {}) 
- * async([] { return Object(); }).then([] (const Object&) {}) 
- *
- * invalid:
- * async([] { return Object(); }).then([] (Object&) {}) 
- *
- * because the result of async is an rvalue and thus cannot be bound to an
- * lvalue reference. 
- *
- * Contrast with:
- * auto f = async([] { return Object(); })
- * valid:
- * f.then([] (Object) {}) 
- * f.then([] (Object&) {}) 
- * f.then([] (const Object&) {}) 
- * std::move(f).then([] (Object&&) {})
- *
- * invalid:
- * f.then([] (Object&&) {})
- *
- * because f is an lvalue and thus cannot be bound to an rvalue reference.
+ * value, with one exception: the object passed to the continuation function 
+ * provided to .then is always an lvalue. To avoid copying, the user can 
+ * decide when it is acceptable to move from that lvalue. 
  */
 
 using namespace taskloaf;
 
-TEST_CASE("No copy with rvalue", "[future_ownership]") {
+TEST_CASE("Local no copy with rvalue", "[future_ownership]") {
     OwnershipTracker::reset();
 
     SECTION("Ready") {
@@ -43,7 +21,7 @@ TEST_CASE("No copy with rvalue", "[future_ownership]") {
 
     SECTION("Then") {
         auto f = async([] { return OwnershipTracker(); })
-            .then([] (OwnershipTracker) {});
+            .then([] (OwnershipTracker&) {});
         REQUIRE(OwnershipTracker::copies() == 0);
     }
 
@@ -61,6 +39,18 @@ TEST_CASE("No copy with rvalue", "[future_ownership]") {
         ).unwrap();
         REQUIRE(OwnershipTracker::copies() == 0);
     }
+}
+
+TEST_CASE("Global", "[future_ownership]") {
+    OwnershipTracker::reset();
+    launch_local(1, [&] () {
+        auto f = when_all(
+            asyncd([] { return OwnershipTracker(); }),
+            asyncd([] { return OwnershipTracker(); })
+        );
+        REQUIRE(OwnershipTracker::copies() == 0);
+        shutdown();
+    });
 }
 
 TEST_CASE("Copy with lvalue", "[future_ownership]") {

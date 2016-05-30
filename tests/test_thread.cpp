@@ -67,6 +67,9 @@ TEST_CASE("Yield", "[thread]") {
 // TEST_CASE("Get", "[thread]") {
 //     launch_local(1, [&] () {
 //         auto f = asyncd([] () { return 1; });
+//         f.then([=] (int) mutable {
+//             REQUIRE(f.get() == 1);
+//         });
 //         REQUIRE(f.get() == 1);
 //         shutdown();
 //     });

@@ -7,21 +7,14 @@
 
 namespace taskloaf {
 
-
 template <typename Tuple, size_t... I>
 auto tuple_to_data_vector(Tuple&& t, std::index_sequence<I...>) {
     return std::vector<Data>{make_data(std::get<I>(std::forward<Tuple>(t)))...};
 }
 
-template <typename... Ts, size_t... I>
-auto tuple_from_data(std::vector<Data>& d, std::index_sequence<I...>) {
-    return std::make_tuple(extract_data<I,std::tuple<Ts...>>(d)...);
-}
-
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
-    using RefTupleT = std::tuple<Ts&...>;
     static std::index_sequence_for<Ts...> idxs;
 
     Worker* owner;
@@ -93,6 +86,7 @@ struct FutureBase {
 
     void load(cereal::BinaryInputArchive& ar) {
         ivar = std::make_unique<IVarRef>();
+        owner = cur_worker;
         ar(*ivar);
     }
 
@@ -157,7 +151,7 @@ auto apply_to(Fut&& fut, F&& fnc) {
         auto data = fut.owner->get_ivar_tracker().get_vals(*fut.ivar);
         return apply_data_args(std::forward<F>(fnc), data);
     } else {
-        return apply_args(std::forward<F>(fnc), std::forward<Fut>(fut).get_tuple());
+        return apply_args(std::forward<F>(fnc), fut.get_tuple());
     }
 }
 

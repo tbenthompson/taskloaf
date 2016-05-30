@@ -95,7 +95,7 @@ void DefaultWorker::one_step() {
 
 void DefaultWorker::run_a_task() {
     if (tasks.size() > 0) {
-        tasks.next()();
+        tasks.run_next();
     }
 }
 
