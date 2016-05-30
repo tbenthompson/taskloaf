@@ -22,6 +22,6 @@ struct Worker {
 
 thread_local extern Worker* cur_worker;
 
-bool can_run_immediately(Worker* w);
+bool can_run_immediately();
 
 } //end namespace taskloaf

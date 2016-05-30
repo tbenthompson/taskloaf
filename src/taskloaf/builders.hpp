@@ -80,10 +80,10 @@ auto then(Fut&& fut, F&& fnc) {
     typedef decltype(apply_to(fut,fnc)) Return;
     
     bool immediately = fut.can_trigger_immediately() && \
-        can_run_immediately(fut.owner);
+        can_run_immediately();
 
     if (immediately) {
-        return Future<Return>(fut.owner, possibly_void_tuple(
+        return Future<Return>(possibly_void_tuple(
             [&] () { return apply_to(std::forward<Fut>(fut), std::forward<F>(fnc)); }
         ));
     } else {
@@ -120,9 +120,7 @@ auto unwrap(Fut&& fut) {
 
 template <typename T>
 auto ready(T&& val) {
-    return Future<std::decay_t<T>>(
-        cur_worker, std::make_tuple(std::forward<T>(val))
-    );
+    return Future<std::decay_t<T>>(std::make_tuple(std::forward<T>(val)));
 }
 
 const static bool push = true;
@@ -152,9 +150,8 @@ template <typename F>
 auto async(F&& fnc) {
     typedef std::result_of_t<F()> Return;
 
-    auto* cw = cur_worker;
-    if (can_run_immediately(cw)) {
-        return Future<Return>(cw, possibly_void_tuple(std::forward<F>(fnc)));
+    if (can_run_immediately()) {
+        return Future<Return>(possibly_void_tuple(std::forward<F>(fnc)));
     } else {
         return asyncd(std::forward<F>(fnc));
     }

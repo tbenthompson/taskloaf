@@ -75,7 +75,6 @@ struct LocalContextInternals: public ContextInternals {
                     cur_worker = w.get();
                     w->set_core_affinity(i);
                     w->introduce(main_worker.get_addr()); 
-                    std::cout << "START!" << std::endl;
                     w->run();
                     cur_worker = nullptr;
                 }

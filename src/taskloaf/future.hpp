@@ -20,39 +20,33 @@ struct FutureBase {
     template <typename F>
     using ThenResultT = std::result_of_t<F(Ts&...)>;
 
-    Worker* owner;
     mutable TupleT val;
     mutable std::unique_ptr<IVarRef> ivar = nullptr;
 
-    FutureBase():
-        owner(cur_worker), ivar(std::make_unique<IVarRef>(new_id())) 
-    {}
-
-    FutureBase(Worker* owner): 
-        owner(owner), ivar(std::make_unique<IVarRef>(new_id())) 
-    {}
+    FutureBase(): ivar(std::make_unique<IVarRef>(new_id())) {}
 
     template <typename T,
         typename std::enable_if<
             std::is_same<typename std::decay<T>::type, TupleT>::value,void
         >::type* = nullptr
     >
-    explicit FutureBase(Worker* owner, T&& val):
-        owner(owner), val(std::move(val)) 
-    {}
+    explicit FutureBase(T&& val): val(std::move(val)) {}
 
     FutureBase(FutureBase&& other) = default;
+    FutureBase& operator=(FutureBase&& other) = default;
+
     FutureBase(const FutureBase& other) {
         *this = other;
     }
-
-    FutureBase& operator=(FutureBase&& other) = default;
     FutureBase& operator=(const FutureBase& other) {
-        owner = cur_worker;
-        if (owner != nullptr) {
+        if (cur_worker != nullptr) {
             other.ensure_at_least_global();
             ivar = std::make_unique<IVarRef>(*other.ivar);
         } else {
+            //TODO: This would benefit from an intermediate state with a 
+            //pointer to each element of the the tuple type, so that we don't
+            //have to copy the value.
+            tlassert(other.ivar == nullptr);
             val = other.val;
             ivar = nullptr;
         }
@@ -64,7 +58,7 @@ struct FutureBase {
     bool is_local() const { return !is_global(); }
 
     bool can_trigger_immediately() const {
-        return !is_global() || owner->get_ivar_tracker().is_fulfilled_here(*ivar);
+        return !is_global() || cur_worker->get_ivar_tracker().is_fulfilled_here(*ivar);
     }
 
     TupleT& get_tuple() & { return val; }
@@ -72,11 +66,11 @@ struct FutureBase {
 
     void add_trigger(TriggerT trigger) const {
         ensure_at_least_global();
-        owner->get_ivar_tracker().add_trigger(*ivar, std::move(trigger));
+        cur_worker->get_ivar_tracker().add_trigger(*ivar, std::move(trigger));
     }
 
     void fulfill(std::vector<Data> vals) const {
-        owner->get_ivar_tracker().fulfill(*ivar, vals);
+        cur_worker->get_ivar_tracker().fulfill(*ivar, vals);
     }
 
     void ensure_at_least_global() const {
@@ -94,7 +88,6 @@ struct FutureBase {
 
     void load(cereal::BinaryInputArchive& ar) {
         ivar = std::make_unique<IVarRef>();
-        owner = cur_worker;
         ar(*ivar);
     }
 
@@ -124,11 +117,11 @@ struct FutureBase {
         bool already_thenned = false;
         //TODO: Need to mark this task as local to the current worker!
         this->then([&] (Ts&...) {
-            owner->stop();
+            cur_worker->stop();
             already_thenned = true;
         });
         if (!already_thenned) {
-            this->owner->run();
+            cur_worker->run();
         }
     }
 };
@@ -154,7 +147,7 @@ struct Future<T>: public FutureBase<Future<T>,T> {
             return std::get<0>(this->get_tuple()); 
         }
 
-        auto& iv_tracker = this->owner->get_ivar_tracker();
+        auto& iv_tracker = cur_worker->get_ivar_tracker();
         if (!iv_tracker.is_fulfilled_here(*this->ivar)) {
             this->wait();
         }
@@ -178,7 +171,7 @@ struct Future<void>: Future<> {
 template <typename Fut, typename F>
 typename std::decay_t<Fut>::template ThenResultT<F> apply_to(Fut&& fut, F&& fnc) {
     if (fut.is_global()) {
-        auto data = fut.owner->get_ivar_tracker().get_vals(*fut.ivar);
+        auto data = cur_worker->get_ivar_tracker().get_vals(*fut.ivar);
         return apply_data_args(std::forward<F>(fnc), data);
     } else {
         return apply_args(std::forward<F>(fnc), fut.get_tuple());

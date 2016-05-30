@@ -28,10 +28,9 @@ auto when_both(Future1&& fut1, Future2&& fut2)
             std::forward<Future1>(fut1).get_tuple(),
             std::forward<Future2>(fut2).get_tuple()
         );
-        return OutF(fut1.owner, std::move(combined));
+        return OutF(std::move(combined));
 
     } else {
-
         OutF out_future;
         fut1.add_trigger(TriggerT{
             [] (std::vector<Data>& c_args, std::vector<Data>& args) {

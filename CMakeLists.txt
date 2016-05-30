@@ -7,6 +7,7 @@ project(taskloaf CXX C)
 set(CMAKE_BUILD_TYPE Debug)
 include(ExternalProject)
 
+option(CMAKE_BUILD_TYPE "Build type" Debug)
 option(BUILD_LIBRARY "Build taskloaf library" ON)
 option(BUILD_TESTS "Build test programs" ON)
 option(BUILD_EXAMPLES "Build examples" ON)
