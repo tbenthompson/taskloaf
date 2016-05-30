@@ -5,9 +5,9 @@
 #include "task_collection.hpp"
 #include "ivar_tracker.hpp"
 #include "worker.hpp"
+#include "logging.hpp"
 
 #include <memory>
-#include <queue>
 #include <atomic>
 
 namespace taskloaf { 
@@ -15,8 +15,10 @@ namespace taskloaf {
 struct Comm;
 struct DefaultWorker: public Worker {
     std::unique_ptr<Comm> comm;
+    Log log;
     TaskCollection tasks;
     IVarTracker ivar_tracker;
+
     int core_id = -1;
     bool stealing = false;
     std::atomic<bool> should_stop;

@@ -6,12 +6,14 @@
 namespace taskloaf {
 
 struct Comm;
+struct Log;
 struct TaskCollection {
-    std::deque<TaskT> tasks;
+    Log& log;
     Comm& comm;
+    std::deque<TaskT> tasks;
     bool stealing;
 
-    TaskCollection(Comm& comm);
+    TaskCollection(Log& log, Comm& comm);
 
     size_t size() const;
     void add_task(TaskT f);

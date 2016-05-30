@@ -2,6 +2,7 @@
 #include "comm.hpp"
 #include "protocol.hpp"
 #include "address.hpp"
+#include "logging.hpp"
 #include <cereal/types/utility.hpp>
 
 #include <iostream>
@@ -17,7 +18,8 @@ size_t steal_count(size_t n_remote, size_t n_local) {
     return 0;
 }
 
-TaskCollection::TaskCollection(Comm& comm):
+TaskCollection::TaskCollection(Log& log, Comm& comm):
+    log(log),
     comm(comm),
     stealing(false)
 {
@@ -26,6 +28,7 @@ TaskCollection::TaskCollection(Comm& comm):
         auto n_steals = steal_count(p.second, tasks.size());
         tlassert(n_steals <= tasks.size());
         std::vector<TaskT> steals;
+        log.n_steals++;
         for (size_t i = 0; i < n_steals; i++) {
             steals.push_back(std::move(tasks.back()));
             tasks.pop_back();

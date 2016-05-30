@@ -10,8 +10,9 @@ namespace taskloaf {
 
 DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     comm(std::move(p_comm)),
-    tasks(*comm),
-    ivar_tracker(*comm),
+    log(comm->get_addr()),
+    tasks(log, *comm),
+    ivar_tracker(log, *comm),
     should_stop(false)
 {
     comm->add_handler(Protocol::Shutdown, [&] (Data) {
@@ -20,6 +21,7 @@ DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
 }
 
 DefaultWorker::~DefaultWorker() {
+    log.write_stats(std::cout);
     stop();
 }
 

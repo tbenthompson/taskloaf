@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <iosfwd>
 
 namespace taskloaf {
 
@@ -15,19 +16,9 @@ struct Address {
     }
 };
 
-inline bool operator<(const Address& a, const Address& b) {
-    if (a.hostname == b.hostname) {
-        return a.port < b.port;
-    }
-    return a.hostname < b.hostname;
-}
-
-inline bool operator==(const Address& a, const Address& b) {
-    return a.port == b.port && a.hostname == b.hostname;
-}
-
-inline bool operator!=(const Address& a, const Address& b) {
-    return !(a == b);
-}
+std::ostream& operator<<(std::ostream& os, const Address& a);
+bool operator<(const Address& a, const Address& b);
+bool operator==(const Address& a, const Address& b);
+bool operator!=(const Address& a, const Address& b);
 
 } //end namespace taskloaf

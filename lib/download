@@ -19,8 +19,3 @@ git clone --depth 1 git@github.com:pybind/pybind11.git pybind11_git
 [ -d pybind11 ] && rm -r pybind11
 mv pybind11_git/include/pybind11 ./pybind11
 rm -rf pybind11_git
-
-git clone --depth 1 git@github.com:mapbox/variant.git
-[ -d mapbox ] && rm -r mapbox
-mv variant/include/mapbox ./mapbox
-rm -rf variant

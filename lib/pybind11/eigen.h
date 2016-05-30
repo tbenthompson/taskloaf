@@ -10,8 +10,19 @@
 #pragma once
 
 #include "numpy.h"
+
+#if defined(__GNUG__) || defined(__clang__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wconversion"
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
+
+#if defined(__GNUG__) || defined(__clang__)
+#  pragma GCC diagnostic pop
+#endif
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -41,6 +52,7 @@ template<typename Type>
 struct type_caster<Type, typename std::enable_if<is_eigen_dense<Type>::value>::type> {
     typedef typename Type::Scalar Scalar;
     static constexpr bool rowMajor = Type::Flags & Eigen::RowMajorBit;
+    static constexpr bool isVector = Type::IsVectorAtCompileTime;
 
     bool load(handle src, bool) {
        array_t<Scalar> buffer(src, true);
@@ -50,7 +62,7 @@ struct type_caster<Type, typename std::enable_if<is_eigen_dense<Type>::value>::t
         buffer_info info = buffer.request();
         if (info.ndim == 1) {
             typedef Eigen::Stride<Eigen::Dynamic, 0> Strides;
-            if (!Type::IsVectorAtCompileTime &&
+            if (!isVector &&
                 !(Type::RowsAtCompileTime == Eigen::Dynamic &&
                   Type::ColsAtCompileTime == Eigen::Dynamic))
                 return false;
@@ -62,7 +74,7 @@ struct type_caster<Type, typename std::enable_if<is_eigen_dense<Type>::value>::t
             auto strides = Strides(info.strides[0] / sizeof(Scalar), 0);
 
             value = Eigen::Map<Type, 0, Strides>(
-                (Scalar *) info.ptr, info.shape[0], 1, strides);
+                (Scalar *) info.ptr, typename Strides::Index(info.shape[0]), 1, strides);
         } else if (info.ndim == 2) {
             typedef Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic> Strides;
 
@@ -75,7 +87,9 @@ struct type_caster<Type, typename std::enable_if<is_eigen_dense<Type>::value>::t
                 info.strides[rowMajor ? 1 : 0] / sizeof(Scalar));
 
             value = Eigen::Map<Type, 0, Strides>(
-                (Scalar *) info.ptr, info.shape[0], info.shape[1], strides);
+                (Scalar *) info.ptr,
+                typename Strides::Index(info.shape[0]),
+                typename Strides::Index(info.shape[1]), strides);
         } else {
             return false;
         }
@@ -87,23 +101,39 @@ struct type_caster<Type, typename std::enable_if<is_eigen_dense<Type>::value>::t
     }
 
     static handle cast(const Type &src, return_value_policy /* policy */, handle /* parent */) {
-        array result(buffer_info(
-            /* Pointer to buffer */
-            const_cast<Scalar *>(src.data()),
-            /* Size of one scalar */
-            sizeof(Scalar),
-            /* Python struct-style format descriptor */
-            format_descriptor<Scalar>::value,
-            /* Number of dimensions */
-            2,
-            /* Buffer dimensions */
-            { (size_t) src.rows(),
-              (size_t) src.cols() },
-            /* Strides (in bytes) for each index */
-            { sizeof(Scalar) * (rowMajor ? src.cols() : 1),
-              sizeof(Scalar) * (rowMajor ? 1 : src.rows()) }
-        ));
-        return result.release();
+        if (isVector) {
+            return array(buffer_info(
+                /* Pointer to buffer */
+                const_cast<Scalar *>(src.data()),
+                /* Size of one scalar */
+                sizeof(Scalar),
+                /* Python struct-style format descriptor */
+                format_descriptor<Scalar>::value,
+                /* Number of dimensions */
+                1,
+                /* Buffer dimensions */
+                { (size_t) src.size() },
+                /* Strides (in bytes) for each index */
+                { sizeof(Scalar) }
+            )).release();
+        } else {
+            return array(buffer_info(
+                /* Pointer to buffer */
+                const_cast<Scalar *>(src.data()),
+                /* Size of one scalar */
+                sizeof(Scalar),
+                /* Python struct-style format descriptor */
+                format_descriptor<Scalar>::value,
+                /* Number of dimensions */
+                isVector ? 1 : 2,
+                /* Buffer dimensions */
+                { (size_t) src.rows(),
+                  (size_t) src.cols() },
+                /* Strides (in bytes) for each index */
+                { sizeof(Scalar) * (rowMajor ? (size_t) src.cols() : 1),
+                  sizeof(Scalar) * (rowMajor ? 1 : (size_t) src.rows()) }
+            )).release();
+        }
     }
 
     template <typename _T> using cast_op_type = pybind11::detail::cast_op_type<_T>;
@@ -116,7 +146,7 @@ struct type_caster<Type, typename std::enable_if<is_eigen_dense<Type>::value>::t
     operator Type*() { return &value; }
     operator Type&() { return value; }
 
-private:
+protected:
     template <typename T = Type, typename std::enable_if<T::RowsAtCompileTime == Eigen::Dynamic, int>::type = 0>
     static PYBIND11_DESCR rows() { return _("m"); }
     template <typename T = Type, typename std::enable_if<T::RowsAtCompileTime != Eigen::Dynamic, int>::type = 0>
@@ -126,7 +156,7 @@ private:
     template <typename T = Type, typename std::enable_if<T::ColsAtCompileTime != Eigen::Dynamic, int>::type = 0>
     static PYBIND11_DESCR cols() { return _<T::ColsAtCompileTime>(); }
 
-private:
+protected:
     Type value;
 };
 
@@ -252,7 +282,7 @@ struct type_caster<Type, typename std::enable_if<is_eigen_sparse<Type>::value>::
     operator Type*() { return &value; }
     operator Type&() { return value; }
 
-private:
+protected:
     Type value;
 };
 

@@ -4,6 +4,7 @@
 #include "ring.hpp"
 #include "protocol.hpp"
 #include "ivar_db.hpp"
+#include "logging.hpp"
 
 #include <cereal/types/utility.hpp>
 #include <cereal/types/vector.hpp>
@@ -15,12 +16,14 @@
 namespace taskloaf {
 
 struct IVarTrackerInternals {
+    Log& log;
     Comm& comm;
     Ring ring;
     IVarDB db;
     bool should_ignore_decrefs = false;
 
-    IVarTrackerInternals(Comm& comm):
+    IVarTrackerInternals(Log& log, Comm& comm):
+        log(log),
         comm(comm),
         ring(comm, 1)
     {
@@ -246,8 +249,8 @@ struct IVarTrackerInternals {
 };
 
 
-IVarTracker::IVarTracker(Comm& comm):
-    impl(new IVarTrackerInternals(comm))
+IVarTracker::IVarTracker(Log& log, Comm& comm):
+    impl(new IVarTrackerInternals(log, comm))
 {}
 
 IVarTracker::IVarTracker(IVarTracker&&) = default;
@@ -256,6 +259,7 @@ IVarTracker::~IVarTracker() = default;
 
 void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
     tlassert(!impl->db.is_fulfilled_here(iv.id));
+    impl->log.n_global_fulfills++;
     impl->db.fulfill(iv.id, std::move(input));
     impl->db.run_triggers(iv.id);
 
