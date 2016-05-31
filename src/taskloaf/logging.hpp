@@ -1,18 +1,30 @@
 #pragma once
 
+#include "address.hpp"
+
 namespace taskloaf {
+
+#define WRITE_STAT(name) \
+    os << "    " << #name << ": " << name << std::endl;
 
 struct Log {
     Address worker_addr;
-    size_t n_steals = 0;    
+    size_t n_victimized = 0;
+    size_t n_attempted_steals = 0;
+    size_t n_successful_steals = 0;    
     size_t n_global_fulfills = 0;
+    size_t n_tasks_run = 0;
 
     Log(Address addr): worker_addr(addr) {}
 
     void write_stats(std::ostream& os) {
+        os << std::string(80, '=') << std::endl;
         os << "Stats for worker(" << worker_addr << "): " << std::endl;
-        os << "n_steals: " << n_steals << std::endl;
-        os << "n_global_fulfills: " << n_global_fulfills << std::endl;
+        WRITE_STAT(n_victimized);
+        WRITE_STAT(n_attempted_steals);
+        WRITE_STAT(n_successful_steals);
+        WRITE_STAT(n_tasks_run);
+        WRITE_STAT(n_global_fulfills);
     }
 };
 

@@ -23,7 +23,7 @@ struct DefaultWorker: public Worker {
     bool stealing = false;
     std::atomic<bool> should_stop;
     int immediate_computes = 0;
-    static const int immediates_allowed = 0;
+    static const int immediates_allowed = 2;
 
     DefaultWorker(std::unique_ptr<Comm> comm);
     DefaultWorker(const DefaultWorker&) = delete;

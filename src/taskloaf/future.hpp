@@ -117,10 +117,12 @@ struct FutureBase {
         bool already_thenned = false;
         //TODO: Need to mark this task as local to the current worker!
         this->then([&] (Ts&...) {
+            std::cout << (intptr_t)cur_worker << std::endl;
             cur_worker->stop();
             already_thenned = true;
         });
         if (!already_thenned) {
+            std::cout << (intptr_t)cur_worker << std::endl;
             cur_worker->run();
         }
     }

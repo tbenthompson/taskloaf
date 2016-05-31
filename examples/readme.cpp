@@ -2,7 +2,7 @@
 
 namespace tl = taskloaf;
 
-auto fib(int index) {
+tl::Future<int> fib(int index) {
     if (index < 3) {
         return tl::ready(1);
     } else {
@@ -15,10 +15,8 @@ auto fib(int index) {
     }
 }
 
-int main(int, char** argv) {
-    int n = std::stoi(std::string(argv[1]));
-    int n_cores = std::stoi(std::string(argv[2]));
-    auto ctx = tl::launch_local(n_cores);
-    auto x = fib(n).get();
-    std::cout << "fib(" + std::to_string(n) + ") = " << x << std::endl;
+int main() {
+    auto ctx = tl::launch_local(2);
+    auto v = fib(30).get();
+    std::cout << "fib(30) = " << v << std::endl;
 }
