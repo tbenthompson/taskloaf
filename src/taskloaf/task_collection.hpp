@@ -25,58 +25,59 @@ struct TaskCollection {
     size_t size() const;
     void add_task(TaskT t);
     void add_local_task(TaskT t);
+    void add_task(const Address& where, TaskT t);
     void run_next();
     void steal();
     std::vector<TaskT> victimized();
     void receive_tasks(std::vector<TaskT> stolen_tasks);
 };
 
-// struct TaskBase {
-//     typedef std::unique_ptr<TaskBase> Ptr;
-//     virtual void operator()() = 0;
-//     virtual Closure<void()> to_serializable() = 0;
-// };
-// 
-// template <typename F>
-// struct LambdaTask {
-//     F f;
-//     void operator()() {
-//         f();
-//     }
-//     void to_serializable() {
-//         return Closure<void()>{f, {}};
-//     }
-// };
-// 
-// struct Task {
-//     mutable std::unique_ptr<TaskBase> ptr = nullptr;
-//     mutable Closure<void()> serializable;
-// 
-//     void promote() const {
-//         if (ptr == nullptr) {
-//             return;
-//         }
-//         serializable = ptr->to_serializable();
-//         ptr = nullptr;
-//     }
-// 
-//     void operator()() {
-//         if (ptr != nullptr) {
-//             ptr->operator()();
-//         } else {
-//             serializable();
-//         }
-//     }
-// 
-//     void save(cereal::BinaryOutputArchive& ar) const {
-//         promote();
-//         ar(serializable);
-//     }
-// 
-//     void load(cereal::BinaryInputArchive& ar) {
-//         ptr = nullptr; 
-//         ar(serializable);
-//     }
-// };
+struct TaskBase {
+    typedef std::unique_ptr<TaskBase> Ptr;
+    virtual void operator()() = 0;
+    virtual Closure<void()> to_serializable() = 0;
+};
+
+template <typename F>
+struct LambdaTask {
+    F f;
+    void operator()() {
+        f();
+    }
+    void to_serializable() {
+        return Closure<void()>{f, {}};
+    }
+};
+
+struct Task {
+    std::unique_ptr<TaskBase> ptr = nullptr;
+    Closure<void()> serializable;
+
+    void promote() {
+        if (ptr == nullptr) {
+            return;
+        }
+        serializable = ptr->to_serializable();
+        ptr = nullptr;
+    }
+
+    void operator()() {
+        if (ptr != nullptr) {
+            ptr->operator()();
+        } else {
+            serializable();
+        }
+    }
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        const_cast<Task*>(this)->promote();
+        ar(serializable);
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        ptr = nullptr; 
+        ar(serializable);
+    }
+};
 
 } //end namespace taskloaf

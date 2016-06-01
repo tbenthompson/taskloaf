@@ -24,6 +24,10 @@ TaskCollection::TaskCollection(Log& log, Comm& comm):
     comm.add_handler(Protocol::StealResponse, [&] (Data d) {
         receive_tasks(std::move(d.get_as<std::vector<TaskT>>()));
     });
+
+    comm.add_handler(Protocol::AssignedTask, [&] (Data d) {
+        add_local_task(std::move(d.get_as<TaskT>()));
+    });
 }
 
 size_t TaskCollection::size() const {
@@ -38,6 +42,14 @@ void TaskCollection::add_task(TaskT t) {
 void TaskCollection::add_local_task(TaskT t) {
     local_tasks.push(std::make_pair(next_token, std::move(t)));
     next_token++;
+}
+
+void TaskCollection::add_task(const Address& where, TaskT t) {
+    if (where != comm.get_addr()) {
+        comm.send(where, Msg(Protocol::AssignedTask, make_data(std::move(t))));
+    } else {
+        add_local_task(std::move(t));
+    }
 }
 
 void TaskCollection::run_next() {

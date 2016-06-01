@@ -3,51 +3,13 @@
 #include "local_comm.hpp"
 #include "serializing_comm.hpp"
 #include "mpi_comm.hpp"
+#include "protocol.hpp"
 
 #include <thread>
 #include <atomic>
 
 namespace taskloaf {
 
-
-// void launch_local(size_t n_workers, std::function<void()> f) {
-//     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
-//     helper(n_workers, f, [&] (size_t i) {
-//         return std::unique_ptr<LocalComm>(new LocalComm(lcq, i));
-//     });
-// }
-// void launch_local_serializing(size_t n_workers, std::function<void()> f) {
-//     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
-//     helper(n_workers, f, [&] (size_t i) {
-//         return std::unique_ptr<SerializingComm>(new SerializingComm(
-//             std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
-//         ));
-//     });
-// }
-// 
-// void launch_local_singlethread(size_t n_workers, std::function<void()> f) {
-//     auto lcq = std::make_shared<LocalCommQueues>(n_workers);
-//     std::vector<std::unique_ptr<DefaultWorker>> ws(n_workers);
-//     for (size_t i = 0; i < n_workers; i++) { 
-//         auto comm = std::unique_ptr<SerializingComm>(new SerializingComm(
-//             std::unique_ptr<LocalComm>(new LocalComm(lcq, i))
-//         ));
-//         ws[i] = std::unique_ptr<DefaultWorker>(new DefaultWorker(std::move(comm)));
-//         cur_worker = ws[i].get();
-//         if (i == 0) {
-//             f();
-//         } else {
-//             ws[i]->introduce(ws[0]->get_addr()); 
-//         }
-//     }
-//     while (!ws[0]->is_stopped()) {
-//         for (size_t i = 0; i < n_workers; i++) { 
-//             cur_worker = ws[i].get();
-//             ws[i]->one_step();
-//         }
-//     }
-// }
-// 
 struct LocalContextInternals: public ContextInternals {
     std::vector<std::thread> threads;
     std::vector<std::unique_ptr<DefaultWorker>> workers;
@@ -81,10 +43,13 @@ struct LocalContextInternals: public ContextInternals {
             );
         }
     }
+
     ~LocalContextInternals() {
         main_worker.shutdown();
         for (auto& w: workers) {
-            w->stop();
+            main_worker.comm->send(w->get_addr(), Msg(
+                Protocol::Shutdown, make_data(1)
+            ));
         }
         for (auto& t: threads) {
             t.join();
@@ -105,8 +70,6 @@ Context::Context(Context&&) = default;
 Context launch_local(size_t n_workers) {
     return Context(std::make_unique<LocalContextInternals>(n_workers));
 }
-
-
 
 #ifdef MPI_FOUND
 

@@ -8,7 +8,7 @@ using namespace taskloaf;
 
 struct TestingComm: public Comm {
     Address addr = {"",0};
-    std::vector<Address> remotes = {{"", 0}};
+    std::vector<Address> remotes = {{"", 1}};
     Msg* cur_msg = nullptr;
     std::vector<Msg> sent;
     MsgHandlers handlers;
@@ -96,6 +96,16 @@ TEST_CASE("Mixed tasks run LIFO") {
     tc.add_task({[&] (std::vector<Data>&) { x = 1; }, {}});
     tc.add_local_task({[&] (std::vector<Data>&) { x *= 2; }, {}});
     tc.run_next();
+    tc.run_next();
+    REQUIRE(x == 1);
+}
+
+TEST_CASE("Send remotely assigned task") {
+    MAKE_TASK_COLLECTION(tc);
+    int x = 0;
+    tc.add_task({"",1}, {[&] (std::vector<Data>&) { x = 1; }, {}});
+    REQUIRE(comm.sent.size() == 1);
+    comm.receive_msg(comm.sent[0]);
     tc.run_next();
     REQUIRE(x == 1);
 }

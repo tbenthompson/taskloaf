@@ -5,87 +5,63 @@
 
 using namespace taskloaf; 
 
-template <typename FTest, typename FAsync, typename FThen>
-void future_tester_helper(FTest fnc, FAsync fasync, FThen fthen) {
-
-    auto ctx = launch_local(2);
-    bool correct = false;
-    auto fut = fnc(fasync, fthen).then([&] (int x) {
-        correct = (x == 1);
-    });
-    fut.wait();
-    REQUIRE(correct);
-}
-
-template <typename FTest>
-void future_tester(FTest fnc) {
-    future_tester_helper(fnc, 
-        [] (auto f) { return async(f); }, 
-        [] (auto fut, auto f) { return then(fut, f); }
-    );
-    future_tester_helper(fnc, 
-        [] (auto f) { return asyncd(f); }, 
-        [] (auto fut, auto f) { return thend(fut, f); }
-    );
-}
-
 TEST_CASE("Ready", "[future]") {
-    future_tester([] (auto, auto) { return ready(1); });
+    auto ctx = launch_local(2);
+    REQUIRE(ready(1).get() == 1);
 }
 
 TEST_CASE("Then", "[future]") {
-    future_tester([] (auto, auto then) {
-        return then(ready(0), [] (int x) { return x + 1; }); 
-    });
+    auto ctx = launch_local(2);
+    REQUIRE(ready(0).then([] (int x) { return x + 1; }).get() == 1);
 }
 
 TEST_CASE("Unwrap", "[future]") {
-    future_tester([] (auto, auto then) {
-        auto f = ready(1);  
-        return then(f, [] (int x) {
-            if (x < 5) {
-                return ready(1);
-            } else {
-                return ready(0);
-            }
-        }).unwrap();
-    });
+    auto ctx = launch_local(2);
+    auto x = ready(4).then([] (int x) {
+        if (x < 5) {
+            return ready(1);
+        } else {
+            return ready(0);
+        }
+    }).unwrap().get();
+    REQUIRE(x == 1);
 }
 
 TEST_CASE("When all", "[future]") {
-    future_tester([] (auto, auto then) {
-        return then(
-            when_all(ready(0.2), ready(5)), 
-            [] (double a, int b) { return static_cast<int>(a * b); }
-        );
-    });
+    auto ctx = launch_local(2);
+    auto x = when_all(ready(0.2), ready(5)).then(
+        [] (double a, int b) -> int {
+            return a * b;
+        }).get();
+    REQUIRE(x == 1);
 }
 
 TEST_CASE("Async", "[future]") {
-    future_tester([] (auto async, auto) {
-        return async([] () { return 1; });
-    });
+    auto ctx = launch_local(2);
+    REQUIRE(async([] () { return 1; }).get() == 1);
 }
 
 std::string bark() { return "arf"; }
 TEST_CASE("Async fnc", "[future]") {
-    future_tester([] (auto async, auto) {
-        auto f = async(bark);
-        return ready(1);
-    });
+    auto ctx = launch_local(2);
+    async(bark).wait();
 }
 
 std::string make_sound(int x) { return "llamasound" + std::to_string(x); }
 TEST_CASE("Then fnc", "[future]") {
-    future_tester([] (auto, auto then) {
-        auto f = then(ready(2), make_sound);
-        return ready(1);
-    });
+    auto ctx = launch_local(2);
+    ready(2).then(make_sound).wait();
+}
+
+void bark_silently() {}
+TEST_CASE("void async fnc", "[future]") {
+    auto ctx = launch_local(2);
+    async(bark_silently).wait();
 }
 
 struct ABC {
-    void plan() {
-        auto val = ready(*this).then([] (ABC abc) { return abc.rocks(); });
+    auto plan() {
+        return ready(*this).then([] (ABC abc) { return abc.rocks(); });
     }
 
     template <typename Archive>
@@ -95,14 +71,44 @@ struct ABC {
 };
 
 TEST_CASE("Then member fnc", "[future]") {
-    future_tester([] (auto, auto) {
-        ABC abc;
-        abc.plan();
-        return ready(1);
-    });
+    auto ctx = launch_local(1);
+    ABC abc;
+    abc.plan().wait();
 }
 
-TEST_CASE("Wait without context", "[future]") {
-    auto f = async([] {});
+TEST_CASE("Empty futures", "[empty_future]") {
+    auto ctx = launch_local(1);
+    auto f = async([] () {})
+        .then([] () { return 0; })
+        .then([] (int) {})
+        .then([] () {});
     f.wait();
 }
+
+// TEST_CASE("Wait without context", "[future]") {
+//     auto f = async([] {});
+//     f.wait();
+// }
+// TEST_CASE("Empty when_all", "[empty_future]") {
+//     int x = 0;
+//     when_all(async([&] { x = 2; }), ready(2))
+//         .then([&] (int mult) { x *= mult; });
+//     REQUIRE(x == 4);
+// }
+// TEST_CASE("Outside of launch, just run immediately", "[empty_future]") {
+//     int x = 0;
+//     when_all(
+//             async([&] { x = 1; }).then([&] {x *= 2; }),
+//             ready(5)
+//         ).then([] (int) { return ready(1); })
+//         .unwrap()
+//         .then([&] (int y) { x += y; });
+//     REQUIRE(x == 3);
+// }
+// 
+// TEST_CASE("Copy future outside launch", "[empty_future]") {
+//     auto f = ready(5);
+//     Future<int> f2;
+//     f2 = f;
+//     auto result = when_all(f2, f2).then([] (int, int) {});
+// }

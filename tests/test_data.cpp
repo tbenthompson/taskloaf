@@ -99,3 +99,8 @@ TEST_CASE("Serializable closure") {
     int five = 5;
     REQUIRE(result.get_as<decltype(f)>()(five) == 120);
 }
+
+TEST_CASE("Implicit conversion") {
+    auto d = make_data(10);
+    int a = d;
+}

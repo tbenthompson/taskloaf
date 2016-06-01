@@ -45,6 +45,16 @@ struct Data {
     const T& get_as() const {
         return const_cast<Data*>(this)->get_as<T>();
     }
+
+    template <typename T>
+    operator T&() {
+        return get_as<T>();
+    }
+
+    template <typename T>
+    operator const T&() const {
+        return get_as<T>();
+    }
 };
 
 template <typename T>

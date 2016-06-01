@@ -7,22 +7,12 @@
 
 namespace taskloaf {
 
-template <size_t I, typename TupleType>
-auto& extract_data(std::vector<Data>& args) {
-    typedef typename std::tuple_element<I,TupleType>::type T;
-    tlassert(I < args.size());
-    return args[I].get_as<typename std::decay<T>::type>();
+template <typename Func, size_t... I>
+static auto apply_data_args_helper(Func&& func,
+    std::vector<Data>& args, std::index_sequence<I...>) 
+{
+    return func(args[I]...);
 }
-
-template <typename Func, typename Args, typename IndexList>
-struct Applier;
-
-template <typename Func, typename Tuple, size_t... I>
-struct Applier<Func, Tuple, std::index_sequence<I...>> {
-    static auto on(Func&& func, std::vector<Data>& args) {
-        return func(extract_data<I,Tuple>(args)...);
-    }
-};
 
 template <typename T>
 struct ApplyArgsHelper {};
@@ -32,17 +22,16 @@ struct ApplyArgsHelper<Return(Args...)>
 {
     template <typename F>
     static Return run(F&& f, std::vector<Data>& args) {
-        return Applier<
-            F,std::tuple<Args...>,
-            std::make_index_sequence<sizeof...(Args)>
-        >::on(std::forward<F>(f), args);
+        return apply_data_args_helper(
+            std::forward<F>(f), args, std::index_sequence_for<Args...>{}
+        );
     }
 };
 
 template <typename F>
 auto apply_data_args(F&& f, std::vector<Data>& args) {
-    typedef typename std::decay<F>::type DecayF;
-    return ApplyArgsHelper<GetSignature<DecayF>>::run(std::forward<F>(f), args);
+    typedef GetSignature<std::decay_t<F>> FSignature;
+    return ApplyArgsHelper<FSignature>::run(std::forward<F>(f), args);
 }
 
 template <typename IndexList>

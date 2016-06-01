@@ -32,15 +32,14 @@ struct DefaultWorker: public Worker {
     void shutdown() override;
     void stop() override;
     void run() override;
-    bool can_compute_immediately() override;
+    const Address& get_addr() const override;
     size_t n_workers() const override;
-    void add_task(TaskT f) override;
+    TaskCollection& get_task_collection() override;
     IVarTracker& get_ivar_tracker() override;
 
     void introduce(Address addr);
     bool is_stopped() const;
     Comm& get_comm();
-    const Address& get_addr();
 
     void recv();
     void one_step();

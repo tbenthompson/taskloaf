@@ -9,12 +9,12 @@ TEST_CASE("Number of workers", "[worker]") {
     REQUIRE(ws[0]->n_workers() == 4);
 }
 
-void stealing_test(int n_steal_attempts, int n_steals_expected) {
+void stealing_test(int n_steal_attempts) {
     auto ws = workers(2);
     int x = 0;
     int n_tasks = 5;
     for (int i = 0; i < n_tasks; i++) {
-        ws[0]->add_task({
+        ws[0]->get_task_collection().add_task({
             [&] (std::vector<Data>&) {
                 x = 1; 
             },
@@ -22,7 +22,7 @@ void stealing_test(int n_steal_attempts, int n_steals_expected) {
         });
     }
     settle(ws);
-    for (int i = 0; i < n_steals; i++) {
+    for (int i = 0; i < n_steal_attempts; i++) {
         ws[1]->tasks.steal();
     }
     REQUIRE(ws[0]->tasks.size() == n_tasks);

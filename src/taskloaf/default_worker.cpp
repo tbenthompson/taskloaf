@@ -38,6 +38,10 @@ void DefaultWorker::stop() {
     should_stop = true;
 }
 
+TaskCollection& DefaultWorker::get_task_collection() {
+    return tasks;
+}
+
 IVarTracker& DefaultWorker::get_ivar_tracker() {
     return ivar_tracker;
 }
@@ -46,18 +50,8 @@ size_t DefaultWorker::n_workers() const {
     return comm->remote_endpoints().size() + 1;
 }
 
-bool DefaultWorker::can_compute_immediately() {
-    if (immediate_computes > immediates_allowed) {
-        immediate_computes = 0;
-        if (tasks.size() > 0) {
-            return false;
-        }
-        if (comm->remote_endpoints().size() > 0 && comm->has_incoming()) {
-            return false;
-        }
-    }
-    immediate_computes++;
-    return true;
+const Address& DefaultWorker::get_addr() const {
+    return comm->get_addr();
 }
 
 bool DefaultWorker::is_stopped() const {
@@ -70,14 +64,6 @@ Comm& DefaultWorker::get_comm() {
 
 void DefaultWorker::introduce(Address addr) {
     ivar_tracker.introduce(addr);
-}
-
-const Address& DefaultWorker::get_addr() {
-    return get_comm().get_addr();
-}
-
-void DefaultWorker::add_task(TaskT f) {
-    tasks.add_task(std::move(f));
 }
 
 void DefaultWorker::recv() {
@@ -98,7 +84,6 @@ void DefaultWorker::one_step() {
 }
 
 void DefaultWorker::run() {
-    cur_worker = this;
     while (!is_stopped()) {
         one_step();
     }

@@ -14,7 +14,8 @@
     DO(AddTrigger) \
     DO(DeleteInfo) \
     DO(SendOwnership) \
-    DO(InitiateTransfer) 
+    DO(InitiateTransfer) \
+    DO(AssignedTask)
 
 #define MAKE_ENUM(VAR) VAR,
 enum class Protocol {
