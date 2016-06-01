@@ -1,5 +1,9 @@
 #pragma once
 #include "worker.hpp"
+#include "data.hpp"
+#include "closure.hpp"
+#include "task_collection.hpp"
+#include "ref_tracker.hpp"
 
 namespace taskloaf {
 

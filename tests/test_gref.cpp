@@ -4,84 +4,84 @@
 
 using namespace taskloaf;
 
-void make_ivar_live(DefaultWorker& w, const IVarRef& ivar) {
-    w.get_ivar_tracker().fulfill(ivar, {make_data(1)});
+void make_gref_live(DefaultWorker& w, const GlobalRef& gref) {
+    w.get_ref_tracker().fulfill(gref, {make_data(1)});
 }
 
 TEST_CASE("Ref tracking destructor deletes", "[worker]") {
     auto w = worker();
     cur_worker = w.get();
     {
-        IVarRef iv(new_id());
-        make_ivar_live(*w, iv);
-        REQUIRE(w->ivar_tracker.n_owned() == 1);
+        GlobalRef iv(new_id());
+        make_gref_live(*w, iv);
+        REQUIRE(w->ref_tracker.n_owned() == 1);
     }
-    REQUIRE(w->ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ref_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy constructor", "[worker]") {
     auto w = worker();
     cur_worker = w.get();
     {
-        std::unique_ptr<IVarRef> ivarref2;
+        std::unique_ptr<GlobalRef> grefref2;
         {
-            IVarRef iv(new_id());
-            ivarref2.reset(new IVarRef(iv));
+            GlobalRef iv(new_id());
+            grefref2.reset(new GlobalRef(iv));
         }
-        REQUIRE(w->ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ref_tracker.n_owned() == 1);
     }
-    REQUIRE(w->ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ref_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy assignment", "[worker]") {
     auto w = worker();
     cur_worker = w.get();
     {
-        IVarRef ivarref2;
+        GlobalRef grefref2;
         {
-            IVarRef iv(new_id());
-            ivarref2 = iv;
+            GlobalRef iv(new_id());
+            grefref2 = iv;
         }
-        REQUIRE(w->ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ref_tracker.n_owned() == 1);
     }
-    REQUIRE(w->ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ref_tracker.n_owned() == 0);
 }
 
 
 TEST_CASE("Ref tracking empty", "[worker]") {
-    IVarRef iv;
+    GlobalRef iv;
 }
 
 TEST_CASE("Ref tracking move constructor", "[worker]") {
     auto w = worker();
     cur_worker = w.get();
     {
-        std::unique_ptr<IVarRef> ivarref2;
+        std::unique_ptr<GlobalRef> grefref2;
         {
-            IVarRef iv(new_id());
-            make_ivar_live(*w, iv);
-            ivarref2.reset(new IVarRef(std::move(iv)));
+            GlobalRef iv(new_id());
+            make_gref_live(*w, iv);
+            grefref2.reset(new GlobalRef(std::move(iv)));
             REQUIRE(iv.empty == true);
         }
-        REQUIRE(w->ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ref_tracker.n_owned() == 1);
     }
-    REQUIRE(w->ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ref_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking move assignment", "[worker]") {
     auto w = worker();
     cur_worker = w.get();
     {
-        IVarRef iv;
+        GlobalRef iv;
         {
-            IVarRef iv2(new_id());
-            make_ivar_live(*w, iv2);
+            GlobalRef iv2(new_id());
+            make_gref_live(*w, iv2);
             iv = std::move(iv2);
             REQUIRE(iv2.empty == true);
         }
-        REQUIRE(w->ivar_tracker.n_owned() == 1);
+        REQUIRE(w->ref_tracker.n_owned() == 1);
     }
-    REQUIRE(w->ivar_tracker.n_owned() == 0);
+    REQUIRE(w->ref_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting", "[worker]") {
@@ -89,32 +89,32 @@ TEST_CASE("Remote reference counting", "[worker]") {
     settle(ws);
     {
         auto id = id_on_worker(ws[1]);
-        IVarRef iv(id);
+        GlobalRef iv(id);
         settle(ws);
-        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
 
         cur_worker = ws[0].get();
-        ws[0]->get_ivar_tracker().fulfill(iv, {make_data(1)});
+        ws[0]->get_ref_tracker().fulfill(iv, {make_data(1)});
 
-        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+        REQUIRE(ws[0]->ref_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ref_tracker.n_vals_here() == 0);
+        REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
 
         settle(ws);
-        REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 1);
+        REQUIRE(ws[0]->ref_tracker.n_vals_here() == 1);
+        REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
+        REQUIRE(ws[1]->ref_tracker.n_vals_here() == 0);
+        REQUIRE(ws[1]->ref_tracker.n_owned() == 1);
 
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->ivar_tracker.n_vals_here() == 0);
-    REQUIRE(ws[0]->ivar_tracker.n_owned() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_vals_here() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[0]->ref_tracker.n_vals_here() == 0);
+    REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
+    REQUIRE(ws[1]->ref_tracker.n_vals_here() == 0);
+    REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting change location", "[worker]") {
@@ -123,24 +123,24 @@ TEST_CASE("Remote reference counting change location", "[worker]") {
         auto id = id_on_worker(ws[1]);
 
         cur_worker = ws[0].get();
-        IVarRef iv(id);
+        GlobalRef iv(id);
 
-        ws[1]->get_ivar_tracker().add_trigger(
+        ws[1]->get_ref_tracker().add_trigger(
             iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}}
         );
-        ws[0]->get_ivar_tracker().add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
-        REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 1);
-        REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 1);
+        ws[0]->get_ref_tracker().add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
+        REQUIRE(ws[0]->ref_tracker.n_triggers_here() == 1);
+        REQUIRE(ws[1]->ref_tracker.n_triggers_here() == 1);
 
         ws[1]->recv();
 
-        REQUIRE(ws[1]->ivar_tracker.n_owned() == 1);
+        REQUIRE(ws[1]->ref_tracker.n_owned() == 1);
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->ivar_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->ivar_tracker.n_owned() == 0);
+    REQUIRE(ws[0]->ref_tracker.n_triggers_here() == 0);
+    REQUIRE(ws[1]->ref_tracker.n_triggers_here() == 0);
+    REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
 }
 
 void remote(int n_workers, int owner_worker, int fulfill_worker,
@@ -150,10 +150,10 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
     int x = 0;
 
     auto id = id_on_worker(ws[owner_worker]);
-    IVarRef iv(id);
+    GlobalRef iv(id);
 
     auto trigger = [&] () {
-        ws[trigger_worker]->get_ivar_tracker().add_trigger(iv, {
+        ws[trigger_worker]->get_ref_tracker().add_trigger(iv, {
             [&] (std::vector<Data>&, std::vector<Data>& vals) {
                 x = vals[0].get_as<int>(); 
             },
@@ -168,7 +168,7 @@ void remote(int n_workers, int owner_worker, int fulfill_worker,
         trigger();
     }
 
-    ws[fulfill_worker]->get_ivar_tracker().fulfill(iv, {make_data(1)});
+    ws[fulfill_worker]->get_ref_tracker().fulfill(iv, {make_data(1)});
 
     if (always_settle || trigger_worker != fulfill_worker) {
         settle(ws);

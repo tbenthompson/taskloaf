@@ -1,9 +1,9 @@
-#include "ivar_tracker.hpp"
+#include "ref_tracker.hpp"
 #include "id.hpp"
 #include "comm.hpp"
 #include "ring.hpp"
 #include "protocol.hpp"
-#include "ivar_db.hpp"
+#include "gref_db.hpp"
 #include "logging.hpp"
 
 #include <cereal/types/utility.hpp>
@@ -47,13 +47,13 @@ struct IVarTrackerInternals {
             auto& p = d.get_as<std::tuple<ID,ID,Address>>();
             std::vector<Transfer> transfer;
             std::vector<ID> erase_me;
-            for (auto& ivar: db) {
-                if (in_interval(std::get<0>(p), std::get<1>(p), ivar.first)) {
-                    transfer.emplace_back(ivar.first, std::move(ivar.second.ownership));
-                    ivar.second.ownership.ref_count.zero();
-                    if (ivar.second.triggers.size() == 0 &&
-                            !db.is_fulfilled_here(ivar.first)) {
-                        erase_me.push_back(ivar.first);
+            for (auto& gref: db) {
+                if (in_interval(std::get<0>(p), std::get<1>(p), gref.first)) {
+                    transfer.emplace_back(gref.first, std::move(gref.second.ownership));
+                    gref.second.ownership.ref_count.zero();
+                    if (gref.second.triggers.size() == 0 &&
+                            !db.is_fulfilled_here(gref.first)) {
+                        erase_me.push_back(gref.first);
                     }
                 }
             }
@@ -92,7 +92,7 @@ struct IVarTrackerInternals {
             });
         });
         comm.add_handler(Protocol::Fulfill, [&] (Data d) {
-            auto& p = d.get_as<std::pair<IVarRef,Address>>();
+            auto& p = d.get_as<std::pair<GlobalRef,Address>>();
             auto& iv = p.first;
 
             forward_or(iv.id, [&] () {
@@ -105,7 +105,7 @@ struct IVarTrackerInternals {
             });
         });
         comm.add_handler(Protocol::AddTrigger, [&] (Data d) {
-            auto& p = d.get_as<std::pair<IVarRef,Address>>();
+            auto& p = d.get_as<std::pair<GlobalRef,Address>>();
             auto& iv = p.first;
 
             forward_or(iv.id, [&] () {
@@ -124,13 +124,13 @@ struct IVarTrackerInternals {
 
         // On the fulfiller
         comm.add_handler(Protocol::TriggerLocs, [&] (Data d) {
-            auto& p = d.get_as<std::pair<IVarRef,std::set<Address>>>();
+            auto& p = d.get_as<std::pair<GlobalRef,std::set<Address>>>();
             auto& iv = p.first;
             tlassert(db.is_fulfilled_here(iv.id));
             fulfill_triggers(iv, p.second);
         });
         comm.add_handler(Protocol::RecvTriggers, [&] (Data d) {
-            auto& p = d.get_as<std::pair<IVarRef,std::vector<TriggerT>>>();
+            auto& p = d.get_as<std::pair<GlobalRef,std::vector<TriggerT>>>();
             auto& iv = p.first;
             db.run_remote_triggers(iv.id, std::move(p.second));
         });
@@ -142,7 +142,7 @@ struct IVarTrackerInternals {
         
         // On where add_trigger was called.
         comm.add_handler(Protocol::GetTriggers, [&] (Data d) {
-            auto& p = d.get_as<std::pair<IVarRef,Address>>();
+            auto& p = d.get_as<std::pair<GlobalRef,Address>>();
             auto& iv = p.first;
             auto& trigs_to_send = db[iv.id].triggers;
             comm.send(p.second, Msg(Protocol::RecvTriggers, make_data(
@@ -168,8 +168,8 @@ struct IVarTrackerInternals {
         if (ownership.val_locs.size() > 0 && ownership.trigger_locs.size() > 0) {
             // Need to create a new IvarRef here or the data may be deleted 
             // because the ref used to create the trigger and the ref used
-            // to fulfill the ivar may both be dead.
-            auto iv = IVarRef(id, copy_ref(ownership.ref_count.source_ref));
+            // to fulfill the gref may both be dead.
+            auto iv = GlobalRef(id, copy_ref(ownership.ref_count.source_ref));
             auto v_loc = *ownership.val_locs.begin();
             comm.send(v_loc, Msg(Protocol::TriggerLocs, make_data(
                 std::make_pair(std::move(iv), std::move(ownership.trigger_locs))
@@ -208,7 +208,7 @@ struct IVarTrackerInternals {
         db.erase(id);
     }
 
-    void fulfill_triggers(const IVarRef& iv, const std::set<Address>& trigger_locs) {
+    void fulfill_triggers(const GlobalRef& iv, const std::set<Address>& trigger_locs) {
         for (auto& t_loc: trigger_locs) {
             if (is_local(t_loc)) {
                 db.run_local_triggers(iv.id, db[iv.id].vals);
@@ -220,13 +220,13 @@ struct IVarTrackerInternals {
         }
     }
 
-    void local_fulfill(const IVarRef& iv) {
+    void local_fulfill(const GlobalRef& iv) {
         db.add_val_loc(iv.id, comm.get_addr());
         fulfill_triggers(iv, db[iv.id].ownership.trigger_locs);
         db[iv.id].ownership.trigger_locs.clear();
     }
 
-    void local_add_trigger(const IVarRef& iv) {
+    void local_add_trigger(const GlobalRef& iv) {
         if (!db.is_fulfilled_somewhere(iv.id)) {
             db.add_trigger_loc(iv.id, comm.get_addr());
             return;
@@ -257,7 +257,7 @@ IVarTracker::IVarTracker(IVarTracker&&) = default;
 
 IVarTracker::~IVarTracker() = default;
 
-void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
+void IVarTracker::fulfill(const GlobalRef& iv, std::vector<Data> input) {
     tlassert(!impl->db.is_fulfilled_here(iv.id));
     impl->log.n_global_fulfills++;
     impl->db.fulfill(iv.id, std::move(input));
@@ -273,7 +273,7 @@ void IVarTracker::fulfill(const IVarRef& iv, std::vector<Data> input) {
     }
 }
 
-void IVarTracker::add_trigger(const IVarRef& iv, TriggerT trigger) {
+void IVarTracker::add_trigger(const GlobalRef& iv, TriggerT trigger) {
     impl->db[iv.id].triggers.push_back(std::move(trigger));
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
@@ -287,7 +287,7 @@ void IVarTracker::add_trigger(const IVarRef& iv, TriggerT trigger) {
     }
 }
 
-void IVarTracker::dec_ref(const IVarRef& iv) {
+void IVarTracker::dec_ref(const GlobalRef& iv) {
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
         impl->local_dec_ref(iv.id, iv.data);
@@ -298,13 +298,13 @@ void IVarTracker::dec_ref(const IVarRef& iv) {
     }
 }
 
-bool IVarTracker::is_fulfilled_here(const IVarRef& ivar) const {
-    return impl->db.is_fulfilled_here(ivar.id);
+bool IVarTracker::is_fulfilled_here(const GlobalRef& gref) const {
+    return impl->db.is_fulfilled_here(gref.id);
 }
 
-std::vector<Data> IVarTracker::get_vals(const IVarRef& ivar) const {
-    tlassert(is_fulfilled_here(ivar));
-    return impl->db[ivar.id].vals;
+std::vector<Data> IVarTracker::get_vals(const GlobalRef& gref) const {
+    tlassert(is_fulfilled_here(gref));
+    return impl->db[gref.id].vals;
 }
 
 void IVarTracker::introduce(Address addr) {

@@ -11,28 +11,28 @@ template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
-    mutable IVarRef ivar;
+    mutable GlobalRef gref;
 
-    FutureBase(): ivar(new_id()) {}
+    FutureBase(): gref(new_id()) {}
     FutureBase(FutureBase&& other) = default;
     FutureBase& operator=(FutureBase&& other) = default;
     FutureBase(const FutureBase& other) = default;
     FutureBase& operator=(const FutureBase& other) = default;
 
     void add_trigger(TriggerT trigger) const {
-        cur_worker->get_ivar_tracker().add_trigger(ivar, std::move(trigger));
+        cur_worker->get_ref_tracker().add_trigger(gref, std::move(trigger));
     }
 
     void fulfill(std::vector<Data> vals) const {
-        cur_worker->get_ivar_tracker().fulfill(ivar, vals);
+        cur_worker->get_ref_tracker().fulfill(gref, vals);
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {
-        ar(ivar);
+        ar(gref);
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        ar(ivar);
+        ar(gref);
     }
 
     template <typename F>
@@ -76,11 +76,11 @@ struct Future<T>: public FutureBase<Future<T>,T> {
     // data handling they would like: move vs. reference vs. copy.
     // Need to solve the data caching issue first.
     T get() { 
-        auto& iv_tracker = cur_worker->get_ivar_tracker();
+        auto& iv_tracker = cur_worker->get_ref_tracker();
 
         T out;
-        if (iv_tracker.is_fulfilled_here(this->ivar)) {
-            out = iv_tracker.get_vals(this->ivar)[0].template get_as<T>();
+        if (iv_tracker.is_fulfilled_here(this->gref)) {
+            out = iv_tracker.get_vals(this->gref)[0].template get_as<T>();
         } else {
             // TODO: This duplication wouldn't be necessary with proper data
             // caching and could be replaced by a wait and a tracker grab.

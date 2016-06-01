@@ -70,7 +70,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/ivar.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/ivar_tracker.cpp;src/taskloaf/id.cpp;src/taskloaf/ring.cpp;src/taskloaf/ref_counting.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/global_ref.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/ref_tracker.cpp;src/taskloaf/id.cpp;src/taskloaf/ring.cpp;src/taskloaf/ref_counting.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 message(GLOB_TASKLOAF_HDR)
 
@@ -130,7 +130,7 @@ if(BUILD_TESTS)
     taskloaf_tests(comm True)
     taskloaf_tests(ref_counting True)
     taskloaf_tests(launch True)
-    taskloaf_tests(ivar True)
+    taskloaf_tests(gref True)
     taskloaf_tests(task_collection True)
 
     if (MPI_CXX_FOUND)

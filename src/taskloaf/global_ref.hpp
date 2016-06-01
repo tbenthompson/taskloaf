@@ -8,19 +8,19 @@
 namespace taskloaf {
 
 // A reference counting "pointer" to an IVar
-struct IVarRef {
+struct GlobalRef {
     ID id;
     mutable RefData data;
     bool empty;
 
-    IVarRef();
-    explicit IVarRef(ID id);
-    IVarRef(ID id, RefData data);
-    IVarRef(const IVarRef&);
-    IVarRef(IVarRef&&);
-    IVarRef& operator=(IVarRef&&);
-    IVarRef& operator=(const IVarRef&);
-    ~IVarRef();
+    GlobalRef();
+    explicit GlobalRef(ID id);
+    GlobalRef(ID id, RefData data);
+    GlobalRef(const GlobalRef&);
+    GlobalRef(GlobalRef&&);
+    GlobalRef& operator=(GlobalRef&&);
+    GlobalRef& operator=(const GlobalRef&);
+    ~GlobalRef();
 
     void save(cereal::BinaryOutputArchive& ar) const;
     void load(cereal::BinaryInputArchive& ar);

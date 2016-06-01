@@ -11,7 +11,7 @@ auto fib_serial(int index) {
 }
 
 auto fib_thresholded(int index) {
-    if (index < 35) {
+    if (index < 3) {
         return tl::async([=] () { return fib_serial(index); });
     } else {
         return tl::async([=] () {

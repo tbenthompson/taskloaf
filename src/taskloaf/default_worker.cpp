@@ -12,7 +12,7 @@ DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     comm(std::move(p_comm)),
     log(comm->get_addr()),
     tasks(log, *comm),
-    ivar_tracker(log, *comm),
+    ref_tracker(log, *comm),
     should_stop(false)
 {
     comm->add_handler(Protocol::Shutdown, [&] (Data) {
@@ -42,8 +42,8 @@ TaskCollection& DefaultWorker::get_task_collection() {
     return tasks;
 }
 
-IVarTracker& DefaultWorker::get_ivar_tracker() {
-    return ivar_tracker;
+IVarTracker& DefaultWorker::get_ref_tracker() {
+    return ref_tracker;
 }
 
 size_t DefaultWorker::n_workers() const {
@@ -63,7 +63,7 @@ Comm& DefaultWorker::get_comm() {
 }
 
 void DefaultWorker::introduce(Address addr) {
-    ivar_tracker.introduce(addr);
+    ref_tracker.introduce(addr);
 }
 
 void DefaultWorker::recv() {

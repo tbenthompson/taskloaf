@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ivar.hpp"
+#include "global_ref.hpp"
 
 #include <functional>
 

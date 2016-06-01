@@ -39,7 +39,7 @@ std::vector<std::unique_ptr<DefaultWorker>> workers(int n_workers) {
 }
 
 ID id_on_worker(const std::unique_ptr<DefaultWorker>& w) {
-    auto id = w->ivar_tracker.get_ring_locs()[0];
+    auto id = w->ref_tracker.get_ring_locs()[0];
     id.secondhalf++;
     return id;
 }
