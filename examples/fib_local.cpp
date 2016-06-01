@@ -10,14 +10,14 @@ auto fib_serial(int index) {
     }
 }
 
-auto fib_thresholded(int index) {
-    if (index < 3) {
+auto fib(int index, int threshold) {
+    if (index < threshold) {
         return tl::async([=] () { return fib_serial(index); });
     } else {
         return tl::async([=] () {
             return tl::when_all(
-                fib_thresholded(index - 1),
-                fib_thresholded(index - 2)
+                fib(index - 1, threshold),
+                fib(index - 2, threshold)
             ).then(std::plus<int>());
         }).unwrap();
     }
@@ -25,8 +25,11 @@ auto fib_thresholded(int index) {
 
 int main(int, char** argv) {
     int n = std::stoi(std::string(argv[1]));
-    int n_cores = std::stoi(std::string(argv[2]));
-    auto ctx = tl::launch_local(n_cores);
-    auto x = fib_thresholded(n).get();
+    int threshold = std::stoi(std::string(argv[2]));
+    int n_cores = std::stoi(std::string(argv[3]));
+    tl::Config cfg;
+    cfg.print_stats = true;
+    auto ctx = tl::launch_local(n_cores, cfg);
+    auto x = fib(n, threshold).get();
     std::cout << "fib(" + std::to_string(n) + ") = " << x << std::endl;
 }

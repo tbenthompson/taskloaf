@@ -8,10 +8,24 @@
 
 namespace taskloaf {
 
+template <typename... Ts>
+struct FutureData {
+    bool fulfilled = false;
+    std::vector<Data> vals;
+    std::vector<TriggerT> triggers;
+};
+
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
+    // Things that happen... 
+    // trigger
+    // fulfill
+    // copy
+    // move
+    // sharing between threads?
+    std::shared_ptr<FutureData<Ts...>> data;
     mutable GlobalRef gref;
 
     FutureBase(): gref(new_id()) {}

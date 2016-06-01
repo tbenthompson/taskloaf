@@ -1,6 +1,9 @@
 #include "taskloaf.hpp"
 #include <cereal/types/memory.hpp>
 
+#include <thread>
+#include <chrono>
+
 namespace tl = taskloaf;
 
 template <typename T>
@@ -18,6 +21,7 @@ FList<int> make_stream_helper(int i) {
     if (i == 0) {
         return {nullptr};
     } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
         std::cout << "Computing " << i << std::endl;
         return {std::make_unique<FList<int>::Internal>(std::make_pair(
             i, 
@@ -33,7 +37,7 @@ Stream<int> make_stream(int max) {
 tl::Future<int> sum_stream(FList<int>& x, int accum) {
     if (x.v != nullptr) {
         accum += x.v->first;
-        std::cout << accum << std::endl;
+        std::cout << "Running sum: " << accum << std::endl;
         return x.v->second.then([=] (FList<int>& x) {
             return sum_stream(x, accum); 
         }).unwrap();
@@ -41,17 +45,11 @@ tl::Future<int> sum_stream(FList<int>& x, int accum) {
     return tl::ready(accum);
 }
 
-template <typename T, typename V>
-struct ABC{};
-
-template <typename T, typename Return, typename... Args> 
-struct ABC<T, Return(Args...)> {};
-
 int main() {
     auto ctx = tl::launch_local(1);
     auto stream = make_stream(10);
     auto result = stream.then(
         [] (FList<int>& x) { return sum_stream(x, 0); }
     ).unwrap().get();
-    std::cout << result << std::endl;
+    std::cout << "Total: " << result << std::endl;
 }

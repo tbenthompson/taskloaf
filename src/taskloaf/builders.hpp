@@ -50,7 +50,7 @@ InternalLoc internal_loc(int loc) {
     }
 }
 
-void schedule_task(const InternalLoc& iloc, TaskT t) {
+void schedule(const InternalLoc& iloc, TaskT t) {
     auto& task_collection = cur_worker->get_task_collection();
     if (iloc.anywhere) {
         task_collection.add_task(std::move(t));
@@ -83,7 +83,7 @@ auto then(int loc, Future<Ts...>& fut, F&& fnc) {
                 {c_args[0], c_args[1], make_data(args)}
             };
             auto iloc = c_args[2].get_as<InternalLoc>();
-            schedule_task(iloc, std::move(t));
+            schedule(iloc, std::move(t));
         },
         {
             make_data(std::move(f_serializable)),
@@ -141,7 +141,7 @@ auto async(int loc, F&& fnc) {
             make_data(out_future)
         }
     };
-    schedule_task(iloc, std::move(t));
+    schedule(iloc, std::move(t));
     return out_future;
 }
 

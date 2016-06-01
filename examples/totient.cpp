@@ -29,17 +29,19 @@ Future<int> sum_totient(int lower, int upper) {
         return ready(lower).then(totient);
     } else {
         auto middle = (lower + upper) / 2;
-        return when_all(
-            sum_totient(lower, middle),
-            sum_totient(middle + 1, upper)
-        ).then([] (int a, int b) { return a + b; });
+        return async([=] () {
+            return when_all(
+                sum_totient(lower, middle),
+                sum_totient(middle + 1, upper)
+            ).then([] (int a, int b) { return a + b; });
+        }).unwrap();
     }
 }
 
 int main() {
-    int n = 2000;
+    int n = 3000;
 
-    for (size_t i = 1; i <= 4; i++) {
+    for (size_t i = 1; i <= 6; i++) {
         TIC
         auto ctx = launch_local(i);
         auto x = sum_totient(1, n).get();

@@ -69,6 +69,7 @@ struct Function<Return(Args...)> {
 
     std::pair<size_t,size_t> caller_id;
     std::string closure;
+    FncCaller caller;
 
     Function() = default;
 
@@ -91,7 +92,9 @@ struct Function<Return(Args...)> {
         const char* data = reinterpret_cast<const char*>(&newf);
         closure = std::string(data, sizeof(F));
         caller_id = RegisterCaller<DecayF,Return,Args...>::add_to_registry();
+        set_caller();
     }
+
 
     Function(const Function<Return(Args...)>& f) = default;
     Function& operator=(const Function<Return(Args...)>& f) = default;
@@ -99,11 +102,14 @@ struct Function<Return(Args...)> {
     Function& operator=(Function<Return(Args...)>&& f) = default;
 
     Return operator()(Args... args) const {
-        auto caller = reinterpret_cast<FncCaller>(
-            get_caller_registry().get_function(caller_id)
-        );
         // No forwarding so that everything becomes an lvalue reference
         return caller(closure, args...);
+    }
+
+    void set_caller() {
+        caller = reinterpret_cast<FncCaller>(
+            get_caller_registry().get_function(caller_id)
+        );
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {
@@ -114,6 +120,7 @@ struct Function<Return(Args...)> {
     void load(cereal::BinaryInputArchive& ar) {
         ar(caller_id);
         ar(closure);
+        set_caller();
     }
 };
 

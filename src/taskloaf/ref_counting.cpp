@@ -44,13 +44,6 @@ void ReferenceCount::dec(const RefData& ref) {
         counts[ref.generation]--;
     }
     counts[ref.generation + 1] += ref.children;
-    if (counts[0] < -source_ref.children) {
-        std::cout << counts[0] << " sc:" << source_ref.children << " i:" << ref.ref_id << " c:" <<  ref.children << " g:" << ref.generation << std::endl;
-        for (auto& d: deletes) {
-            std::cout << d.ref_id << " c:" <<  d.children << " g:" << d.generation << std::endl;
-
-        }
-    }
     tlassert(counts[0] >= -source_ref.children);
     deletes.insert(ref);
 }

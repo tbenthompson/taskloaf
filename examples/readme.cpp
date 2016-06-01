@@ -2,7 +2,7 @@
 
 namespace tl = taskloaf;
 
-tl::Future<int> fib(int index) {
+auto fib(int index) {
     if (index < 3) {
         return tl::ready(1);
     } else {

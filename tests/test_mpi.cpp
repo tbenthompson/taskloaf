@@ -31,13 +31,13 @@ void test_send(T&& v, F&& f) {
         while (!stop) {
             c.recv();
         }
-        tlassert(handler_ran);
+        REQUIRE(handler_ran);
     }
 }
 
 void test_send_simple() {
     test_send(10, [] (Comm&, int v) {
-        tlassert(v == 10); 
+        REQUIRE(v == 10); 
     });
 }
 
@@ -46,7 +46,7 @@ void test_send_fnc() {
     Function<int(int)> f([=] (int a) { return a * b; });
 
     test_send(f, [] (Comm&, Function<int(int)> f) {
-        tlassert(f(3) == 9);
+        REQUIRE(f(3) == 9);
     });
 }
 
@@ -55,14 +55,14 @@ void test_send_nested_fnc() {
     Function<int(int)> f2([=] (int a) { return f(a) * 3; });
 
     test_send(f2, [] (Comm&, Function<int(int)> f) {
-        tlassert(f(3) == 18);
+        REQUIRE(f(3) == 18);
     });
 }
 
 void test_send_data() {
     auto d = make_data(std::string("HI"));
     test_send(d, [] (Comm&, Data d) {
-        tlassert(d.get_as<std::string>() == "HI");
+        REQUIRE(d.get_as<std::string>() == "HI");
     });
 }
 
@@ -70,7 +70,7 @@ void test_send_closure() {
     auto f = get_serializable_functor();
 
     test_send(f, [] (Comm&, decltype(f) f) {
-        tlassert(f(5) == 120);
+        REQUIRE(f(5) == 120);
     });
 }
 

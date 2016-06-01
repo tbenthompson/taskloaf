@@ -4,7 +4,6 @@
 
 cmake_minimum_required(VERSION 2.8.12)
 project(taskloaf CXX C)
-set(CMAKE_BUILD_TYPE Debug)
 include(ExternalProject)
 
 option(CMAKE_BUILD_TYPE "Build type" Debug)
@@ -72,7 +71,6 @@ endif()
 
 set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/global_ref.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/default_task_collection.cpp;src/taskloaf/ring_ref_tracker.cpp;src/taskloaf/id.cpp;src/taskloaf/ring.cpp;src/taskloaf/ref_counting.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
-message(GLOB_TASKLOAF_HDR)
 
 if (BUILD_LIBRARY)
     add_library(taskloaf SHARED ${TASKLOAF_SRC})
