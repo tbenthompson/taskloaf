@@ -40,11 +40,13 @@ struct InternalLoc {
     void serialize(Ar& ar) { ar(anywhere); ar(where); }
 };
 
-InternalLoc internal_loc(Loc loc) {
-    if (loc == Loc::here) {
+InternalLoc internal_loc(int loc) {
+    if (loc == static_cast<int>(Loc::anywhere)) {
+        return {true, {}};
+    } else if (loc == static_cast<int>(Loc::here)) {
         return {false, cur_worker->get_addr()};
     } else {
-        return {true, {}};
+        return {false, {loc}};
     }
 }
 
@@ -58,7 +60,7 @@ void schedule_task(const InternalLoc& iloc, TaskT t) {
 }
 
 template <typename F, typename... Ts>
-auto then(Loc loc, Future<Ts...>& fut, F&& fnc) {
+auto then(int loc, Future<Ts...>& fut, F&& fnc) {
     typedef std::result_of_t<F(Ts&...)> Return;
 
     Future<Return> out_future;
@@ -121,7 +123,7 @@ auto ready(T&& val) {
 }
 
 template <typename F>
-auto async(Loc loc, F&& fnc) {
+auto async(int loc, F&& fnc) {
     typedef std::result_of_t<F()> Return;
     Future<Return> out_future;
     auto f_serializable = make_function(fnc);
@@ -141,6 +143,11 @@ auto async(Loc loc, F&& fnc) {
     };
     schedule_task(iloc, std::move(t));
     return out_future;
+}
+
+template <typename F>
+auto async(Loc loc, F&& fnc) {
+    return async(static_cast<int>(loc), std::forward<F>(fnc));
 }
 
 template <typename F>

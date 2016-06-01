@@ -43,6 +43,14 @@ struct FutureBase {
 
     template <typename F>
     auto then(Loc loc, F&& f) {
+        return taskloaf::then(
+            static_cast<int>(loc), *static_cast<Derived*>(this),
+            std::forward<F>(f)
+        );
+    }
+
+    template <typename F>
+    auto then(int loc, F&& f) {
         return taskloaf::then(loc, *static_cast<Derived*>(this), std::forward<F>(f));
     }
 

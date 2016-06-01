@@ -5,6 +5,8 @@
 
 namespace taskloaf {
 
+// TODO: Probably should rename now that this doesn't
+// fit hostname:port anymore
 struct Address {
     int id;
 

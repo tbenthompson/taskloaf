@@ -7,8 +7,9 @@
 
 namespace taskloaf { 
 
-enum class Loc {
-    anywhere, here
+enum class Loc: int {
+    anywhere = -2,
+    here = -1
 };
 
 struct Worker {
