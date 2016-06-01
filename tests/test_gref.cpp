@@ -14,9 +14,9 @@ TEST_CASE("Ref tracking destructor deletes", "[worker]") {
     {
         GlobalRef iv(new_id());
         make_gref_live(*w, iv);
-        REQUIRE(w->ref_tracker.n_owned() == 1);
+        REQUIRE(get_ring_tracker(w).n_owned() == 1);
     }
-    REQUIRE(w->ref_tracker.n_owned() == 0);
+    REQUIRE(get_ring_tracker(w).n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy constructor", "[worker]") {
@@ -28,9 +28,9 @@ TEST_CASE("Ref tracking copy constructor", "[worker]") {
             GlobalRef iv(new_id());
             grefref2.reset(new GlobalRef(iv));
         }
-        REQUIRE(w->ref_tracker.n_owned() == 1);
+        REQUIRE(get_ring_tracker(w).n_owned() == 1);
     }
-    REQUIRE(w->ref_tracker.n_owned() == 0);
+    REQUIRE(get_ring_tracker(w).n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking copy assignment", "[worker]") {
@@ -42,9 +42,9 @@ TEST_CASE("Ref tracking copy assignment", "[worker]") {
             GlobalRef iv(new_id());
             grefref2 = iv;
         }
-        REQUIRE(w->ref_tracker.n_owned() == 1);
+        REQUIRE(get_ring_tracker(w).n_owned() == 1);
     }
-    REQUIRE(w->ref_tracker.n_owned() == 0);
+    REQUIRE(get_ring_tracker(w).n_owned() == 0);
 }
 
 
@@ -63,9 +63,9 @@ TEST_CASE("Ref tracking move constructor", "[worker]") {
             grefref2.reset(new GlobalRef(std::move(iv)));
             REQUIRE(iv.empty == true);
         }
-        REQUIRE(w->ref_tracker.n_owned() == 1);
+        REQUIRE(get_ring_tracker(w).n_owned() == 1);
     }
-    REQUIRE(w->ref_tracker.n_owned() == 0);
+    REQUIRE(get_ring_tracker(w).n_owned() == 0);
 }
 
 TEST_CASE("Ref tracking move assignment", "[worker]") {
@@ -79,9 +79,9 @@ TEST_CASE("Ref tracking move assignment", "[worker]") {
             iv = std::move(iv2);
             REQUIRE(iv2.empty == true);
         }
-        REQUIRE(w->ref_tracker.n_owned() == 1);
+        REQUIRE(get_ring_tracker(w).n_owned() == 1);
     }
-    REQUIRE(w->ref_tracker.n_owned() == 0);
+    REQUIRE(get_ring_tracker(w).n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting", "[worker]") {
@@ -91,30 +91,30 @@ TEST_CASE("Remote reference counting", "[worker]") {
         auto id = id_on_worker(ws[1]);
         GlobalRef iv(id);
         settle(ws);
-        REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
+        REQUIRE(get_ring_tracker(ws[0]).n_owned() == 0);
+        REQUIRE(get_ring_tracker(ws[1]).n_owned() == 0);
 
         cur_worker = ws[0].get();
         ws[0]->get_ref_tracker().fulfill(iv, {make_data(1)});
 
-        REQUIRE(ws[0]->ref_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ref_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
+        REQUIRE(get_ring_tracker(ws[0]).n_vals_here() == 1);
+        REQUIRE(get_ring_tracker(ws[0]).n_owned() == 0);
+        REQUIRE(get_ring_tracker(ws[1]).n_vals_here() == 0);
+        REQUIRE(get_ring_tracker(ws[1]).n_owned() == 0);
 
         settle(ws);
-        REQUIRE(ws[0]->ref_tracker.n_vals_here() == 1);
-        REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
-        REQUIRE(ws[1]->ref_tracker.n_vals_here() == 0);
-        REQUIRE(ws[1]->ref_tracker.n_owned() == 1);
+        REQUIRE(get_ring_tracker(ws[0]).n_vals_here() == 1);
+        REQUIRE(get_ring_tracker(ws[0]).n_owned() == 0);
+        REQUIRE(get_ring_tracker(ws[1]).n_vals_here() == 0);
+        REQUIRE(get_ring_tracker(ws[1]).n_owned() == 1);
 
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->ref_tracker.n_vals_here() == 0);
-    REQUIRE(ws[0]->ref_tracker.n_owned() == 0);
-    REQUIRE(ws[1]->ref_tracker.n_vals_here() == 0);
-    REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
+    REQUIRE(get_ring_tracker(ws[0]).n_vals_here() == 0);
+    REQUIRE(get_ring_tracker(ws[0]).n_owned() == 0);
+    REQUIRE(get_ring_tracker(ws[1]).n_vals_here() == 0);
+    REQUIRE(get_ring_tracker(ws[1]).n_owned() == 0);
 }
 
 TEST_CASE("Remote reference counting change location", "[worker]") {
@@ -128,19 +128,21 @@ TEST_CASE("Remote reference counting change location", "[worker]") {
         ws[1]->get_ref_tracker().add_trigger(
             iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}}
         );
-        ws[0]->get_ref_tracker().add_trigger(iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}});
-        REQUIRE(ws[0]->ref_tracker.n_triggers_here() == 1);
-        REQUIRE(ws[1]->ref_tracker.n_triggers_here() == 1);
+        ws[0]->get_ref_tracker().add_trigger(
+            iv, {[] (std::vector<Data>&, std::vector<Data>&) {}, {}}
+        );
+        REQUIRE(get_ring_tracker(ws[0]).n_triggers_here() == 1);
+        REQUIRE(get_ring_tracker(ws[1]).n_triggers_here() == 1);
 
         ws[1]->recv();
 
-        REQUIRE(ws[1]->ref_tracker.n_owned() == 1);
+        REQUIRE(get_ring_tracker(ws[1]).n_owned() == 1);
         cur_worker = ws[1].get();
     }
     settle(ws);
-    REQUIRE(ws[0]->ref_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->ref_tracker.n_triggers_here() == 0);
-    REQUIRE(ws[1]->ref_tracker.n_owned() == 0);
+    REQUIRE(get_ring_tracker(ws[0]).n_triggers_here() == 0);
+    REQUIRE(get_ring_tracker(ws[1]).n_triggers_here() == 0);
+    REQUIRE(get_ring_tracker(ws[1]).n_owned() == 0);
 }
 
 void remote(int n_workers, int owner_worker, int fulfill_worker,

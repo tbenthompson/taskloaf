@@ -2,6 +2,7 @@
 
 #include "builders.hpp"
 #include "when_all.hpp"
+#include "global_ref.hpp"
 
 #include <cereal/types/tuple.hpp>
 

@@ -16,8 +16,8 @@ struct Comm;
 struct DefaultWorker: public Worker {
     std::unique_ptr<Comm> comm;
     Log log;
-    TaskCollection tasks;
-    IVarTracker ref_tracker;
+    std::unique_ptr<TaskCollection> tasks;
+    std::unique_ptr<RefTracker> ref_tracker;
 
     int core_id = -1;
     bool stealing = false;
@@ -35,7 +35,7 @@ struct DefaultWorker: public Worker {
     const Address& get_addr() const override;
     size_t n_workers() const override;
     TaskCollection& get_task_collection() override;
-    IVarTracker& get_ref_tracker() override;
+    RefTracker& get_ref_tracker() override;
 
     void introduce(Address addr);
     bool is_stopped() const;

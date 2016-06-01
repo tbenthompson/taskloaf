@@ -1,6 +1,6 @@
 #include "catch.hpp"
 
-#include "taskloaf/task_collection.hpp"
+#include "taskloaf/default_task_collection.hpp"
 #include "taskloaf/logging.hpp"
 #include "taskloaf/comm.hpp"
 
@@ -37,7 +37,7 @@ struct TestingComm: public Comm {
 #define MAKE_TASK_COLLECTION(name)\
     Log log({"",0});\
     TestingComm comm;\
-    TaskCollection name(log, comm);\
+    DefaultTaskCollection name(log, comm);\
 
 TEST_CASE("Add task") {
     MAKE_TASK_COLLECTION(tc);

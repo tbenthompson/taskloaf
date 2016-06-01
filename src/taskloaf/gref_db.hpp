@@ -2,7 +2,7 @@
 
 namespace taskloaf {
 
-struct IVarOwnershipData {
+struct RefOwnershipData {
     ReferenceCount ref_count;
     std::set<Address> val_locs;
     std::set<Address> trigger_locs;
@@ -15,17 +15,17 @@ struct IVarOwnershipData {
     }
 };
 
-struct IVarData {
+struct DBEntry {
     bool fulfilled_here = false;
     std::vector<Data> vals;
     std::vector<TriggerT> triggers;
-    IVarOwnershipData ownership;
+    RefOwnershipData ownership;
 };
 
 void run_triggers(std::vector<TriggerT>& triggers, std::vector<Data>& vals) {
     // We can't just do a for loop over the currently present triggers
-    // because a trigger on a given IVar could add another trigger on
-    // the same IVar.
+    // because a trigger on a given Ref could add another trigger on
+    // the same Ref.
     while (triggers.size() > 0) {
         auto t = std::move(triggers.back());
         triggers.pop_back();
@@ -34,8 +34,8 @@ void run_triggers(std::vector<TriggerT>& triggers, std::vector<Data>& vals) {
 }
 
 // TODO: Separate ownership from storage data.
-struct IVarDB {
-    std::unordered_map<ID,IVarData> db;
+struct RefDB {
+    std::unordered_map<ID,DBEntry> db;
 
     auto& operator[](const ID& id) {
         return db[id];

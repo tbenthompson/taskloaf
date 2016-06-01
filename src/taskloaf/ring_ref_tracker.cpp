@@ -1,4 +1,4 @@
-#include "ref_tracker.hpp"
+#include "ring_ref_tracker.hpp"
 #include "id.hpp"
 #include "comm.hpp"
 #include "ring.hpp"
@@ -15,14 +15,14 @@
 
 namespace taskloaf {
 
-struct IVarTrackerInternals {
+struct RingRefTrackerInternals {
     Log& log;
     Comm& comm;
     Ring ring;
-    IVarDB db;
+    RefDB db;
     bool should_ignore_decrefs = false;
 
-    IVarTrackerInternals(Log& log, Comm& comm):
+    RingRefTrackerInternals(Log& log, Comm& comm):
         log(log),
         comm(comm),
         ring(comm, 1)
@@ -40,7 +40,7 @@ struct IVarTrackerInternals {
         f();
     }
 
-    typedef std::pair<ID,IVarOwnershipData> Transfer;
+    typedef std::pair<ID,RefOwnershipData> Transfer;
 
     void setup_handlers() {
         comm.add_handler(Protocol::InitiateTransfer, [&] (Data d) {
@@ -66,7 +66,7 @@ struct IVarTrackerInternals {
         });
 
         comm.add_handler(Protocol::SendOwnership, [&] (Data d) {
-            auto& transfer = d.get_as<std::vector<std::pair<ID,IVarOwnershipData>>>();
+            auto& transfer = d.get_as<std::vector<std::pair<ID,RefOwnershipData>>>();
             std::map<Address,std::vector<Transfer>> resends;
             for (auto& t: transfer) {
                 auto owner = ring.get_owner(t.first);
@@ -154,7 +154,7 @@ struct IVarTrackerInternals {
         });
     }
 
-    void merge_ownership(const ID& id, const IVarOwnershipData& other) {
+    void merge_ownership(const ID& id, const RefOwnershipData& other) {
         auto& ownership = db[id].ownership;
         for (auto& loc: other.val_locs) {
             ownership.val_locs.insert(loc);
@@ -249,15 +249,15 @@ struct IVarTrackerInternals {
 };
 
 
-IVarTracker::IVarTracker(Log& log, Comm& comm):
-    impl(new IVarTrackerInternals(log, comm))
+RingRefTracker::RingRefTracker(Log& log, Comm& comm):
+    impl(new RingRefTrackerInternals(log, comm))
 {}
 
-IVarTracker::IVarTracker(IVarTracker&&) = default;
+RingRefTracker::RingRefTracker(RingRefTracker&&) = default;
 
-IVarTracker::~IVarTracker() = default;
+RingRefTracker::~RingRefTracker() = default;
 
-void IVarTracker::fulfill(const GlobalRef& iv, std::vector<Data> input) {
+void RingRefTracker::fulfill(const GlobalRef& iv, std::vector<Data> input) {
     tlassert(!impl->db.is_fulfilled_here(iv.id));
     impl->log.n_global_fulfills++;
     impl->db.fulfill(iv.id, std::move(input));
@@ -273,7 +273,7 @@ void IVarTracker::fulfill(const GlobalRef& iv, std::vector<Data> input) {
     }
 }
 
-void IVarTracker::add_trigger(const GlobalRef& iv, TriggerT trigger) {
+void RingRefTracker::add_trigger(const GlobalRef& iv, TriggerT trigger) {
     impl->db[iv.id].triggers.push_back(std::move(trigger));
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
@@ -287,7 +287,7 @@ void IVarTracker::add_trigger(const GlobalRef& iv, TriggerT trigger) {
     }
 }
 
-void IVarTracker::dec_ref(const GlobalRef& iv) {
+void RingRefTracker::dec_ref(const GlobalRef& iv) {
     auto owner = impl->ring.get_owner(iv.id);
     if (impl->is_local(owner)) {
         impl->local_dec_ref(iv.id, iv.data);
@@ -298,20 +298,20 @@ void IVarTracker::dec_ref(const GlobalRef& iv) {
     }
 }
 
-bool IVarTracker::is_fulfilled_here(const GlobalRef& gref) const {
+bool RingRefTracker::is_fulfilled_here(const GlobalRef& gref) const {
     return impl->db.is_fulfilled_here(gref.id);
 }
 
-std::vector<Data> IVarTracker::get_vals(const GlobalRef& gref) const {
+std::vector<Data> RingRefTracker::get_vals(const GlobalRef& gref) const {
     tlassert(is_fulfilled_here(gref));
     return impl->db[gref.id].vals;
 }
 
-void IVarTracker::introduce(Address addr) {
+void RingRefTracker::introduce(Address addr) {
     impl->ring.introduce(addr);
 }
 
-size_t IVarTracker::n_owned() const {
+size_t RingRefTracker::n_owned() const {
     size_t out = 0;
     for (auto& o: impl->db) {
         auto owner = impl->ring.get_owner(o.first);
@@ -322,7 +322,7 @@ size_t IVarTracker::n_owned() const {
     return out;
 }
 
-size_t IVarTracker::n_triggers_here() const {
+size_t RingRefTracker::n_triggers_here() const {
     size_t out = 0;
     for (auto& o: impl->db) {
         out += o.second.triggers.size();
@@ -330,7 +330,7 @@ size_t IVarTracker::n_triggers_here() const {
     return out;
 }
 
-size_t IVarTracker::n_vals_here() const {
+size_t RingRefTracker::n_vals_here() const {
     size_t out = 0;
     for (auto& o: impl->db) {
         out += impl->db.is_fulfilled_here(o.first);
@@ -338,11 +338,11 @@ size_t IVarTracker::n_vals_here() const {
     return out;
 }
 
-const std::vector<ID>& IVarTracker::get_ring_locs() const {
+const std::vector<ID>& RingRefTracker::get_ring_locs() const {
     return impl->ring.get_locs();
 }
 
-std::vector<Address> IVarTracker::ring_members() const {
+std::vector<Address> RingRefTracker::ring_members() const {
     return impl->ring.ring_members();
 }
 

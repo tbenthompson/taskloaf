@@ -1,4 +1,6 @@
 #include "default_worker.hpp"
+#include "default_task_collection.hpp"
+#include "ring_ref_tracker.hpp"
 #include "protocol.hpp"
 #include "comm.hpp"
 
@@ -11,8 +13,8 @@ namespace taskloaf {
 DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     comm(std::move(p_comm)),
     log(comm->get_addr()),
-    tasks(log, *comm),
-    ref_tracker(log, *comm),
+    tasks(std::make_unique<DefaultTaskCollection>(log, *comm)),
+    ref_tracker(std::make_unique<RingRefTracker>(log, *comm)),
     should_stop(false)
 {
     comm->add_handler(Protocol::Shutdown, [&] (Data) {
@@ -39,11 +41,11 @@ void DefaultWorker::stop() {
 }
 
 TaskCollection& DefaultWorker::get_task_collection() {
-    return tasks;
+    return *tasks;
 }
 
-IVarTracker& DefaultWorker::get_ref_tracker() {
-    return ref_tracker;
+RefTracker& DefaultWorker::get_ref_tracker() {
+    return *ref_tracker;
 }
 
 size_t DefaultWorker::n_workers() const {
@@ -63,7 +65,7 @@ Comm& DefaultWorker::get_comm() {
 }
 
 void DefaultWorker::introduce(Address addr) {
-    ref_tracker.introduce(addr);
+    ref_tracker->introduce(std::move(addr));
 }
 
 void DefaultWorker::recv() {
@@ -76,10 +78,10 @@ void DefaultWorker::one_step() {
         return;
     }
     
-    if (tasks.size() == 0) {
-        tasks.steal();
+    if (tasks->size() == 0) {
+        tasks->steal();
     } else {
-        tasks.run_next();
+        tasks->run_next();
     }
 }
 

@@ -23,13 +23,13 @@ void stealing_test(int n_steal_attempts) {
     }
     settle(ws);
     for (int i = 0; i < n_steal_attempts; i++) {
-        ws[1]->tasks.steal();
+        ws[1]->get_task_collection().steal();
     }
-    REQUIRE(ws[0]->tasks.size() == n_tasks);
-    REQUIRE(ws[1]->tasks.size() == 0);
+    REQUIRE(ws[0]->get_task_collection().size() == n_tasks);
+    REQUIRE(ws[1]->get_task_collection().size() == 0);
     settle(ws);
-    REQUIRE(ws[0]->tasks.size() == n_tasks - 1);
-    REQUIRE(ws[1]->tasks.size() == 1);
+    REQUIRE(ws[0]->get_task_collection().size() == n_tasks - 1);
+    REQUIRE(ws[1]->get_task_collection().size() == 1);
 }
 
 TEST_CASE("Two workers one steal", "[worker]") {
