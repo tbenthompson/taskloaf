@@ -5,19 +5,16 @@
 namespace taskloaf {
 
 std::ostream& operator<<(std::ostream& os, const Address& a) {
-    os << a.hostname << ":" << a.port;
+    os << a.id;
     return os;
 }
 
 bool operator<(const Address& a, const Address& b) {
-    if (a.hostname == b.hostname) {
-        return a.port < b.port;
-    }
-    return a.hostname < b.hostname;
+    return a.id < b.id;
 }
 
 bool operator==(const Address& a, const Address& b) {
-    return a.port == b.port && a.hostname == b.hostname;
+    return a.id == b.id;
 }
 
 bool operator!=(const Address& a, const Address& b) {

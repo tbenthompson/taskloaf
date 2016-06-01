@@ -6,7 +6,7 @@
 namespace taskloaf {
 
 int mpi_rank(const Comm& c) {
-    return c.get_addr().port;
+    return c.get_addr().id;
 }
 
 MPIComm::MPIComm() {
@@ -16,14 +16,13 @@ MPIComm::MPIComm() {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    addr.hostname = "";
-    addr.port = rank;
+    addr.id = rank;
 
     for (int i = 0; i < size; i++) {
         if (i == rank) {
             continue;
         }
-        endpoints.push_back({"", static_cast<uint16_t>(i)});
+        endpoints.push_back({i});
     }
 }
 
@@ -37,7 +36,7 @@ void MPIComm::send(const Address& dest, Msg msg) {
     auto& str_data = outbox.back().msg.data.get_as<std::string>();
     MPI_Isend(
         &str_data.front(), str_data.size(), MPI_CHAR,
-        dest.port, msg.msg_type, MPI_COMM_WORLD, &outbox.back().state
+        dest.id, msg.msg_type, MPI_COMM_WORLD, &outbox.back().state
     );
 
     auto it = std::remove_if(outbox.begin(), outbox.end(), [] (const SentMsg& m) {

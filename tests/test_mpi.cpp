@@ -15,8 +15,8 @@ template <typename T, typename F>
 void test_send(T&& v, F&& f) {
     SerializingComm c(std::make_unique<MPIComm>());
     if (mpi_rank(c) == 0) {
-        c.send({"", 1}, Msg(0, make_data(std::forward<T>(v))));
-        c.send({"", 1}, Msg(1, make_data(0)));
+        c.send({1}, Msg(0, make_data(std::forward<T>(v))));
+        c.send({1}, Msg(1, make_data(0)));
     } else {
         bool stop = false;
         bool handler_ran = false;

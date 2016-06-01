@@ -40,13 +40,13 @@ void LocalCommQueues::pop_front(size_t which) {
     
 LocalComm::LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index):
     queues(qs),
-    my_addr{"", my_index}
+    my_addr{my_index}
 {
     for (size_t i = 0; i < queues->n_workers(); i++) {
         if (i == my_index) {
             continue;
         }
-        remotes.push_back({"", static_cast<uint16_t>(i)});
+        remotes.push_back({static_cast<uint16_t>(i)});
     }
 }
 
@@ -59,7 +59,7 @@ const std::vector<Address>& LocalComm::remote_endpoints() {
 }
 
 void LocalComm::send(const Address& dest, Msg msg) {
-    queues->enqueue(dest.port, std::move(msg));
+    queues->enqueue(dest.id, std::move(msg));
 }
 
 Msg& LocalComm::cur_message() {
@@ -67,13 +67,13 @@ Msg& LocalComm::cur_message() {
 }
 
 bool LocalComm::has_incoming() {
-    return queues->has_incoming(my_addr.port);
+    return queues->has_incoming(my_addr.id);
 }
 
 void LocalComm::recv() {
     if (has_incoming()) {
-        auto m = std::move(queues->front(my_addr.port));
-        queues->pop_front(my_addr.port);
+        auto m = std::move(queues->front(my_addr.id));
+        queues->pop_front(my_addr.id);
         cur_msg = &m;
         handlers.call(m);
         cur_msg = nullptr;

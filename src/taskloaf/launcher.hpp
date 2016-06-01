@@ -16,10 +16,11 @@ struct Context {
     Context(Context&&);
 };
 
-// void launch_local_serializing(size_t n_workers, std::function<void()> f);
-// void launch_local_singlethread(size_t n_workers, std::function<void()> f);
-// void launch_local(size_t n_workers, std::function<void()> f);
-Context launch_local(size_t n_workers);
+struct Config {
+    bool print_stats = false;
+};
+
+Context launch_local(size_t n_workers, Config cfg = Config());
 
 #ifdef MPI_FOUND
 Context launch_mpi();

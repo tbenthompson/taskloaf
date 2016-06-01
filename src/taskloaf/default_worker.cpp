@@ -23,7 +23,6 @@ DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
 }
 
 DefaultWorker::~DefaultWorker() {
-    log.write_stats(std::cout);
     stop();
 }
 

@@ -15,15 +15,15 @@ struct LocalContextInternals: public ContextInternals {
     std::vector<std::unique_ptr<DefaultWorker>> workers;
     std::shared_ptr<LocalCommQueues> lcq;
     DefaultWorker main_worker;
+    Config cfg;
 
-    LocalContextInternals(size_t n_workers):
+    LocalContextInternals(size_t n_workers, Config cfg):
         lcq(std::make_shared<LocalCommQueues>(n_workers)),
-        main_worker(std::make_unique<LocalComm>(lcq, 0))
+        main_worker(std::make_unique<LocalComm>(lcq, 0)),
+        cfg(cfg)
     {
         cur_worker = &main_worker;
         main_worker.set_core_affinity(0);
-
-        Address root_addr = main_worker.get_addr();
 
         for (size_t i = 1; i < n_workers; i++) { 
             workers.emplace_back(std::make_unique<DefaultWorker>(
@@ -54,6 +54,11 @@ struct LocalContextInternals: public ContextInternals {
         for (auto& t: threads) {
             t.join();
         }
+        if (cfg.print_stats) {
+            for (auto& w: workers) {
+                w->log.write_stats(std::cout);
+            }
+        }
         cur_worker = nullptr;
     }
 
@@ -67,8 +72,8 @@ Context::Context(std::unique_ptr<ContextInternals> internals):
 Context::~Context() = default;
 Context::Context(Context&&) = default;
 
-Context launch_local(size_t n_workers) {
-    return Context(std::make_unique<LocalContextInternals>(n_workers));
+Context launch_local(size_t n_workers, Config cfg) {
+    return Context(std::make_unique<LocalContextInternals>(n_workers, cfg));
 }
 
 #ifdef MPI_FOUND
@@ -85,7 +90,7 @@ struct MPIContextInternals: public ContextInternals {
         auto& endpts = w.get_comm().remote_endpoints();
         for (size_t i = 0; i < endpts.size(); i++) {
             auto& e = endpts[i];
-            if (e.port < w.get_addr().port) {
+            if (e < w.get_addr()) {
                 w.introduce(e);
             }
         }

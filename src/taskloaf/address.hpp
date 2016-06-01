@@ -6,13 +6,11 @@
 namespace taskloaf {
 
 struct Address {
-    std::string hostname;
-    uint16_t port;
+    int id;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar(hostname);
-        ar(port);
+        ar(id);
     }
 };
 

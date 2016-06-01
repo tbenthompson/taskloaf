@@ -23,7 +23,7 @@ void test_comm(Comm& a, Comm& b) {
     SECTION("Recv") {
         int x = 0;
         REQUIRE(!b.has_incoming());
-        a.send({"", 1}, Msg(0, make_data(13)));
+        a.send({1}, Msg(0, make_data(13)));
         REQUIRE(b.has_incoming());
         b.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
         b.recv();
@@ -34,8 +34,8 @@ void test_comm(Comm& a, Comm& b) {
         double x = 4.5;
         b.add_handler(0, [&] (Data d) { x /= d.get_as<double>(); });
         b.add_handler(1, [&] (Data d) { x -= d.get_as<double>(); });
-        a.send({"", 1}, Msg(0, make_data(4.5)));
-        a.send({"", 1}, Msg(1, make_data(1.0)));
+        a.send({1}, Msg(0, make_data(4.5)));
+        a.send({1}, Msg(1, make_data(1.0)));
         b.recv();
         b.recv();
         REQUIRE(x == 0.0);
@@ -44,7 +44,7 @@ void test_comm(Comm& a, Comm& b) {
     SECTION("Recv complex") {
         int x = 0;
         auto d = make_data(Function<int(int)>([] (int x) { return 2 * x; })); 
-        a.send({"", 1}, Msg(0, std::move(d)));
+        a.send({1}, Msg(0, std::move(d)));
         b.add_handler(0, [&] (Data d) { x = d.get_as<Function<int(int)>>()(3); });
         b.recv();
         REQUIRE(x == 6);
@@ -52,8 +52,8 @@ void test_comm(Comm& a, Comm& b) {
 
     SECTION("Recv two") {
         int x = 0;
-        a.send({"", 1}, Msg(0, make_data(13)));
-        a.send({"", 1}, Msg(0, make_data(23)));
+        a.send({1}, Msg(0, make_data(13)));
+        a.send({1}, Msg(0, make_data(23)));
         b.add_handler(0, [&] (Data d) { x += d.get_as<int>(); });
         b.recv();
         b.recv();
