@@ -65,32 +65,28 @@ auto then(int loc, Future<Ts...>& fut, F&& fnc) {
 
     Future<Return> out_future;
     auto f_serializable = make_function(std::forward<F>(fnc));
+    typedef decltype(f_serializable) FType;
     auto iloc = internal_loc(loc);
-    fut.add_trigger(TriggerT{
-        [] (std::vector<Data>& c_args, std::vector<Data>& args) {
-            TaskT t{
-                [] (std::vector<Data>& args)  {
-                    auto& out_future = args[1].get_as<Future<Return>>();
+    fut.add_trigger(TriggerT(
+        [] (FType& f, Future<Return>& out_future,
+            InternalLoc iloc, std::vector<Data>& args) 
+        {
+            TaskT t(
+                [] (FType& f, Future<Return>& out_future, std::vector<Data>& args)  {
                     out_future.fulfill(possibly_void(
-                        [&] () {
-                            return apply_data_args(
-                                args[0].get_as<decltype(f_serializable)>(),
-                                args[2].get_as<std::vector<Data>>()
-                            );
-                        }
+                        [&] () { return apply_data_args(f, args); }
                     ));
                 },
-                {c_args[0], c_args[1], make_data(args)}
-            };
-            auto iloc = c_args[2].get_as<InternalLoc>();
+                std::move(f),
+                std::move(out_future),
+                args
+            );
             schedule(iloc, std::move(t));
         },
-        {
-            make_data(std::move(f_serializable)),
-            make_data(out_future),
-            make_data(iloc)
-        }
-    });
+        std::move(f_serializable),
+        out_future,
+        iloc
+    ));
     return out_future;
 }
 
@@ -100,18 +96,18 @@ auto unwrap(Fut&& fut) {
     typedef Future<typename T::type> FutT;
 
     FutT out_future;
-    fut.add_trigger(TriggerT{
-        [] (std::vector<Data>& c_args, std::vector<Data>& args) {
+    fut.add_trigger(TriggerT(
+        [] (FutT& out_future, std::vector<Data>& args) {
             T& inner_fut = args[0].get_as<T>();
-            inner_fut.add_trigger(TriggerT{
-                [] (std::vector<Data>& c_args, std::vector<Data>& args) {
-                    c_args[0].get_as<FutT>().fulfill(args);
+            inner_fut.add_trigger(TriggerT(
+                [] (FutT& out_future, std::vector<Data>& args) {
+                    out_future.fulfill(args);
                 },
-                {c_args[0]}
-            });
+                std::move(out_future)
+            ));
         },
-        {make_data(out_future)}
-    });
+        out_future
+    ));
     return out_future;
 }
 
@@ -128,19 +124,12 @@ auto async(int loc, F&& fnc) {
     Future<Return> out_future;
     auto f_serializable = make_function(fnc);
     auto iloc = internal_loc(loc);
-    TaskT t{
-        [] (std::vector<Data>& args) {
-            args[1].get_as<Future<Return>>().fulfill(possibly_void(
-                [&] () {
-                    return args[0].get_as<decltype(f_serializable)>()();
-                }
-            ));
+    TaskT t(
+        [] (decltype(f_serializable)& f, Future<Return>& out_future) {
+            out_future.fulfill(possibly_void([&] () { return f(); }));
         },
-        {
-            make_data(f_serializable),
-            make_data(out_future)
-        }
-    };
+        f_serializable, out_future
+    );
     schedule(iloc, std::move(t));
     return out_future;
 }

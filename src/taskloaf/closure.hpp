@@ -55,6 +55,7 @@ struct TypedClosure<Return(Args...),F,Ts...>: public ClosureBase<Return(Args...)
     constexpr static std::index_sequence_for<Ts...> idxs{};
 
     F f;
+    // TODO: Maybe use std::tuple<TypedData<Ts>...> here?
     std::tuple<Ts...> vs;
 
     TypedClosure(std::tuple<Ts...>&& vs, F&& f):
@@ -106,7 +107,7 @@ struct Closure<Return(Args...)> {
 
     template <typename F, typename... Ts>
     Closure(F&& f, Ts&&... vs):
-        ptr(std::make_unique<TypedClosure<Return(Args...),F,Ts...>>(
+        ptr(std::make_unique<TypedClosure<Return(Args...),F,std::decay_t<Ts>...>>(
             std::make_tuple(std::forward<Ts>(vs)...), std::forward<F>(f)
         ))
     {}
@@ -115,8 +116,6 @@ struct Closure<Return(Args...)> {
         ptr(std::make_unique<SerializableClosure<Return(Args...)>>(f, std::move(vs)))
     {}
     Closure() = default;
-    Closure(Closure&&) = default;
-    Closure& operator=(Closure&&) = default;
 
     Return operator()(Args... args) {
         return ptr->operator()(args...);
