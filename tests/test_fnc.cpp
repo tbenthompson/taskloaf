@@ -87,3 +87,13 @@ TEST_CASE("Serialize/deserialize fnc", "[fnc]") {
     REQUIRE(f(10) == 2560);
     REQUIRE(f2(10) == f(10));
 }
+
+TEST_CASE("Typed closure", "[fnc]") {
+    auto f = [] (int x) { return x + 1; };
+    TypedClosure<int(),decltype(f),int> c(
+        std::make_tuple(2), std::move(f)
+    );
+    REQUIRE(c() == 3);
+    auto c2 = c.make_serializable();
+    REQUIRE(c2->operator()() == 3);
+}

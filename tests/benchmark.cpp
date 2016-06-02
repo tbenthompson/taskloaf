@@ -109,36 +109,7 @@ void bench_100mb_allocation() {
     delete ptr;
 }
 
-template <typename F, typename TupleT, size_t... I, typename... Args>
-auto apply_closure2(F&& f, TupleT&& t, std::index_sequence<I...>, Args&&... args) {
-    return f(std::get<I>(t)..., std::forward<Args>(args)...);
-}
-
 template <typename F>
-struct Closure2Base {};
-
-template <typename Return, typename... Args>
-struct Closure2Base<Return(Args...)> {};
-
-// Design options:
-// -- unique vs shared
-// -- call once vs call many times
-template <typename F, typename... Ts>
-struct Closure2: public Closure2Base<GetSignature<F>> {
-    std::tuple<Ts...> vs;
-    F f;
-
-    Closure2(std::tuple<Ts...>&& vs, F&& f):
-        vs(std::move(vs)),
-        f(std::move(f))
-    {}
-
-    template <typename... Args>
-    auto operator()(Args... args) {
-        return apply_closure2(f, vs, std::index_sequence_for<Ts...>{}, args...);
-    }
-};
-
 template <typename Return, typename... Args, typename... Ts>
 struct Closure2<Return(Args...), Ts...> {
 
