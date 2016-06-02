@@ -1,27 +1,11 @@
 #include "catch.hpp"
 
-#include "taskloaf/execute.hpp"
 #include "taskloaf/fnc.hpp"
 #include "taskloaf/closure.hpp"
 
 #include <iostream>
 
 using namespace taskloaf;
-
-TEST_CASE("Apply args", "[fnc]") {
-    std::tuple<double,int> args{1.012, 2};
-
-    SECTION("Lambda") {
-        auto out = apply_args([] (double x, int y) { return x * y; }, args);
-        REQUIRE(out == 2.024);
-    }
-
-    SECTION("Function") {
-        Function<double(double,int)> f = [] (double x, int y) { return x * y; };
-        auto out = apply_args(f, args);
-        REQUIRE(out == 2.024);
-    }
-}
 
 TEST_CASE("Function lambda", "[fnc]") {
     auto f = make_function([] (int x) { return x * 2; });

@@ -19,9 +19,12 @@ void run_many_times(int n, void (*fnc)()) {
     run_many_times(n, &fnc_name);
 
 void bench_closure() {
-    TaskT t{
+    TaskT t(
         [] (std::vector<Data>&) {}, {make_data(10)}
-    };
+    );
+}
+void bench_typed_closure() {
+    TaskT t([] () {});
 }
 
 void bench_make_data() {
@@ -106,31 +109,17 @@ void bench_100mb_allocation() {
         auto* ptr2 = ptr + i;
         *ptr2 = i;
     }
-    delete ptr;
-}
-
-template <typename F>
-template <typename Return, typename... Args, typename... Ts>
-struct Closure2<Return(Args...), Ts...> {
-
-};
-
-void bench_closure2() {
-    auto f = [] (int x) { return x + 1; };
-    static MemoryPool<Closure2<decltype(f),int>> pool;
-    Closure2<decltype(f),int>* p_derived = pool.alloc(std::make_tuple(1), std::move(f));
-    Closure2Base<int(int)>* p = p_derived;
-    (void)p;
+    delete[] ptr;
 }
 
 int main() {
     BENCH(1000000, bench_closure);
+    BENCH(1000000, bench_typed_closure);
     BENCH(1000000, bench_make_data);
     BENCH(1000000, bench_typed_data);
     BENCH(1000000, bench_typed_data_ptr);
     BENCH(1000000, bench_allocation);
     BENCH(1, bench_100mb_allocation);
-    BENCH(1000000, bench_closure2);
 }
 
 // struct TaskBase {

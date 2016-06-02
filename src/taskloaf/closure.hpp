@@ -2,7 +2,6 @@
 
 #include "fnc.hpp"
 #include "data.hpp"
-#include "execute.hpp"
 
 #include <cereal/types/vector.hpp>
 
@@ -35,7 +34,7 @@ struct SerializableClosure<Return(Args...)>: public ClosureBase<Return(Args...)>
         vs(vs)
     {}
 
-    Return operator()(Args... args) {
+    Return operator()(Args... args) override {
         return f(vs, args...);
     }
 
@@ -142,7 +141,6 @@ struct Closure<Return(Args...)> {
     }
 };
 
-typedef Closure<Data(std::vector<Data>&)> PureTaskT;
 typedef Closure<void(std::vector<Data>&)> TriggerT;
 typedef Closure<void()> TaskT;
 

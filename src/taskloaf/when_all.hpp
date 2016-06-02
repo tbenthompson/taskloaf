@@ -12,22 +12,22 @@ struct WhenBothOutT<std::tuple<T1s...>, std::tuple<T2s...>> {
     using type = Future<T1s...,T2s...>;
 };
 
-template <typename Future1, typename Future2, typename... T1s, typename... T2s>
-auto when_both_helper(Future1&& fut1, Future2&& fut2) {
-    return fut1.then(Closure(
-        //TODO: Need typed data.
-        [] (Future2& fut2, Data<T1s>&... args1) {
-            return fut2.then(Closure(
-                [] (Data<T1s>&... args1, Data<T2s>&... args2) {
-                    //TODO: Need to be able to return multiple arguments
-                    return {args1..., args2...};
-                },
-                args1...
-            );
-        }, 
-        std::forward<Future2>(fut2)
-    }).unwrap();
-}
+// template <typename Future1, typename Future2, typename... T1s, typename... T2s>
+// auto when_both_helper(Future1&& fut1, Future2&& fut2) {
+//     return fut1.then(Closure(
+//         //TODO: Need typed data.
+//         [] (Future2& fut2, Data<T1s>&... args1) {
+//             return fut2.then(Closure(
+//                 [] (Data<T1s>&... args1, Data<T2s>&... args2) {
+//                     //TODO: Need to be able to return multiple arguments
+//                     return {args1..., args2...};
+//                 },
+//                 args1...
+//             );
+//         }, 
+//         std::forward<Future2>(fut2)
+//     }).unwrap();
+// }
 
 template <typename Future1, typename Future2>
 auto when_both(Future1&& fut1, Future2&& fut2)
@@ -46,7 +46,7 @@ auto when_both(Future1&& fut1, Future2&& fut2)
                     std::vector<Data>& args2) 
                 {
                     args1.insert(args1.end(), args2.begin(), args2.end());
-                    out_future.fulfill(args1);
+                    out_future.fulfill_helper(args1);
                 },
                 std::move(out_future),
                 std::move(args)

@@ -81,6 +81,7 @@ TEST_CASE("MPI") {
     test_send_fnc();
     test_send_nested_fnc();
     test_send_data();
+    test_send_closure();
 
     std::cout << "MPI Tests passed" << std::endl;
 

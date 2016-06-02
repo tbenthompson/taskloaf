@@ -59,6 +59,14 @@ RegisterCaller<Func,Return,Args...> RegisterCaller<Func,Return,Args...>::instanc
 template <typename T> 
 struct Function {};
 
+#define SFINAE_UREF_CONSTRUCTOR(param_type, this_type)\
+    template <\
+        typename param_type,\
+        std::enable_if_t<\
+            !std::is_same<this_type,std::decay_t<param_type>>::value\
+        >* = nullptr\
+    >
+
 // This is a function wrapper similar to std::function with the 
 // ability to serialize and deserialize functions and closures.
 // IMPORTANT!!! This only works for closures of POD data types.
@@ -73,24 +81,19 @@ struct Function<Return(Args...)> {
 
     Function() = default;
 
-    template <
-        typename F,
-        typename std::enable_if<
-            !std::is_same<Function<Return(Args...)>,F>::value
-        >::type* = nullptr
-    >
-    Function(F f) {
-        typedef typename std::decay<F>::type DecayF;
+    SFINAE_UREF_CONSTRUCTOR(F, Function<Return(Args...)>)
+    Function(F&& f) {
+        typedef std::decay_t<F> DecayF;
         static_assert(!is_serializable<DecayF>::value,
             "Do not use Function for serializable types");
 
         // This move prevents a buggy "uninitialized" warning from happening in
         // gcc-5.2. ‘<anonymous>’ is used uninitialized in this function with
         // non-capturing lambdas. 
-        auto newf = std::move(f);
+        auto newf = std::forward<F>(f);
 
         const char* data = reinterpret_cast<const char*>(&newf);
-        closure = std::string(data, sizeof(F));
+        closure = std::string(data, sizeof(DecayF));
         caller_id = RegisterCaller<DecayF,Return,Args...>::add_to_registry();
         set_caller();
     }

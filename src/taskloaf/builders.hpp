@@ -7,31 +7,6 @@ namespace taskloaf {
 
 template <typename... Ts> struct Future;
 
-template <typename F>
-struct PossiblyVoid{};
-
-template <typename Return, typename... Args>
-struct PossiblyVoid<Return(Args...)> {
-    template <typename F>
-    static auto on(const F& f) {
-        return std::vector<Data>{make_data(f())};
-    }
-};
-
-template <typename... Args>
-struct PossiblyVoid<void(Args...)> {
-    template <typename F>
-    static auto on(const F& f) {
-        f();
-        return std::vector<Data>{};
-    }
-};
-
-template <typename F>
-auto possibly_void(const F& f) {
-    return PossiblyVoid<GetSignature<F>>::on(f);
-}
-
 struct InternalLoc {
     bool anywhere;
     Address where;
@@ -50,7 +25,7 @@ InternalLoc internal_loc(int loc) {
     }
 }
 
-void schedule(const InternalLoc& iloc, TaskT t) {
+void schedule(const InternalLoc& iloc, Closure<void()> t) {
     auto& task_collection = cur_worker->get_task_collection();
     if (iloc.anywhere) {
         task_collection.add_task(std::move(t));
@@ -59,23 +34,34 @@ void schedule(const InternalLoc& iloc, TaskT t) {
     }
 }
 
+template <typename Return>
+struct RemoveTupleFuture {
+    using type = Future<Return>;
+};
+
+template <typename... Ts>
+struct RemoveTupleFuture<std::tuple<Ts...>> {
+    using type = Future<Ts...>;
+};
+
+template <typename F, typename... Ts>
+using OutFutureT = typename RemoveTupleFuture<std::result_of_t<F(Ts&...)>>::type;
+
 template <typename F, typename... Ts>
 auto then(int loc, Future<Ts...>& fut, F&& fnc) {
-    typedef std::result_of_t<F(Ts&...)> Return;
+    typedef OutFutureT<F,Ts...> OutFut;
 
-    Future<Return> out_future;
+    OutFut out_future;
     auto f_serializable = make_function(std::forward<F>(fnc));
     typedef decltype(f_serializable) FType;
     auto iloc = internal_loc(loc);
     fut.add_trigger(TriggerT(
-        [] (FType& f, Future<Return>& out_future,
+        [] (FType& f, OutFut& out_future,
             InternalLoc iloc, std::vector<Data>& args) 
         {
-            TaskT t(
-                [] (FType& f, Future<Return>& out_future, std::vector<Data>& args)  {
-                    out_future.fulfill(possibly_void(
-                        [&] () { return apply_data_args(f, args); }
-                    ));
+            Closure<void()> t(
+                [] (FType& f, OutFut& out_future, std::vector<Data>& args)  {
+                    out_future.template fulfill_with<FType&&,Ts...>(std::move(f), args);
                 },
                 std::move(f),
                 std::move(out_future),
@@ -101,7 +87,7 @@ auto unwrap(Fut&& fut) {
             T& inner_fut = args[0].get_as<T>();
             inner_fut.add_trigger(TriggerT(
                 [] (FutT& out_future, std::vector<Data>& args) {
-                    out_future.fulfill(args);
+                    out_future.fulfill_helper(args);
                 },
                 std::move(out_future)
             ));
@@ -114,19 +100,21 @@ auto unwrap(Fut&& fut) {
 template <typename T>
 auto ready(T&& val) {
     Future<std::decay_t<T>> out_future;
-    out_future.fulfill({make_data(std::forward<T>(val))});
+    out_future.fulfill(std::forward<T>(val));
     return out_future;
 }
 
 template <typename F>
 auto async(int loc, F&& fnc) {
-    typedef std::result_of_t<F()> Return;
-    Future<Return> out_future;
+    typedef OutFutureT<F> OutFut;
+    OutFut out_future;
+
     auto f_serializable = make_function(fnc);
+    typedef decltype(f_serializable) FType;
     auto iloc = internal_loc(loc);
-    TaskT t(
-        [] (decltype(f_serializable)& f, Future<Return>& out_future) {
-            out_future.fulfill(possibly_void([&] () { return f(); }));
+    Closure<void()> t(
+        [] (FType& f, OutFut& out_future) {
+            out_future.fulfill_with(std::move(f));
         },
         f_serializable, out_future
     );

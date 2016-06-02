@@ -4,17 +4,25 @@
 #include "when_all.hpp"
 #include "global_ref.hpp"
 
-#include <cereal/types/tuple.hpp>
-
 namespace taskloaf {
 
-template <typename... Ts>
-struct FutureData {
-    bool fulfilled = false;
-    std::vector<Data> vals;
-    std::vector<TriggerT> triggers;
-    Worker* owner;
-};
+template <typename Func, size_t... I>
+auto apply_args(Func&& func, std::vector<Data>& args, std::index_sequence<I...>) {
+    return func(args[I]...);
+}
+
+template <typename T>
+Data ensure_data(T&& v) {
+    return make_data(std::move(v));
+}
+
+inline Data&& ensure_data(Data&& d) { return std::move(d); }
+inline Data& ensure_data(Data& d) { return d; }
+
+template <typename TupleT, size_t... I>
+auto tuple_to_vector(TupleT&& t, std::index_sequence<I...>) {
+    return std::vector<Data>{ensure_data(std::move(std::get<I>(t)))...};
+}
 
 template <typename Derived, typename... Ts>
 struct FutureBase {
@@ -31,8 +39,35 @@ struct FutureBase {
         cur_worker->get_ref_tracker().add_trigger(gref, std::move(trigger));
     }
 
-    void fulfill(std::vector<Data> vals) const {
+    void fulfill_helper(std::vector<Data> vals) const {
         cur_worker->get_ref_tracker().fulfill(gref, vals);
+    }
+
+    template <typename T>
+    void fulfill(T&& v) {
+        fulfill(make_data(std::forward<T>(v))); 
+    }
+
+    void fulfill(Data&& val) {
+        fulfill_helper(std::vector<Data>{std::move(val)});
+    }
+
+    void fulfill(std::tuple<Ts...>&& val) {
+        fulfill_helper(tuple_to_vector(
+            std::move(val), std::index_sequence_for<Ts...>{}
+        ));
+    }
+
+    template <typename F, typename... ArgTypes>
+    void fulfill_with(F&& f, std::vector<Data>& args) {
+        fulfill(apply_args(
+            f, args, std::index_sequence_for<ArgTypes...>{}
+        ));
+    }
+
+    template <typename F>
+    void fulfill_with(F&& f) {
+        fulfill(f());
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {
@@ -117,6 +152,22 @@ struct Future<>: public FutureBase<Future<>> {
     using FutureBase<Future<>>::FutureBase;
 
     using type = void;
+
+    void fulfill() {
+        fulfill_helper(std::vector<Data>{});
+    }
+
+    template <typename F, typename... ArgTypes>
+    void fulfill_with(F&& f, std::vector<Data>& args) {
+        apply_args(f, args, std::index_sequence_for<ArgTypes...>{});
+        fulfill();
+    }
+
+    template <typename F>
+    void fulfill_with(F&& f) {
+        f();
+        fulfill();
+    }
 };
 
 template <>
@@ -126,7 +177,7 @@ struct Future<void>: Future<> {
 
 inline Future<> empty() {
     Future<> out_future;
-    out_future.fulfill({});
+    out_future.fulfill();
     return out_future;
 }
 
