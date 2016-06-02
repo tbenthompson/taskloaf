@@ -20,15 +20,20 @@ namespace taskloaf {
 struct Timer {
     typedef std::chrono::high_resolution_clock::time_point Time;
     Time t_start;
-    int time_ms = 0;
+    int time_us = 0;
 
     void start() {
         t_start = std::chrono::high_resolution_clock::now();
     }
+
     void stop() {
-        time_ms += std::chrono::duration_cast<std::chrono::milliseconds>(
+        time_us += std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::high_resolution_clock::now() - t_start
         ).count();
+    }
+
+    int get_time() {
+        return time_us;
     }
 };
 

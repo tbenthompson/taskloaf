@@ -17,6 +17,8 @@ struct Closure<Return(Args...)> {
     std::vector<Data> input;
 
     Closure() = default;
+    Closure(Closure&&) = default;
+    Closure& operator=(Closure&&) = default;
 
     Return operator()(Args... args) {
         return fnc(input, args...);

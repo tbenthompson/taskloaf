@@ -38,10 +38,16 @@ auto when_both(Future1&& fut1, Future2&& fut2)
     return out_future;
 
     // TODO: This should look more like:
-    // return fut1.then_raw([fut2] (std::vector<Data> d1) {
-    //     return fut2.then_raw([d1] (std::vector<Data> d2) {
-    //         return {d1, d2};        
-    //     });
+    // return fut1.then(Closure{
+    //     [] (Future2& fut2, std::vector<Data>& d1) {
+    //         return fut2.then(Closure{
+    //             [] (std::vector<Data>& d1, std::vector<Data>& d2) {
+    //                 return {all_data};        
+    //             },
+    //             {d1}
+    //         );
+    //     }, 
+    //     {fut2}
     // }).unwrap();
 }
 

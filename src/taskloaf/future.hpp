@@ -13,41 +13,66 @@ struct FutureData {
     bool fulfilled = false;
     std::vector<Data> vals;
     std::vector<TriggerT> triggers;
+    Worker* owner;
 };
 
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
-    // Things that happen... 
-    // trigger
-    // fulfill
-    // copy
-    // move
-    // sharing between threads?
     std::shared_ptr<FutureData<Ts...>> data;
-    mutable GlobalRef gref;
 
-    FutureBase(): gref(new_id()) {}
+    FutureBase(): 
+        data(std::make_shared<FutureData<Ts...>>())
+    {
+        data->owner = cur_worker;
+    }
+
+    // FutureBase(): gref(new_id()) {}
     FutureBase(FutureBase&& other) = default;
     FutureBase& operator=(FutureBase&& other) = default;
     FutureBase(const FutureBase& other) = default;
     FutureBase& operator=(const FutureBase& other) = default;
 
     void add_trigger(TriggerT trigger) const {
-        cur_worker->get_ref_tracker().add_trigger(gref, std::move(trigger));
+        // cur_worker->get_ref_tracker().add_trigger(gref, std::move(trigger));
+        cur_worker->get_task_collection().add_task(data->owner->get_addr(), TaskT{
+            [data = this->data, trigger = std::move(trigger)] 
+            (std::vector<Data>&) mutable {
+                if (data->fulfilled) {
+                    trigger(data->vals);
+                    return;
+                }
+                data->triggers.push_back(std::move(trigger));
+            }, 
+            {}
+        });
     }
 
     void fulfill(std::vector<Data> vals) const {
-        cur_worker->get_ref_tracker().fulfill(gref, vals);
+        // cur_worker->get_ref_tracker().fulfill(gref, vals);
+        cur_worker->get_task_collection().add_task(data->owner->get_addr(), TaskT{
+            [data = this->data, vals = std::move(vals)] 
+            (std::vector<Data>&) mutable {
+                data->fulfilled = true;
+                data->vals = std::move(vals);
+                for (auto& t: data->triggers) {
+                    t(data->vals);
+                }
+                data->triggers.clear();
+            }, 
+            {}
+        });
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {
-        ar(gref);
+        (void)ar;
+        // ar(gref);
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        ar(gref);
+        (void)ar;
+        // ar(gref);
     }
 
     template <typename F>
@@ -57,10 +82,7 @@ struct FutureBase {
 
     template <typename F>
     auto then(Loc loc, F&& f) {
-        return taskloaf::then(
-            static_cast<int>(loc), *static_cast<Derived*>(this),
-            std::forward<F>(f)
-        );
+        return then(static_cast<int>(loc), std::forward<F>(f));
     }
 
     template <typename F>
@@ -99,26 +121,28 @@ struct Future<T>: public FutureBase<Future<T>,T> {
     // data handling they would like: move vs. reference vs. copy.
     // Need to solve the data caching issue first.
     T get() { 
-        auto& iv_tracker = cur_worker->get_ref_tracker();
+        this->wait();
+        return this->data->vals[0].template get_as<T>();
+        // auto& iv_tracker = cur_worker->get_ref_tracker();
 
-        T out;
-        if (iv_tracker.is_fulfilled_here(this->gref)) {
-            out = iv_tracker.get_vals(this->gref)[0].template get_as<T>();
-        } else {
-            // TODO: This duplication wouldn't be necessary with proper data
-            // caching and could be replaced by a wait and a tracker grab.
-            bool already_thenned = false;
-            this->then(Loc::here, [&] (T& v) {
-                out = v;
-                cur_worker->stop();
-                already_thenned = true;
-            });
-            if (!already_thenned) {
-                cur_worker->run();
-            }
-        }
+        // T out;
+        // if (iv_tracker.is_fulfilled_here(this->gref)) {
+        //     out = iv_tracker.get_vals(this->gref)[0].template get_as<T>();
+        // } else {
+        //     // TODO: This duplication wouldn't be necessary with proper data
+        //     // caching and could be replaced by a wait and a tracker grab.
+        //     bool already_thenned = false;
+        //     this->then(Loc::here, [&] (T& v) {
+        //         out = v;
+        //         cur_worker->stop();
+        //         already_thenned = true;
+        //     });
+        //     if (!already_thenned) {
+        //         cur_worker->run();
+        //     }
+        // }
 
-        return out;
+        // return out;
     }
 };
 

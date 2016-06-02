@@ -94,8 +94,7 @@ endif(BUILD_LIBRARY)
 #                              taskloaf tests
 ################################################################################
 
-macro(taskloaf_tests name ADDTEST)
-    add_executable(${name} "$<TARGET_OBJECTS:test_runner>;tests/test_${name}.cpp")
+macro(test_link_include name)
     target_include_directories(${name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/lib)
@@ -106,6 +105,11 @@ macro(taskloaf_tests name ADDTEST)
         taskloaf
         ${MPI_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT})
+endmacro()
+
+macro(taskloaf_tests name ADDTEST)
+    add_executable(${name} "$<TARGET_OBJECTS:test_runner>;tests/test_${name}.cpp")
+    test_link_include(${name})
     if (${ADDTEST}) 
         add_test(${name} ${name})
     endif()
@@ -135,6 +139,10 @@ if(BUILD_TESTS)
         taskloaf_tests(mpi False)
         add_test(mpi mpirun -n 2 mpi)
     endif()
+
+    add_executable(benchmark "tests/benchmark.cpp")
+    test_link_include(benchmark)
+    add_dependencies(tests benchmark)
 endif(BUILD_TESTS)
 
 ################################################################################

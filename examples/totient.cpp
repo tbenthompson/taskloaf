@@ -39,7 +39,7 @@ Future<int> sum_totient(int lower, int upper) {
 }
 
 int main() {
-    int n = 3000;
+    int n = 5000;
 
     for (size_t i = 1; i <= 6; i++) {
         TIC

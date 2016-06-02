@@ -22,7 +22,7 @@ void test_send(T&& v, F&& f) {
         bool handler_ran = false;
         c.add_handler(0, [&] (Data d) {
             handler_ran = true;
-            auto val = d.get_as<typename std::decay<T>::type>();
+            auto& val = d.get_as<typename std::decay<T>::type>();
             f(c, val);
         });
         c.add_handler(1, [&] (Data) {
@@ -69,7 +69,7 @@ void test_send_data() {
 void test_send_closure() {
     auto f = get_serializable_functor();
 
-    test_send(f, [] (Comm&, decltype(f) f) {
+    test_send(std::move(f), [] (Comm&, decltype(f)& f) {
         REQUIRE(f(5) == 120);
     });
 }

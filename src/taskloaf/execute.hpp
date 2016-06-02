@@ -8,7 +8,7 @@
 namespace taskloaf {
 
 template <typename Func, size_t... I>
-static auto apply_data_args_helper(Func&& func,
+auto apply_data_args_helper(Func&& func,
     std::vector<Data>& args, std::index_sequence<I...>) 
 {
     return func(args[I]...);
