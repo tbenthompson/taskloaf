@@ -4,32 +4,32 @@
 
 namespace taskloaf {
 
-/* This is a wrapper that hides an arbitrary object inside a shared_ptr and 
- * allows serialization and deserialization of that object.
- *
- * Requirements of the types that can be placed in Data:
- * 1) Default constructor, assignable
- * 2) cereal's serialize function is defined
- * 3) 
- */
+template <typename T>
+struct UniqueData {
+    T val;
+};
+
+template <typename T>
+struct TypedData {
+    //variant of UniqueData<T> and Data
+};
+
+struct Data;
+template <typename T>
+void serializer(const Data& d, cereal::BinaryOutputArchive& ar);
+
+// Maybe worthwhile to think about ownership more, and create something like
+// a unique data and a shared data?
 struct Data {
     std::shared_ptr<void> ptr;
-    std::function<void(const Data&,cereal::BinaryOutputArchive&)> serializer;
-    Function<void(Data&,cereal::BinaryInputArchive&)> deserializer;
+    void (*my_serializer)(const Data&,cereal::BinaryOutputArchive&);
 
     template <typename T, typename... Ts>
     void initialize(Ts&&... args) {
         ptr.reset(new T(std::forward<Ts>(args)...), [] (void* data_ptr) {
             delete reinterpret_cast<T*>(data_ptr);
         });
-        serializer = [] (const Data& d, cereal::BinaryOutputArchive& ar) {
-            tlassert(d.ptr != nullptr);
-            ar(d.get_as<T>());
-        };
-        deserializer = [] (Data& d, cereal::BinaryInputArchive& ar) {
-            d.initialize<T>();
-            ar(d.get_as<T>());
-        };
+        my_serializer = &serializer<T>;
     }
 
     void save(cereal::BinaryOutputArchive& ar) const;
@@ -58,14 +58,26 @@ struct Data {
 };
 
 template <typename T>
+void deserializer(Data& d, cereal::BinaryInputArchive& ar) {
+    d.initialize<T>();
+    ar(d.get_as<T>());
+};
+
+template <typename T>
+void serializer(const Data& d, cereal::BinaryOutputArchive& ar) {
+    tlassert(d.ptr != nullptr);
+    ar(make_function(deserializer<T>));
+    ar(d.get_as<T>());
+};
+
+template <typename T>
 Data make_data(T&& a) {
-    static_assert(
-        is_serializable<typename std::decay<T>::type>::value,
+    static_assert(is_serializable<std::decay_t<T>>::value,
         "Types encapsulated in Data must be serializable. Please Provide serialization functions for this type."
     );
 
     Data d;
-    d.initialize<typename std::decay<T>::type>(std::forward<T>(a));
+    d.initialize<std::decay_t<T>>(std::forward<T>(a));
     return d;
 }
 

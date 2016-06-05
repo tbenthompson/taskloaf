@@ -2,7 +2,8 @@
 
 #include "builders.hpp"
 #include "when_all.hpp"
-#include "global_ref.hpp"
+
+#include <cereal/types/memory.hpp>
 
 namespace taskloaf {
 
@@ -24,28 +25,101 @@ auto tuple_to_vector(TupleT&& t, std::index_sequence<I...>) {
     return std::vector<Data>{ensure_data(std::move(std::get<I>(t)))...};
 }
 
+// template <typename... Ts>
+// struct UniqueFutureData {
+//     std::tuple<UniqueData<Ts>...> vals;
+// };
+// 
+template <typename... Ts>
+struct LocalFutureData {
+    bool fulfilled = false;
+    std::vector<Data> vals;
+    std::vector<TriggerT> triggers;
+    Address owner;
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        (void)ar;
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        (void)ar;
+    }
+};
+
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
 
-    GlobalRef gref;
-    FutureBase(): gref(new_id()) {}
+    mutable std::shared_ptr<LocalFutureData<Ts...>> data;
+
+    FutureBase(): data(std::make_shared<LocalFutureData<Ts...>>()) {
+        data->owner = cur_worker->get_addr();
+    }
+
+    void add_trigger(TriggerT trigger) const {
+        auto action = [] (std::shared_ptr<LocalFutureData<Ts...>>& data, 
+            TriggerT& trigger) 
+        {
+            if (data->fulfilled) {
+                trigger(data->vals);
+            } else {
+                data->triggers.push_back(std::move(trigger));
+            }
+        };
+        if (data->owner == cur_worker->get_addr()) {
+            action(data, trigger); 
+        } else {
+            cur_worker->get_task_collection().add_task(data->owner, TaskT(
+                action, data, std::move(trigger)
+            ));
+        }
+    }
+
+    void fulfill_helper(std::vector<Data> vals) const {
+        auto action = [] (std::shared_ptr<LocalFutureData<Ts...>>& data, 
+            std::vector<Data>& vals) 
+        {
+            tlassert(!data->fulfilled);
+            data->fulfilled = true;
+            data->vals = std::move(vals);
+            for (auto& t: data->triggers) {
+                t(data->vals);
+            }
+            data->triggers.clear();
+        };
+        if (data->owner == cur_worker->get_addr()) {
+            action(data, vals); 
+        } else {
+            cur_worker->get_task_collection().add_task(data->owner, TaskT(
+                action, data, std::move(vals)
+            ));
+        }
+    }
+
+    template <size_t I>
+    std::tuple_element_t<I,TupleT> get_idx() {
+        static_assert(I < sizeof...(Ts), "get_idx -- index out of range");
+        wait();
+        tlassert(data->fulfilled);
+        return data->vals[I];
+    }
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        (void)ar;
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        (void)ar;
+    }
+
     FutureBase(FutureBase&& other) = default;
     FutureBase& operator=(FutureBase&& other) = default;
     FutureBase(const FutureBase& other) = default;
     FutureBase& operator=(const FutureBase& other) = default;
 
-    void add_trigger(TriggerT trigger) const {
-        cur_worker->get_ref_tracker().add_trigger(gref, std::move(trigger));
-    }
-
-    void fulfill_helper(std::vector<Data> vals) const {
-        cur_worker->get_ref_tracker().fulfill(gref, vals);
-    }
-
     template <typename T>
     void fulfill(T&& v) {
-        fulfill(make_data(std::forward<T>(v))); 
+        fulfill_helper(std::vector<Data>{make_data(std::forward<T>(v))}); 
     }
 
     void fulfill(Data&& val) {
@@ -70,14 +144,6 @@ struct FutureBase {
         fulfill(f());
     }
 
-    void save(cereal::BinaryOutputArchive& ar) const {
-        ar(gref);
-    }
-
-    void load(cereal::BinaryInputArchive& ar) {
-        ar(gref);
-    }
-
     template <typename F>
     auto then(F&& f) {
         return then(Loc::anywhere, std::forward<F>(f));
@@ -94,9 +160,10 @@ struct FutureBase {
     }
 
     void wait() { 
+        cur_worker->set_stopped(false);
         bool already_thenned = false;
         this->then(Loc::here, [&] (Ts&...) {
-            cur_worker->stop();
+            cur_worker->set_stopped(true);
             already_thenned = true;
         });
         if (!already_thenned) {
@@ -120,30 +187,11 @@ struct Future<T>: public FutureBase<Future<T>,T> {
         return taskloaf::unwrap(*this); 
     }
 
-    // TODO: Always return by reference here, so that the user can decide what
+    // I'd like to return by reference here, so that the user can decide what
     // data handling they would like: move vs. reference vs. copy.
-    // Need to solve the data caching issue first.
+    // TODO: Need caching of data for returning a reference.
     T get() { 
-        auto& iv_tracker = cur_worker->get_ref_tracker();
-
-        T out;
-        if (iv_tracker.is_fulfilled_here(this->gref)) {
-            out = iv_tracker.get_vals(this->gref)[0].template get_as<T>();
-        } else {
-            // TODO: This duplication wouldn't be necessary with proper data
-            // caching and could be replaced by a wait and a tracker grab.
-            bool already_thenned = false;
-            this->then(Loc::here, [&] (T& v) {
-                out = v;
-                cur_worker->stop();
-                already_thenned = true;
-            });
-            if (!already_thenned) {
-                cur_worker->run();
-            }
-        }
-
-        return out;
+        return this->template get_idx<0>();
     }
 };
 

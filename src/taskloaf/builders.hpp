@@ -44,12 +44,17 @@ struct RemoveTupleFuture<std::tuple<Ts...>> {
     using type = Future<Ts...>;
 };
 
+template <typename T>
+struct AlwaysData {
+    using type = Data;
+};
+
 template <typename F, typename... Ts>
 using OutFutureT = typename RemoveTupleFuture<std::result_of_t<F(Ts&...)>>::type;
 
 template <typename F, typename... Ts>
 auto then(int loc, Future<Ts...>& fut, F&& fnc) {
-    typedef OutFutureT<F,Ts...> OutFut;
+    typedef OutFutureT<F,typename AlwaysData<Ts>::type...> OutFut;
 
     OutFut out_future;
     auto f_serializable = make_function(std::forward<F>(fnc));
@@ -84,7 +89,7 @@ auto unwrap(Fut&& fut) {
     FutT out_future;
     fut.add_trigger(TriggerT(
         [] (FutT& out_future, std::vector<Data>& args) {
-            T& inner_fut = args[0].get_as<T>();
+            T& inner_fut = args[0];
             inner_fut.add_trigger(TriggerT(
                 [] (FutT& out_future, std::vector<Data>& args) {
                     out_future.fulfill_helper(args);

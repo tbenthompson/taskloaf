@@ -57,9 +57,10 @@ struct TypedClosure<Return(Args...),F,Ts...>: public ClosureBase<Return(Args...)
     // TODO: Maybe use std::tuple<TypedData<Ts>...> here?
     std::tuple<Ts...> vs;
 
-    TypedClosure(std::tuple<Ts...>&& vs, F&& f):
-        f(std::move(f)),
-        vs(std::move(vs))
+    template <typename TupleT, typename FIn>
+    TypedClosure(TupleT&& vs, FIn&& f):
+        f(std::forward<FIn>(f)),
+        vs(std::forward<TupleT>(vs))
     {}
 
     Return operator()(Args... args) override {
@@ -106,9 +107,12 @@ struct Closure<Return(Args...)> {
 
     template <typename F, typename... Ts>
     Closure(F&& f, Ts&&... vs):
-        ptr(std::make_unique<TypedClosure<Return(Args...),F,std::decay_t<Ts>...>>(
-            std::make_tuple(std::forward<Ts>(vs)...), std::forward<F>(f)
-        ))
+        ptr(std::make_unique<
+                TypedClosure<Return(Args...),std::decay_t<F>,std::decay_t<Ts>...>
+            >(
+                std::make_tuple(std::forward<Ts>(vs)...), std::forward<F>(f)
+            )
+        )
     {}
     Closure(Function<Return(std::vector<Data>&,Args&...)> f,
         std::vector<Data> vs):
@@ -116,6 +120,7 @@ struct Closure<Return(Args...)> {
     {}
     Closure() = default;
 
+    //TODO: pass by reference here
     Return operator()(Args... args) {
         return ptr->operator()(args...);
     }

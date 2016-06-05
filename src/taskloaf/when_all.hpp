@@ -14,13 +14,13 @@ struct WhenBothOutT<std::tuple<T1s...>, std::tuple<T2s...>> {
 
 // template <typename Future1, typename Future2, typename... T1s, typename... T2s>
 // auto when_both_helper(Future1&& fut1, Future2&& fut2) {
+//      TODO: Need typed data.
+//      TODO: Need make_closure
 //     return fut1.then(Closure(
-//         //TODO: Need typed data.
-//         [] (Future2& fut2, Data<T1s>&... args1) {
+//         [] (Future2& fut2, TypedData<T1s>&... args1) {
 //             return fut2.then(Closure(
-//                 [] (Data<T1s>&... args1, Data<T2s>&... args2) {
-//                     //TODO: Need to be able to return multiple arguments
-//                     return {args1..., args2...};
+//                 [] (TypedData<T1s>&... args1, TypedData<T2s>&... args2) {
+//                     return std::make_tuple(args1.d..., args2.d...);
 //                 },
 //                 args1...
 //             );

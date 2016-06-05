@@ -4,11 +4,11 @@ namespace taskloaf {
 
 void Data::save(cereal::BinaryOutputArchive& ar) const {
     tlassert(ptr != nullptr);
-    ar(deserializer);
-    serializer(*this, ar);
+    my_serializer(*this, ar);
 }
 
 void Data::load(cereal::BinaryInputArchive& ar) {
+    Function<void(Data&,cereal::BinaryInputArchive)> deserializer;
     ar(deserializer);
     deserializer(*this, ar);
 }

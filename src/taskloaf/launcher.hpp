@@ -1,8 +1,6 @@
 #pragma once
 
-#include "global_ref.hpp"
-
-#include <functional>
+#include <memory>
 
 namespace taskloaf {
 

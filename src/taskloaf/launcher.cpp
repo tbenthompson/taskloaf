@@ -36,7 +36,6 @@ struct LocalContextInternals: public ContextInternals {
                     auto& w = workers[i - 1];
                     cur_worker = w.get();
                     w->set_core_affinity(i);
-                    w->introduce(main_worker.get_addr()); 
                     w->run();
                     cur_worker = nullptr;
                 }
@@ -87,13 +86,6 @@ struct MPIContextInternals: public ContextInternals {
         )))
     {
         cur_worker = &w;
-        auto& endpts = w.get_comm().remote_endpoints();
-        for (size_t i = 0; i < endpts.size(); i++) {
-            auto& e = endpts[i];
-            if (e < w.get_addr()) {
-                w.introduce(e);
-            }
-        }
     }
 
     ~MPIContextInternals() {

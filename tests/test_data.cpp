@@ -2,7 +2,6 @@
 
 #include "taskloaf/data.hpp"
 #include "taskloaf/closure.hpp"
-#include "taskloaf/id.hpp"
 
 #include "serialize.hpp"
 #include "serializable_functor.hpp"
@@ -53,11 +52,6 @@ TEST_CASE("Measure serialized size", "[data]") {
         std::string s("abcdef");
         auto d = make_data(s);
         REQUIRE(serialize(d).size() - baseline == 14);
-    }
-
-    SECTION("ID") {
-        auto d = make_data(new_id());
-        REQUIRE(serialize(d).size() - baseline == 16);
     }
 
     SECTION("double") {

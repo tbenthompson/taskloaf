@@ -29,16 +29,17 @@ else()
 endif() 
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    # Turn on O3 and lto for Clang and gcc.
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.6)
+    # Clang 3.5 can't handle generating debug symbols for auto return type
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.6) 
         set(CMAKE_CXX_FLAGS_DEBUG "-O0")
     endif()
+    # Lots of warnings and treat them as errors.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-mismatched-tags")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-literal-suffix")
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 endif()
 
 find_package(Threads REQUIRED)
@@ -69,7 +70,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/global_ref.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/default_task_collection.cpp;src/taskloaf/ring_ref_tracker.cpp;src/taskloaf/id.cpp;src/taskloaf/ring.cpp;src/taskloaf/ref_counting.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/default_task_collection.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
@@ -128,12 +129,8 @@ if(BUILD_TESTS)
     taskloaf_tests(fnc True)
     taskloaf_tests(data True)
     taskloaf_tests(worker True)
-    taskloaf_tests(id True)
-    taskloaf_tests(ring True)
     taskloaf_tests(comm True)
-    taskloaf_tests(ref_counting True)
     taskloaf_tests(launch True)
-    taskloaf_tests(gref True)
     taskloaf_tests(task_collection True)
 
     if (MPI_CXX_FOUND)
@@ -144,6 +141,10 @@ if(BUILD_TESTS)
     add_executable(benchmark "tests/benchmark.cpp")
     test_link_include(benchmark)
     add_dependencies(tests benchmark)
+
+    add_executable(playground "tests/playground.cpp")
+    test_link_include(playground)
+    add_dependencies(tests playground)
 endif(BUILD_TESTS)
 
 ################################################################################

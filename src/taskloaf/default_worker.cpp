@@ -1,6 +1,5 @@
 #include "default_worker.hpp"
 #include "default_task_collection.hpp"
-#include "ring_ref_tracker.hpp"
 #include "protocol.hpp"
 #include "comm.hpp"
 
@@ -14,16 +13,15 @@ DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     comm(std::move(p_comm)),
     log(comm->get_addr()),
     tasks(std::make_unique<DefaultTaskCollection>(log, *comm)),
-    ref_tracker(std::make_unique<RingRefTracker>(log, *comm)),
     should_stop(false)
 {
     comm->add_handler(Protocol::Shutdown, [&] (Data) {
-        stop();
+        set_stopped(true);
     });
 }
 
 DefaultWorker::~DefaultWorker() {
-    stop();
+    set_stopped(true);
 }
 
 void DefaultWorker::shutdown() {
@@ -32,19 +30,15 @@ void DefaultWorker::shutdown() {
     for (auto& r: remotes) {
         comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
     }
-    stop();
+    set_stopped(true);
 }
 
-void DefaultWorker::stop() {
-    should_stop = true;
+void DefaultWorker::set_stopped(bool val) {
+    should_stop = val;
 }
 
 TaskCollection& DefaultWorker::get_task_collection() {
     return *tasks;
-}
-
-RefTracker& DefaultWorker::get_ref_tracker() {
-    return *ref_tracker;
 }
 
 size_t DefaultWorker::n_workers() const {
@@ -61,10 +55,6 @@ bool DefaultWorker::is_stopped() const {
 
 Comm& DefaultWorker::get_comm() {
     return *comm;
-}
-
-void DefaultWorker::introduce(Address addr) {
-    ref_tracker->introduce(std::move(addr));
 }
 
 void DefaultWorker::recv() {

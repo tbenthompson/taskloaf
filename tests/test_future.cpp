@@ -57,3 +57,9 @@ TEST_CASE("void async fnc") {
     auto ctx = launch_local(2);
     async(bark_silently).wait();
 }
+
+TEST_CASE("Get second val") {
+    auto ctx = launch_local(2);
+    REQUIRE(when_all(ready(2), ready(3)).get_idx<1>() == 3);
+    REQUIRE(when_all(ready(2), async([] { return 3; })).get_idx<1>() == 3);
+}

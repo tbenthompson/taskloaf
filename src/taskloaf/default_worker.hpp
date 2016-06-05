@@ -1,9 +1,7 @@
 #pragma once
 #include "address.hpp"
-#include "global_ref.hpp"
 #include "closure.hpp"
 #include "task_collection.hpp"
-#include "ref_tracker.hpp"
 #include "worker.hpp"
 #include "logging.hpp"
 
@@ -17,7 +15,6 @@ struct DefaultWorker: public Worker {
     std::unique_ptr<Comm> comm;
     Log log;
     std::unique_ptr<TaskCollection> tasks;
-    std::unique_ptr<RefTracker> ref_tracker;
 
     int core_id = -1;
     bool stealing = false;
@@ -30,14 +27,12 @@ struct DefaultWorker: public Worker {
     ~DefaultWorker();
 
     void shutdown() override;
-    void stop() override;
+    void set_stopped(bool) override;
     void run() override;
     const Address& get_addr() const override;
     size_t n_workers() const override;
     TaskCollection& get_task_collection() override;
-    RefTracker& get_ref_tracker() override;
 
-    void introduce(Address addr);
     bool is_stopped() const;
     Comm& get_comm();
 
