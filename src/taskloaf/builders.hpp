@@ -3,9 +3,23 @@
 #include "data.hpp"
 #include "closure.hpp"
 
+#include <cereal/types/tuple.hpp>
+
 namespace taskloaf {
 
+template <typename T>
+struct AlwaysData {
+    using type = Data;
+};
+template <typename T>
+using AlwaysDataT = typename AlwaysData<T>::type;
+
 template <typename... Ts> struct Future;
+
+enum class Loc: int {
+    anywhere = -2,
+    here = -1
+};
 
 struct InternalLoc {
     bool anywhere;
@@ -26,11 +40,10 @@ InternalLoc internal_loc(int loc) {
 }
 
 void schedule(const InternalLoc& iloc, Closure<void()> t) {
-    auto& task_collection = cur_worker->get_task_collection();
     if (iloc.anywhere) {
-        task_collection.add_task(std::move(t));
+        cur_worker->add_task(std::move(t));
     } else {
-        task_collection.add_task(iloc.where, std::move(t));
+        cur_worker->add_task(iloc.where, std::move(t));
     }
 }
 
@@ -44,28 +57,23 @@ struct RemoveTupleFuture<std::tuple<Ts...>> {
     using type = Future<Ts...>;
 };
 
-template <typename T>
-struct AlwaysData {
-    using type = Data;
-};
-
 template <typename F, typename... Ts>
 using OutFutureT = typename RemoveTupleFuture<std::result_of_t<F(Ts&...)>>::type;
 
 template <typename F, typename... Ts>
 auto then(int loc, Future<Ts...>& fut, F&& fnc) {
-    typedef OutFutureT<F,typename AlwaysData<Ts>::type...> OutFut;
+    typedef OutFutureT<F,AlwaysDataT<Ts>...> OutFut;
 
     OutFut out_future;
     auto f_serializable = make_function(std::forward<F>(fnc));
     typedef decltype(f_serializable) FType;
     auto iloc = internal_loc(loc);
-    fut.add_trigger(TriggerT(
+    fut.add_trigger(typename Future<Ts...>::TriggerT(
         [] (FType& f, OutFut& out_future,
-            InternalLoc iloc, std::vector<Data>& args) 
+            InternalLoc iloc, std::tuple<AlwaysDataT<Ts>...>& args) 
         {
             Closure<void()> t(
-                [] (FType& f, OutFut& out_future, std::vector<Data>& args)  {
+                [] (FType& f, OutFut& out_future, std::tuple<AlwaysDataT<Ts>...>& args)  {
                     out_future.template fulfill_with<FType&&,Ts...>(std::move(f), args);
                 },
                 std::move(f),
@@ -83,15 +91,15 @@ auto then(int loc, Future<Ts...>& fut, F&& fnc) {
 
 template <typename Fut>
 auto unwrap(Fut&& fut) {
-    typedef typename std::decay_t<Fut>::type T;
-    typedef Future<typename T::type> FutT;
+    typedef std::decay_t<Fut> DecayF;
+    typedef typename DecayF::type T;
 
-    FutT out_future;
-    fut.add_trigger(TriggerT(
-        [] (FutT& out_future, std::vector<Data>& args) {
-            T& inner_fut = args[0];
-            inner_fut.add_trigger(TriggerT(
-                [] (FutT& out_future, std::vector<Data>& args) {
+    T out_future;
+    fut.add_trigger(typename DecayF::TriggerT(
+        [] (T& out_future, typename DecayF::DataTupleT& args) {
+            T& inner_fut = std::get<0>(args);
+            inner_fut.add_trigger(typename T::TriggerT(
+                [] (T& out_future, typename T::DataTupleT& args) {
                     out_future.fulfill_helper(args);
                 },
                 std::move(out_future)

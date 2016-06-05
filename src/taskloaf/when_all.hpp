@@ -12,51 +12,27 @@ struct WhenBothOutT<std::tuple<T1s...>, std::tuple<T2s...>> {
     using type = Future<T1s...,T2s...>;
 };
 
-// template <typename Future1, typename Future2, typename... T1s, typename... T2s>
-// auto when_both_helper(Future1&& fut1, Future2&& fut2) {
-//      TODO: Need typed data.
-//      TODO: Need make_closure
-//     return fut1.then(Closure(
-//         [] (Future2& fut2, TypedData<T1s>&... args1) {
-//             return fut2.then(Closure(
-//                 [] (TypedData<T1s>&... args1, TypedData<T2s>&... args2) {
-//                     return std::make_tuple(args1.d..., args2.d...);
-//                 },
-//                 args1...
-//             );
-//         }, 
-//         std::forward<Future2>(fut2)
-//     }).unwrap();
-// }
-
-template <typename Future1, typename Future2>
-auto when_both(Future1&& fut1, Future2&& fut2)
-{
-    typedef std::decay_t<Future1> DecayF1;
-    typedef std::decay_t<Future2> DecayF2;
-    typedef typename DecayF1::TupleT In1;
-    typedef typename DecayF2::TupleT In2;
-    typedef typename WhenBothOutT<In1,In2>::type OutF;
-
-    OutF out_future;
-    fut1.add_trigger(TriggerT(
-        [] (OutF& out_future, DecayF2& fut2, std::vector<Data>& args) {
-            fut2.add_trigger(TriggerT(
-                [] (OutF& out_future, std::vector<Data>& args1,
-                    std::vector<Data>& args2) 
-                {
-                    args1.insert(args1.end(), args2.begin(), args2.end());
-                    out_future.fulfill_helper(args1);
+template <typename F1, typename F2, typename... T1s, typename... T2s>
+auto when_both_helper(F1&& fut1, F2&& fut2, std::tuple<T1s...>, std::tuple<T2s...>) {
+    return fut1.then(Closure<Future<T1s...,T2s...>(AlwaysDataT<T1s>&...)>(
+        [] (F2& fut2, AlwaysDataT<T1s>&... args1) {
+            return fut2.then(Closure<std::tuple<T1s...,T2s...>(AlwaysDataT<T2s>&...)>(
+                [] (AlwaysDataT<T1s>&... args1, AlwaysDataT<T2s>&... args2) {
+                    return std::make_tuple(args1..., args2...);
                 },
-                std::move(out_future),
-                std::move(args)
+                args1...
             ));
-        },
-        out_future, 
-        std::forward<Future2>(fut2)
-    ));
-    return out_future;
+        }, 
+        std::forward<F2>(fut2)
+    )).unwrap();
+}
 
+template <typename F1, typename F2>
+auto when_both(F1&& fut1, F2&& fut2) {
+    return when_both_helper(
+        std::forward<F1>(fut1), std::forward<F2>(fut2),
+        typename std::decay_t<F1>::TupleT{}, typename std::decay_t<F2>::TupleT{}
+    );
 }
 
 // The base case of waiting until one Future has completed (simply
@@ -66,13 +42,13 @@ FutureT&& when_all(FutureT&& fut) {
     return std::forward<FutureT>(fut);
 }
 
-template <typename Future1, typename Future2>
-auto when_all(Future1&& tup1, Future2&& tup2)
+template <typename F1, typename F2>
+auto when_all(F1&& tup1, F2&& tup2)
 {
     // The base case of waiting until two Futures have completed.
     return when_both(
-        std::forward<Future1>(tup1),
-        std::forward<Future2>(tup2)
+        std::forward<F1>(tup1),
+        std::forward<F2>(tup2)
     );
 }
 

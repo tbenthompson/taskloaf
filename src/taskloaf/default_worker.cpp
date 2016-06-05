@@ -1,5 +1,4 @@
 #include "default_worker.hpp"
-#include "default_task_collection.hpp"
 #include "protocol.hpp"
 #include "comm.hpp"
 
@@ -12,7 +11,7 @@ namespace taskloaf {
 DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     comm(std::move(p_comm)),
     log(comm->get_addr()),
-    tasks(std::make_unique<DefaultTaskCollection>(log, *comm)),
+    tasks(log, *comm),
     should_stop(false)
 {
     comm->add_handler(Protocol::Shutdown, [&] (Data) {
@@ -37,8 +36,12 @@ void DefaultWorker::set_stopped(bool val) {
     should_stop = val;
 }
 
-TaskCollection& DefaultWorker::get_task_collection() {
-    return *tasks;
+void DefaultWorker::add_task(TaskT t) {
+    tasks.add_task(std::move(t));
+}
+
+void DefaultWorker::add_task(const Address& where, TaskT t) {
+    tasks.add_task(where, std::move(t));
 }
 
 size_t DefaultWorker::n_workers() const {
@@ -67,10 +70,10 @@ void DefaultWorker::one_step() {
         return;
     }
     
-    if (tasks->size() == 0) {
-        tasks->steal();
+    if (tasks.size() == 0) {
+        tasks.steal();
     } else {
-        tasks->run_next();
+        tasks.run_next();
     }
 }
 

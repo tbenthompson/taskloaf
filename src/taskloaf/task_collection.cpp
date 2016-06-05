@@ -1,4 +1,4 @@
-#include "default_task_collection.hpp"
+#include "task_collection.hpp"
 #include "comm.hpp"
 #include "protocol.hpp"
 #include "address.hpp"
@@ -10,7 +10,7 @@
 
 namespace taskloaf {
 
-DefaultTaskCollection::DefaultTaskCollection(Log& log, Comm& comm):
+TaskCollection::TaskCollection(Log& log, Comm& comm):
     log(log),
     comm(comm),
     stealing(false)
@@ -30,21 +30,21 @@ DefaultTaskCollection::DefaultTaskCollection(Log& log, Comm& comm):
     });
 }
 
-size_t DefaultTaskCollection::size() const {
+size_t TaskCollection::size() const {
     return stealable_tasks.size() + local_tasks.size();
 }
 
-void DefaultTaskCollection::add_task(TaskT t) {
+void TaskCollection::add_task(TaskT t) {
     stealable_tasks.push_front(std::make_pair(next_token, std::move(t)));
     next_token++;
 }
 
-void DefaultTaskCollection::add_local_task(TaskT t) {
+void TaskCollection::add_local_task(TaskT t) {
     local_tasks.push(std::make_pair(next_token, std::move(t)));
     next_token++;
 }
 
-void DefaultTaskCollection::add_task(const Address& where, TaskT t) {
+void TaskCollection::add_task(const Address& where, TaskT t) {
     if (where != comm.get_addr()) {
         comm.send(where, Msg(Protocol::AssignedTask, make_data(std::move(t))));
     } else {
@@ -52,7 +52,7 @@ void DefaultTaskCollection::add_task(const Address& where, TaskT t) {
     }
 }
 
-void DefaultTaskCollection::run_next() {
+void TaskCollection::run_next() {
     tlassert(size() > 0);
     TaskT t;
     auto grab_local_task = [&] () {
@@ -78,7 +78,7 @@ void DefaultTaskCollection::run_next() {
     log.n_tasks_run++;
 }
 
-void DefaultTaskCollection::steal() {
+void TaskCollection::steal() {
     if (stealing) {
         return;
     }
@@ -87,7 +87,7 @@ void DefaultTaskCollection::steal() {
     comm.send_random(Msg(Protocol::Steal, make_data(comm.get_addr())));
 }
 
-std::vector<TaskT> DefaultTaskCollection::victimized() {
+std::vector<TaskT> TaskCollection::victimized() {
     log.n_victimized++;
     auto n_steals = std::min(static_cast<size_t>(1), stealable_tasks.size());
     tlassert(n_steals <= stealable_tasks.size());
@@ -99,7 +99,7 @@ std::vector<TaskT> DefaultTaskCollection::victimized() {
     return steals;
 }
 
-void DefaultTaskCollection::receive_tasks(std::vector<TaskT> stolen_tasks) {
+void TaskCollection::receive_tasks(std::vector<TaskT> stolen_tasks) {
     if (stolen_tasks.size() > 0) {
         log.n_successful_steals++;
     }

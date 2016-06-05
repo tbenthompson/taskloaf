@@ -146,7 +146,4 @@ struct Closure<Return(Args...)> {
     }
 };
 
-typedef Closure<void(std::vector<Data>&)> TriggerT;
-typedef Closure<void()> TaskT;
-
 } //end namespace taskloaf

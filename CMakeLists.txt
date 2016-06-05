@@ -70,7 +70,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/default_task_collection.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/serializing_comm.cpp;src/taskloaf/comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
@@ -131,7 +131,6 @@ if(BUILD_TESTS)
     taskloaf_tests(worker True)
     taskloaf_tests(comm True)
     taskloaf_tests(launch True)
-    taskloaf_tests(task_collection True)
 
     if (MPI_CXX_FOUND)
         taskloaf_tests(mpi False)

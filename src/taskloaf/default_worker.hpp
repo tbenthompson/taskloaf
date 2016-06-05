@@ -14,7 +14,7 @@ struct Comm;
 struct DefaultWorker: public Worker {
     std::unique_ptr<Comm> comm;
     Log log;
-    std::unique_ptr<TaskCollection> tasks;
+    TaskCollection tasks;
 
     int core_id = -1;
     bool stealing = false;
@@ -31,7 +31,8 @@ struct DefaultWorker: public Worker {
     void run() override;
     const Address& get_addr() const override;
     size_t n_workers() const override;
-    TaskCollection& get_task_collection() override;
+    void add_task(TaskT t) override;
+    void add_task(const Address& where, TaskT t) override;
 
     bool is_stopped() const;
     Comm& get_comm();
