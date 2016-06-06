@@ -2,85 +2,134 @@
 
 #include "fnc.hpp"
 
+#include <eggs/variant.hpp>
+
 namespace taskloaf {
 
-template <typename T>
-struct UniqueData {
-    T val;
-};
+template <typename F>
+struct is_serializable: std::integral_constant<bool,
+    cereal::traits::is_output_serializable<F,cereal::BinaryOutputArchive>::value &&
+    cereal::traits::is_input_serializable<F,cereal::BinaryInputArchive>::value &&
+    !std::is_pointer<F>::value> {};
 
 template <typename T>
-struct TypedData {
-    //variant of UniqueData<T> and Data
-};
-
-struct Data;
-template <typename T>
-void serializer(const Data& d, cereal::BinaryOutputArchive& ar);
-
-// Maybe worthwhile to think about ownership more, and create something like
-// a unique data and a shared data?
 struct Data {
-    std::shared_ptr<void> ptr;
-    void (*my_serializer)(const Data&,cereal::BinaryOutputArchive&);
-
-    template <typename T, typename... Ts>
-    void initialize(Ts&&... args) {
-        ptr.reset(new T(std::forward<Ts>(args)...), [] (void* data_ptr) {
-            delete reinterpret_cast<T*>(data_ptr);
-        });
-        my_serializer = &serializer<T>;
-    }
-
-    void save(cereal::BinaryOutputArchive& ar) const;
-    void load(cereal::BinaryInputArchive& ar);
-
-    template <typename T>
-    T& get_as() {
-        tlassert(ptr != nullptr);
-        return *reinterpret_cast<T*>(ptr.get()); 
-    }
-
-    template <typename T>
-    const T& get_as() const {
-        return const_cast<Data*>(this)->get_as<T>();
-    }
-
-    template <typename T>
-    operator T&() {
-        return get_as<T>();
-    }
-
-    template <typename T>
-    operator const T&() const {
-        return get_as<T>();
-    }
-};
-
-template <typename T>
-void deserializer(Data& d, cereal::BinaryInputArchive& ar) {
-    d.initialize<T>();
-    ar(d.get_as<T>());
-};
-
-template <typename T>
-void serializer(const Data& d, cereal::BinaryOutputArchive& ar) {
-    tlassert(d.ptr != nullptr);
-    ar(make_function(deserializer<T>));
-    ar(d.get_as<T>());
-};
-
-template <typename T>
-Data make_data(T&& a) {
-    static_assert(is_serializable<std::decay_t<T>>::value,
-        "Types encapsulated in Data must be serializable. Please Provide serialization functions for this type."
+    static_assert(
+        is_serializable<std::decay_t<T>>::value,
+        "Types encapsulated in Data must be serializable."
     );
 
-    Data d;
-    d.initialize<std::decay_t<T>>(std::forward<T>(a));
-    return d;
+    using VariantT = eggs::variant<T,std::shared_ptr<T>>;
+
+    VariantT val;
+
+    Data() = default;
+    Data(Data<T>&& other) = default;
+    Data& operator=(Data<T>&& other) = default;
+
+    Data(const Data<T>& other) {
+        *this = other;
+    }
+    Data& operator=(const Data<T>& other) {
+        const_cast<Data<T>*>(&other)->promote();
+        val = other.val;
+        return *this;
+    }
+
+    template <typename U,
+        std::enable_if_t<
+            !std::is_same<std::decay_t<U>,Data<T>>::value
+        >* = nullptr>
+    Data(U&& v): val(std::forward<U>(v)) {}
+
+    void promote() {
+        if (val.which() != 0) {
+            return;
+        }
+        val = std::make_shared<T>(std::move(get()));
+    }
+
+    bool operator==(std::nullptr_t) const {
+        return val.which() == VariantT::npos;
+    }
+
+    bool operator!=(std::nullptr_t) const {
+        return !(*this == nullptr);
+    }
+
+    T& get() {
+        tlassert(*this != nullptr);
+        return *this;
+    }
+
+    const T& get() const {
+        return *this;
+    }
+
+    operator T&() {
+        if (val.which() == 0) {
+            return *val.template target<T>();
+        } else {
+            return **val.template target<std::shared_ptr<T>>();
+        }
+    }
+
+    operator const T&() const {
+        T& out = *const_cast<Data<T>*>(this);
+        return out;
+    }
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        bool is_null = *this == nullptr;
+        ar(is_null);
+        if (!is_null) {
+            ar(get());
+        }
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        tlassert(*this == nullptr);
+        bool is_null;
+        ar(is_null);
+        if (!is_null) {
+            val.template emplace<0>();
+            ar(get());
+        }
+    }
+};
+
+template <typename T>
+auto make_data(T&& v) {
+    return Data<std::decay_t<T>>(std::forward<T>(v));
 }
 
-Data empty_data();
+template <typename T>
+struct IsData: std::false_type {};
+
+template <typename T>
+struct IsData<Data<T>>: std::true_type {};
+
+template <typename T>
+struct EnsureData {
+    using type = Data<T>;
+};
+
+template <typename T>
+struct EnsureData<Data<T>> {
+    using type = Data<T>;
+};
+
+template <typename T>
+using EnsureDataT = typename EnsureData<T>::type;
+
+template <typename T, std::enable_if_t<!IsData<T>::value>* = nullptr>
+auto ensure_data(T&& v) {
+    return make_data(std::forward<T>(v));
+}
+
+template <typename T, std::enable_if_t<IsData<T>::value>* = nullptr>
+auto ensure_data(T&& v) {
+    return std::forward<T>(v);
+}
 
 } //end namespace taskloaf

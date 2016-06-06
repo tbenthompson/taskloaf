@@ -5,44 +5,15 @@ namespace taskloaf {
 LocalCommQueues::LocalCommQueues(size_t n_workers)
 {
     for (size_t i = 0; i < n_workers; i++) {
-        msg_queues.emplace_back(starting_queue_size);
-        cur_msg.emplace_back(std::make_pair(false, Msg()));
+        qs.emplace_back(starting_queue_size);
     }
-}
-
-size_t LocalCommQueues::n_workers() {
-    return msg_queues.size();
-}
-
-void LocalCommQueues::enqueue(size_t which, Msg msg) {
-    tlassert(which < msg_queues.size());
-    msg_queues[which].enqueue(std::move(msg));
-}
-
-bool LocalCommQueues::has_incoming(size_t which) {
-    tlassert(which < msg_queues.size());
-    bool& ready_msg = cur_msg[which].first;
-    if (!ready_msg) {
-        ready_msg = msg_queues[which].try_dequeue(cur_msg[which].second);
-    }
-    return ready_msg;
-}
-
-Msg& LocalCommQueues::front(size_t which) {
-    tlassert(which < msg_queues.size());
-    return cur_msg[which].second;
-}
-
-void LocalCommQueues::pop_front(size_t which) {
-    tlassert(which < msg_queues.size());
-    cur_msg[which].first = false;
 }
     
 LocalComm::LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index):
     queues(qs),
     my_addr{my_index}
 {
-    for (size_t i = 0; i < queues->n_workers(); i++) {
+    for (size_t i = 0; i < queues->qs.size(); i++) {
         if (i == my_index) {
             continue;
         }
@@ -58,30 +29,14 @@ const std::vector<Address>& LocalComm::remote_endpoints() {
     return remotes;
 }
 
-void LocalComm::send(const Address& dest, Msg msg) {
-    queues->enqueue(dest.id, std::move(msg));
+void LocalComm::send(const Address& dest, TaskT msg) {
+    queues->qs[dest.id].enqueue(std::move(msg));
 }
 
-Msg& LocalComm::cur_message() {
-    return *cur_msg;
-}
-
-bool LocalComm::has_incoming() {
-    return queues->has_incoming(my_addr.id);
-}
-
-void LocalComm::recv() {
-    if (has_incoming()) {
-        auto m = std::move(queues->front(my_addr.id));
-        queues->pop_front(my_addr.id);
-        cur_msg = &m;
-        handlers.call(m);
-        cur_msg = nullptr;
-    }
-}
-
-void LocalComm::add_handler(int msg_type, std::function<void(Data)> handler) {
-    handlers.add_handler(msg_type, std::move(handler));
+TaskT LocalComm::recv() {
+    TaskT cur_msg;
+    queues->qs[my_addr.id].try_dequeue(cur_msg);
+    return cur_msg;
 }
 
 } //end namespace taskloaf;

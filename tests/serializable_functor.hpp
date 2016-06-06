@@ -24,12 +24,7 @@ struct SerializableFunctor {
 inline Closure<int(int)> get_serializable_functor() {
     SerializableFunctor s;
     s.vs = {1,2,3,4};
-    return {
-        [] (std::vector<Data>& args, int a) {
-            return args[0].get_as<SerializableFunctor>()(a);
-        },
-        {make_data(s)}
-    };
+    return {[] (SerializableFunctor& f, int a) { return f(a); }, s};
 }
 
 } //end namespace taskloaf

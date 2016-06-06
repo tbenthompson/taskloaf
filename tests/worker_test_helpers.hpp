@@ -2,7 +2,6 @@
 
 #include "taskloaf/default_worker.hpp"
 #include "taskloaf/local_comm.hpp"
-#include "taskloaf/serializing_comm.hpp"
 
 namespace taskloaf {
 
@@ -25,9 +24,7 @@ std::vector<std::unique_ptr<DefaultWorker>> workers(int n_workers) {
     std::vector<std::unique_ptr<DefaultWorker>> ws;
     for (int i = 0; i < n_workers; i++) {
         ws.emplace_back(std::make_unique<DefaultWorker>(
-            std::make_unique<SerializingComm>(
-                std::make_unique<LocalComm>(lcq, i)
-            )
+            std::make_unique<LocalComm>(lcq, i)
         ));
         ws[i]->core_id = i;
         settle(ws);

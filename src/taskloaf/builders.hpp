@@ -7,13 +7,6 @@
 
 namespace taskloaf {
 
-template <typename T>
-struct AlwaysData {
-    using type = Data;
-};
-template <typename T>
-using AlwaysDataT = typename AlwaysData<T>::type;
-
 template <typename... Ts> struct Future;
 
 enum class Loc: int {
@@ -58,23 +51,23 @@ struct RemoveTupleFuture<std::tuple<Ts...>> {
 };
 
 template <typename F, typename... Ts>
-using OutFutureT = typename RemoveTupleFuture<std::result_of_t<F(Ts&...)>>::type;
-
-template <typename F, typename... Ts>
 auto then(int loc, Future<Ts...>& fut, F&& fnc) {
-    typedef OutFutureT<F,AlwaysDataT<Ts>...> OutFut;
+    typedef std::result_of_t<F(AlwaysDataT<Ts>&...)> Return;
+    typedef typename RemoveTupleFuture<Return>::type OutFut;
+    typedef Closure<Return(Ts&...)> FType;
 
     OutFut out_future;
-    auto f_serializable = make_function(std::forward<F>(fnc));
-    typedef decltype(f_serializable) FType;
+    FType f_serializable = std::forward<F>(fnc);
     auto iloc = internal_loc(loc);
     fut.add_trigger(typename Future<Ts...>::TriggerT(
         [] (FType& f, OutFut& out_future,
             InternalLoc iloc, std::tuple<AlwaysDataT<Ts>...>& args) 
         {
             Closure<void()> t(
-                [] (FType& f, OutFut& out_future, std::tuple<AlwaysDataT<Ts>...>& args)  {
-                    out_future.template fulfill_with<FType&&,Ts...>(std::move(f), args);
+                [] (FType& f, OutFut& out_future,
+                    std::tuple<AlwaysDataT<Ts>...>& args)  
+                {
+                    out_future.template fulfill_with<FType,Ts...>(f, args);
                 },
                 std::move(f),
                 std::move(out_future),
@@ -100,7 +93,7 @@ auto unwrap(Fut&& fut) {
             T& inner_fut = std::get<0>(args);
             inner_fut.add_trigger(typename T::TriggerT(
                 [] (T& out_future, typename T::DataTupleT& args) {
-                    out_future.fulfill_helper(args);
+                    out_future.fulfill(args);
                 },
                 std::move(out_future)
             ));
@@ -119,16 +112,15 @@ auto ready(T&& val) {
 
 template <typename F>
 auto async(int loc, F&& fnc) {
-    typedef OutFutureT<F> OutFut;
+    typedef std::result_of_t<F()> Return;
+    typedef typename RemoveTupleFuture<Return>::type OutFut;
+    typedef Closure<Return()> FType;
+    
     OutFut out_future;
-
-    auto f_serializable = make_function(fnc);
-    typedef decltype(f_serializable) FType;
+    FType f_serializable = std::forward<F>(fnc);
     auto iloc = internal_loc(loc);
     Closure<void()> t(
-        [] (FType& f, OutFut& out_future) {
-            out_future.fulfill_with(std::move(f));
-        },
+        [] (FType& f, OutFut& out_future) { out_future.fulfill_with(f); },
         f_serializable, out_future
     );
     schedule(iloc, std::move(t));

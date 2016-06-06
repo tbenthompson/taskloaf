@@ -1,7 +1,6 @@
 #include "catch.hpp"
 
 #include "taskloaf/local_comm.hpp"
-#include "taskloaf/serializing_comm.hpp"
 #include "taskloaf/fnc.hpp"
 
 #include "ownership_tracker.hpp"
@@ -22,78 +21,27 @@ TEST_CASE("MPMC Queue", "[comm]") {
 void test_comm(Comm& a, Comm& b) {
     SECTION("Recv") {
         int x = 0;
-        REQUIRE(!b.has_incoming());
-        a.send({1}, Msg(0, make_data(13)));
-        REQUIRE(b.has_incoming());
-        b.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
-        b.recv();
-        REQUIRE(x == 13); 
+        auto nothing_yet = b.recv() == nullptr;
+        REQUIRE(nothing_yet);
+        int send = 13;
+        a.send({1}, make_data(send));
+        REQUIRE(b.recv().get_as<int>() == 13); 
     }
 
     SECTION("Msg ordering") {
         double x = 4.5;
-        b.add_handler(0, [&] (Data d) { x /= d.get_as<double>(); });
-        b.add_handler(1, [&] (Data d) { x -= d.get_as<double>(); });
-        a.send({1}, Msg(0, make_data(4.5)));
-        a.send({1}, Msg(1, make_data(1.0)));
-        b.recv();
-        b.recv();
-        REQUIRE(x == 0.0);
+        a.send({1}, make_data(4.5));
+        a.send({1}, make_data(1.0));
+        auto m1 = b.recv();
+        auto m2 = b.recv();
+        REQUIRE((x / m1.get_as<double>()) - m2.get_as<double>() == 0.0);
     }
 
     SECTION("Recv complex") {
         int x = 0;
         auto d = make_data(Function<int(int)>([] (int x) { return 2 * x; })); 
-        a.send({1}, Msg(0, std::move(d)));
-        b.add_handler(0, [&] (Data d) { x = d.get_as<Function<int(int)>>()(3); });
-        b.recv();
-        REQUIRE(x == 6);
-    }
-
-    SECTION("Recv two") {
-        int x = 0;
-        a.send({1}, Msg(0, make_data(13)));
-        a.send({1}, Msg(0, make_data(23)));
-        b.add_handler(0, [&] (Data d) { x += d.get_as<int>(); });
-        b.recv();
-        b.recv();
-        REQUIRE(x == 36); 
-    }
-
-    SECTION("Two handlers") {
-        a.send(b.get_addr(), Msg{1, make_data(11)});
-        int x = 0;
-        b.add_handler(0, [&] (Data d) { (void)d; x = 1; });
-        b.add_handler(1, [&] (Data d) { x = d.get_as<int>(); });
-        b.recv();
-        REQUIRE(x == 11);
-    }
-
-    SECTION("Skip unhandled") {
-        a.send(b.get_addr(), Msg{1, make_data(11)});
-        b.recv();
-    }
-
-    SECTION("Forward") {
-        a.send(b.get_addr(), Msg{0, make_data(11)});
-
-        int x = 0;
-        a.add_handler(0, [&] (Data d) { x = d.get_as<int>(); });
-        b.add_handler(0, [&] (Data) {
-            b.send(a.get_addr(), b.cur_message()); 
-        });
-
-        b.recv();
-        a.recv();
-        REQUIRE(x == 11);
-    }
-
-    SECTION("Delete msg after handling") {
-        a.send(b.get_addr(), Msg{0, make_data(OwnershipTracker())});
-        OwnershipTracker::reset();
-        b.add_handler(0, [&] (Data) {});
-        b.recv();
-        REQUIRE(OwnershipTracker::deletes() == 1);
+        a.send({1}, std::move(d));
+        REQUIRE(b.recv().get_as<Function<int(int)>>()(3) == 6);
     }
 }
 
@@ -101,12 +49,5 @@ TEST_CASE("Local comm", "[comm]") {
     auto lcq = std::make_shared<LocalCommQueues>(2);
     LocalComm a(lcq, 0);
     LocalComm b(lcq, 1);
-    test_comm(a, b);
-}
-
-TEST_CASE("Serializing Comm", "[comm]") {
-    auto lcq = std::make_shared<LocalCommQueues>(2);
-    SerializingComm a(std::make_unique<LocalComm>(lcq, 0));
-    SerializingComm b(std::make_unique<LocalComm>(lcq, 1));
     test_comm(a, b);
 }

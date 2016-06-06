@@ -8,17 +8,9 @@
 namespace taskloaf {
 
 template <typename Func, typename TupleT, size_t... I>
-auto apply_args(Func&& func, TupleT&& args, std::index_sequence<I...>) {
+auto apply_args(Func& func, TupleT&& args, std::index_sequence<I...>) {
     return func(std::get<I>(args)...);
 }
-
-template <typename T>
-Data ensure_data(T&& v) {
-    return make_data(std::move(v));
-}
-
-inline Data&& ensure_data(Data&& d) { return std::move(d); }
-inline Data& ensure_data(Data& d) { return d; }
 
 template <typename TupleT, size_t... I>
 auto ensure_all_data(TupleT&& t, std::index_sequence<I...>) {
@@ -26,11 +18,12 @@ auto ensure_all_data(TupleT&& t, std::index_sequence<I...>) {
 }
 
 template <typename... Ts>
-struct LocalFutureData {
+struct SharedFutureData {
     using TriggerT = Closure<void(std::tuple<AlwaysDataT<Ts>...>)>;
+    using ValT = std::tuple<AlwaysDataT<Ts>...>;
 
     bool fulfilled = false;
-    std::tuple<AlwaysDataT<Ts>...> vals;
+    ValT vals;
     std::vector<TriggerT> triggers;
     Address owner;
 
@@ -45,23 +38,18 @@ struct LocalFutureData {
 
 template <typename... Ts>
 struct SharedFutureInternal {
-
-};
-
-template <typename Derived, typename... Ts>
-struct FutureBase {
     using TupleT = std::tuple<Ts...>;
-    using DataTupleT = std::tuple<AlwaysDataT<Ts>...>;
-    using TriggerT = typename LocalFutureData<Ts...>::TriggerT;
+    using ValT = typename SharedFutureData<Ts...>::ValT;
+    using TriggerT = typename SharedFutureData<Ts...>::TriggerT;
 
-    mutable std::shared_ptr<LocalFutureData<Ts...>> data;
+    mutable std::shared_ptr<SharedFutureData<Ts...>> data;
 
-    FutureBase(): data(std::make_shared<LocalFutureData<Ts...>>()) {
+    SharedFutureInternal(): data(std::make_shared<SharedFutureData<Ts...>>()) {
         data->owner = cur_worker->get_addr();
     }
 
     void add_trigger(TriggerT trigger) const {
-        auto action = [] (std::shared_ptr<LocalFutureData<Ts...>>& data, 
+        auto action = [] (std::shared_ptr<SharedFutureData<Ts...>>& data, 
             TriggerT& trigger) 
         {
             if (data->fulfilled) {
@@ -79,10 +67,8 @@ struct FutureBase {
         }
     }
 
-    void fulfill_helper(std::tuple<AlwaysDataT<Ts>...> vals) const {
-        auto action = [] (std::shared_ptr<LocalFutureData<Ts...>>& data, 
-            std::tuple<AlwaysDataT<Ts>...>& vals) 
-        {
+    void fulfill_helper(ValT vals) const {
+        auto action = [] (std::shared_ptr<SharedFutureData<Ts...>>& data, ValT& vals) {
             tlassert(!data->fulfilled);
             data->fulfilled = true;
             data->vals = std::move(vals);
@@ -102,8 +88,6 @@ struct FutureBase {
 
     template <size_t I>
     std::tuple_element_t<I,TupleT> get_idx() {
-        static_assert(I < sizeof...(Ts), "get_idx -- index out of range");
-        wait();
         tlassert(data->fulfilled);
         return std::get<I>(data->vals);
     }
@@ -115,36 +99,60 @@ struct FutureBase {
     void load(cereal::BinaryInputArchive& ar) {
         (void)ar;
     }
+};
 
-    FutureBase(FutureBase&& other) = default;
-    FutureBase& operator=(FutureBase&& other) = default;
-    FutureBase(const FutureBase& other) = default;
-    FutureBase& operator=(const FutureBase& other) = default;
+template <typename Derived, typename... Ts>
+struct FutureBase {
+    using TupleT = std::tuple<Ts...>;
+    using DataTupleT = std::tuple<AlwaysDataT<Ts>...>;
+    using TriggerT = typename SharedFutureData<Ts...>::TriggerT;
+
+    SharedFutureInternal<Ts...> internal;
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar(internal);
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        ar(internal);
+    }
+
+    template <size_t I>
+    std::tuple_element_t<I,TupleT> get_idx() {
+        static_assert(I < sizeof...(Ts), "get_idx -- index out of range");
+        this->wait();
+        return internal.get_idx<I>();
+    }
+
+    void add_trigger(TriggerT trigger) const {
+        internal.add_trigger(std::move(trigger));
+    }
 
     template <typename T>
-    void fulfill(T&& v) {
-        fulfill_helper(std::make_tuple(make_data(std::forward<T>(v)))); 
+    void fulfill(T v) {
+        internal.fulfill_helper(std::make_tuple(make_data(std::move(v)))); 
     }
 
-    void fulfill(Data&& val) {
-        fulfill_helper(std::make_tuple(std::move(val)));
-    }
-
-    void fulfill(std::tuple<Ts...>&& val) {
-        fulfill_helper(ensure_all_data(
-            std::move(val), std::index_sequence_for<Ts...>{}
+    template <typename... ArgTypes>
+    void fulfill(std::tuple<ArgTypes...> val) {
+        internal.fulfill_helper(ensure_all_data(
+            std::move(val), std::index_sequence_for<ArgTypes...>{}
         ));
     }
 
+    void fulfill(Data val) {
+        internal.fulfill_helper(std::make_tuple(std::move(val)));
+    }
+
     template <typename F, typename... ArgTypes>
-    void fulfill_with(F&& f, std::tuple<AlwaysDataT<ArgTypes>...>& args) {
+    void fulfill_with(F& f, std::tuple<AlwaysDataT<ArgTypes>...>& args) {
         fulfill(apply_args(
             f, args, std::index_sequence_for<ArgTypes...>{}
         ));
     }
 
     template <typename F>
-    void fulfill_with(F&& f) {
+    void fulfill_with(F& f) {
         fulfill(f());
     }
 
@@ -206,17 +214,17 @@ struct Future<>: public FutureBase<Future<>> {
     using type = void;
 
     void fulfill() {
-        fulfill_helper(std::make_tuple());
+        internal.fulfill_helper(std::make_tuple());
     }
 
     template <typename F, typename... ArgTypes>
-    void fulfill_with(F&& f, std::tuple<AlwaysDataT<ArgTypes>...>& args) {
+    void fulfill_with(F& f, std::tuple<AlwaysDataT<ArgTypes>...>& args) {
         apply_args(f, args, std::index_sequence_for<ArgTypes...>{});
         fulfill();
     }
 
     template <typename F>
-    void fulfill_with(F&& f) {
+    void fulfill_with(F& f) {
         f();
         fulfill();
     }

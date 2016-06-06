@@ -30,13 +30,17 @@ const Address& MPIComm::get_addr() const {
     return addr; 
 }
 
-void MPIComm::send(const Address& dest, Msg msg) {
-    outbox.push_back({std::move(msg), MPI_Request()});  
+void MPIComm::send(const Address& dest, TaskT msg) {
+    std::stringstream serialized_data;
+    cereal::BinaryOutputArchive oarchive(serialized_data);
+    oarchive(msg);
 
-    auto& str_data = outbox.back().msg.data.get_as<std::string>();
+    outbox.push_back({std::move(serialized_data.str()), MPI_Request()});  
+
+    auto& str_data = outbox.back().msg;
     MPI_Isend(
         &str_data.front(), str_data.size(), MPI_CHAR,
-        dest.id, msg.msg_type, MPI_COMM_WORLD, &outbox.back().state
+        dest.id, 0, MPI_COMM_WORLD, &outbox.back().state
     );
 
     auto it = std::remove_if(outbox.begin(), outbox.end(), [] (const SentMsg& m) {
@@ -52,41 +56,31 @@ const std::vector<Address>& MPIComm::remote_endpoints() {
     return endpoints;
 }
 
-bool MPIComm::has_incoming() {
-    MPI_Status stat;
-    int msg_exists;
-    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &msg_exists, &stat);
-    return msg_exists;
-}
-
-void MPIComm::recv() {
+TaskT MPIComm::recv() {
     MPI_Status stat;
     int msg_exists;
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &msg_exists, &stat);
     if (!msg_exists) {
-        return;
+        return TaskT();
     }
 
     int n_bytes;
     MPI_Get_count(&stat, MPI_CHAR, &n_bytes);
 
-    Msg m(stat.MPI_TAG, make_data(std::string(n_bytes, 'a')));
-    cur_msg = &m;
+    std::string s(n_bytes, 'a');
     MPI_Recv(
-        &m.data.get_as<std::string>().front(), n_bytes, MPI_CHAR,
+        &s.front(),
+        n_bytes, MPI_CHAR,
         MPI_ANY_SOURCE, MPI_ANY_TAG,
         MPI_COMM_WORLD, MPI_STATUS_IGNORE
     );
-    handlers.call(m);
-    cur_msg = nullptr;
-}
 
-Msg& MPIComm::cur_message() {
-    return *cur_msg; 
-}
+    std::stringstream serialized_ss(s);
+    cereal::BinaryInputArchive iarchive(serialized_ss);
+    TaskT t;
+    iarchive(t);
 
-void MPIComm::add_handler(int msg_type, std::function<void(Data)> handler) {
-    handlers.add_handler(msg_type, std::move(handler));
+    return t;
 }
 
 } //end namespace taskloaf

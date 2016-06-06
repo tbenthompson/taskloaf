@@ -13,11 +13,7 @@ DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
     log(comm->get_addr()),
     tasks(log, *comm),
     should_stop(false)
-{
-    comm->add_handler(Protocol::Shutdown, [&] (Data) {
-        set_stopped(true);
-    });
-}
+{}
 
 DefaultWorker::~DefaultWorker() {
     set_stopped(true);
@@ -25,9 +21,8 @@ DefaultWorker::~DefaultWorker() {
 
 void DefaultWorker::shutdown() {
     auto& remotes = comm->remote_endpoints();
-
     for (auto& r: remotes) {
-        comm->send(r, Msg(Protocol::Shutdown, make_data(10)));
+        add_task(r, [] () { cur_worker->set_stopped(true); });
     }
     set_stopped(true);
 }
@@ -65,11 +60,11 @@ void DefaultWorker::recv() {
 }
 
 void DefaultWorker::one_step() {
-    if (comm->has_incoming()) {
-        comm->recv();
-        return;
+    auto t = comm->recv();
+    if (t != nullptr) {
+        tasks.add_local_task(std::move(t));
     }
-    
+
     if (tasks.size() == 0) {
         tasks.steal();
     } else {

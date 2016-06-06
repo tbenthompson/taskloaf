@@ -9,41 +9,49 @@
 
 using namespace taskloaf;
 
-Data deserialize(std::string s) {
-    return deserialize<Data>(s);
+TEST_CASE("Typed Data") {
+    Data<int> d(10);
+    int v = d;
+    REQUIRE(v == 10);
 }
-
 
 TEST_CASE("make data", "[data]") {
     auto d = make_data(std::string("yea!"));
-    REQUIRE(d.get_as<std::string>() == "yea!");
+    REQUIRE(d.get() == "yea!");
+}
+
+TEST_CASE("Copying promotes", "[data]") {
+    Data<int> d = make_data(10);
+    Data<int> d2 = d;
+    d2.get() = 11;
+    REQUIRE(d.get() == 11);
 }
 
 TEST_CASE("Serialize/deserialize", "[data]") {
     auto d = make_data(10);
     auto ss = serialize(d);
-    auto d2 = deserialize(ss);
-    REQUIRE(d2.get_as<int>() == 10);
+    auto d2 = deserialize<Data<int>>(ss);
+    REQUIRE(d2.get() == 10);
 }
 
 TEST_CASE("Reserialize opened", "[data]") {
     auto d = make_data(10);
     auto ss = serialize(d);
-    auto d2 = deserialize(ss);
-    REQUIRE(d2.get_as<int>() == 10);
+    auto d2 = deserialize<Data<int>>(ss);
+    REQUIRE(d2.get() == 10);
 
     auto ss2 = serialize(d2);
-    auto d3 = deserialize(ss2);
-    REQUIRE(d3.get_as<int>() == 10);
+    auto d3 = deserialize<Data<int>>(ss2);
+    REQUIRE(d3.get() == 10);
 }
 
 TEST_CASE("Reserialize unopened", "[data]") {
     auto d = make_data(10);
     auto ss = serialize(d);
-    auto d2 = deserialize(ss);
+    auto d2 = deserialize<Data<int>>(ss);
     auto ss2 = serialize(d2);
-    auto d3 = deserialize(ss2);
-    REQUIRE(d3.get_as<int>() == 10);
+    auto d3 = deserialize<Data<int>>(ss2);
+    REQUIRE(d3.get() == 10);
 }
 
 TEST_CASE("Measure serialized size", "[data]") {
@@ -57,6 +65,11 @@ TEST_CASE("Measure serialized size", "[data]") {
     SECTION("double") {
         auto d = make_data(0.015);
         REQUIRE(serialize(d).size() - baseline == 8);
+    }
+
+    SECTION("null") {
+        Data<int> d;
+        REQUIRE(serialize(d).size() == 1);
     }
 }
 
@@ -75,23 +88,9 @@ TEST_CASE("Deserialized deleter called", "[data]") {
     OwnershipTracker::deletes() = 0;
     {
         auto ss = serialize(d);
-        auto d2 = deserialize(ss);
+        auto d2 = deserialize<Data<OwnershipTracker>>(ss);
     }
     REQUIRE(OwnershipTracker::deletes() == 1);
-}
-
-TEST_CASE("Convert raw functions to serializable in make_data") {
-    auto f = make_data(make_function(
-        [] (int x) { return x * 10; }
-    )).get_as<Function<int(int)>>();
-    REQUIRE(f(10) == 100);
-}
-
-TEST_CASE("Serializable closure") {
-    auto f = get_serializable_functor();
-    auto result = deserialize(serialize(make_data(std::move(f))));
-    int five = 5;
-    REQUIRE(result.get_as<decltype(f)>()(five) == 120);
 }
 
 TEST_CASE("Implicit conversion") {

@@ -1,4 +1,5 @@
 #include "task_collection.hpp"
+#include "default_worker.hpp"
 #include "comm.hpp"
 #include "protocol.hpp"
 #include "address.hpp"
@@ -6,7 +7,7 @@
 #include <cereal/types/utility.hpp>
 
 #include <iostream>
-#include <cmath>
+#include <random>
 
 namespace taskloaf {
 
@@ -14,21 +15,7 @@ TaskCollection::TaskCollection(Log& log, Comm& comm):
     log(log),
     comm(comm),
     stealing(false)
-{
-    comm.add_handler(Protocol::Steal, [&] (Data d) {
-        auto sender = d.get_as<Address>();
-        auto response = victimized();
-        comm.send(sender, Msg(Protocol::StealResponse, make_data(std::move(response))));
-    });
-
-    comm.add_handler(Protocol::StealResponse, [&] (Data d) {
-        receive_tasks(std::move(d.get_as<std::vector<TaskT>>()));
-    });
-
-    comm.add_handler(Protocol::AssignedTask, [&] (Data d) {
-        add_local_task(std::move(d.get_as<TaskT>()));
-    });
-}
+{}
 
 size_t TaskCollection::size() const {
     return stealable_tasks.size() + local_tasks.size();
@@ -46,7 +33,7 @@ void TaskCollection::add_local_task(TaskT t) {
 
 void TaskCollection::add_task(const Address& where, TaskT t) {
     if (where != comm.get_addr()) {
-        comm.send(where, Msg(Protocol::AssignedTask, make_data(std::move(t))));
+        comm.send(where, std::move(t));
     } else {
         add_local_task(std::move(t));
     }
@@ -84,7 +71,32 @@ void TaskCollection::steal() {
     }
     stealing = true;
     log.n_attempted_steals++;
-    comm.send_random(Msg(Protocol::Steal, make_data(comm.get_addr())));
+
+    thread_local std::random_device rd;
+    thread_local std::mt19937 gen(rd());
+
+    auto& remotes = comm.remote_endpoints();
+    if (remotes.size() == 0) {
+        return;
+    }
+    std::uniform_int_distribution<> dis(0, remotes.size() - 1);
+    auto idx = dis(gen);
+
+    add_task(remotes[idx], TaskT(
+        [] (const Address& sender) {
+            auto& tc = ((DefaultWorker*)(cur_worker))->tasks;
+            auto response = tc.victimized();
+
+            tc.add_task(sender, TaskT(
+                [] (std::vector<TaskT>& tasks) {
+                    auto& tc = ((DefaultWorker*)(cur_worker))->tasks;
+                    tc.receive_tasks(std::move(tasks));
+                },
+                std::move(response)
+            ));
+        },
+        comm.get_addr()
+    ));
 }
 
 std::vector<TaskT> TaskCollection::victimized() {

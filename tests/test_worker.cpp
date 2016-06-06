@@ -12,28 +12,14 @@ TEST_CASE("Number of workers", "[worker]") {
 struct TestingComm: public Comm {
     Address addr = {0};
     std::vector<Address> remotes = {{1}};
-    Msg* cur_msg = nullptr;
-    std::vector<Msg> sent;
-    MsgHandlers handlers;
+    std::vector<TaskT> sent;
 
     const Address& get_addr() const { return addr; }
-    bool has_incoming() { return false; }
-    Msg& cur_message() { return *cur_msg; }
     const std::vector<Address>& remote_endpoints() { return remotes; }
-    void recv() { }
+    TaskT recv() { return TaskT(); }
 
-    void receive_msg(Msg msg) {
-        cur_msg = &msg;
-        handlers.call(msg);
-        cur_msg = nullptr;
-    }
-
-    void send(const Address&, Msg msg) {
-        sent.push_back(msg);
-    }
-
-    void add_handler(int msg_type, std::function<void(Data)> handler) {
-        handlers.add_handler(msg_type, std::move(handler));
+    void send(const Address&, TaskT msg) {
+        sent.push_back(std::move(msg));
     }
 };
 
@@ -108,7 +94,7 @@ TEST_CASE("Send remotely assigned task") {
     int x = 0;
     tc.add_task({1}, {[&] (std::vector<Data>&) { x = 1; }, {}});
     REQUIRE(comm.sent.size() == 1);
-    comm.receive_msg(comm.sent[0]);
+    tc.add_local_task(std::move(comm.sent[0]));
     tc.run_next();
     REQUIRE(x == 1);
 }

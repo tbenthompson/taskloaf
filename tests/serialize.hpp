@@ -1,5 +1,6 @@
 #pragma once
-#include "taskloaf.hpp"
+
+#include <cereal/archives/binary.hpp>
 
 namespace taskloaf {
 

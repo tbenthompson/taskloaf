@@ -72,6 +72,9 @@ protected:
     /// Special internal constructor for functors, lambda functions, etc.
     template <typename Func, typename Return, typename... Args, typename... Extra>
     void initialize(Func &&f, Return (*)(Args...), const Extra&... extra) {
+        static_assert(detail::expected_num_args<Extra...>(sizeof...(Args)),
+                      "The number of named arguments does not match the function signature");
+
         struct capture { typename std::remove_reference<Func>::type f; };
 
         /* Store the function including any extra state it might have (e.g. a lambda capture object) */
@@ -205,12 +208,6 @@ protected:
             rec->name = strdup("__nonzero__");
         }
 #endif
-
-        if (!rec->args.empty() && (int) rec->args.size() != args)
-            pybind11_fail(
-                "cpp_function(): function \"" + std::string(rec->name) + "\" takes " +
-                std::to_string(args) + " arguments, but " + std::to_string(rec->args.size()) +
-                " pybind11::arg entries were specified!");
 
         rec->signature = strdup(signature.c_str());
         rec->args.shrink_to_fit();
@@ -520,6 +517,14 @@ protected:
             }
         }
 
+        auto &internals = get_internals();
+        auto tindex = std::type_index(*(rec->type));
+
+        if (internals.registered_types_cpp.find(tindex) !=
+            internals.registered_types_cpp.end())
+            pybind11_fail("generic_type: type \"" + std::string(rec->name) +
+                          "\" is already registered!");
+
         object type_holder(PyType_Type.tp_alloc(&PyType_Type, 0), false);
         object name(PYBIND11_FROM_STRING(rec->name), false);
         auto type = (PyHeapTypeObject*) type_holder.ptr();
@@ -528,12 +533,11 @@ protected:
             pybind11_fail("generic_type: unable to create type object!");
 
         /* Register supplemental type information in C++ dict */
-        auto &internals = get_internals();
         detail::type_info *tinfo = new detail::type_info();
         tinfo->type = (PyTypeObject *) type;
         tinfo->type_size = rec->type_size;
         tinfo->init_holder = rec->init_holder;
-        internals.registered_types_cpp[std::type_index(*(rec->type))] = tinfo;
+        internals.registered_types_cpp[tindex] = tinfo;
         internals.registered_types_py[type] = tinfo;
 
         object scope_module;
@@ -853,9 +857,20 @@ public:
     template <typename... Extra>
     class_ &def_property_static(const char *name, const cpp_function &fget, const cpp_function &fset, const Extra& ...extra) {
         auto rec_fget = get_function_record(fget), rec_fset = get_function_record(fset);
+        char *doc_prev = rec_fget->doc; /* 'extra' field may include a property-specific documentation string */
         detail::process_attributes<Extra...>::init(extra..., rec_fget);
-        if (rec_fset)
+        if (rec_fget->doc && rec_fget->doc != doc_prev) {
+            free(doc_prev);
+            rec_fget->doc = strdup(rec_fget->doc);
+        }
+        if (rec_fset) {
+            doc_prev = rec_fset->doc;
             detail::process_attributes<Extra...>::init(extra..., rec_fset);
+            if (rec_fset->doc && rec_fset->doc != doc_prev) {
+                free(doc_prev);
+                rec_fset->doc = strdup(rec_fset->doc);
+            }
+        }
         pybind11::str doc_obj = pybind11::str(rec_fget->doc ? rec_fget->doc : "");
         object property(
             PyObject_CallFunctionObjArgs((PyObject *) &PyProperty_Type, fget.ptr() ? fget.ptr() : Py_None,

@@ -1,7 +1,6 @@
 #include "launcher.hpp"
 #include "default_worker.hpp"
 #include "local_comm.hpp"
-#include "serializing_comm.hpp"
 #include "mpi_comm.hpp"
 #include "protocol.hpp"
 
@@ -45,11 +44,7 @@ struct LocalContextInternals: public ContextInternals {
 
     ~LocalContextInternals() {
         main_worker.shutdown();
-        for (auto& w: workers) {
-            main_worker.comm->send(w->get_addr(), Msg(
-                Protocol::Shutdown, make_data(1)
-            ));
-        }
+
         for (auto& t: threads) {
             t.join();
         }
@@ -81,9 +76,7 @@ struct MPIContextInternals: public ContextInternals {
     DefaultWorker w; 
 
     MPIContextInternals():
-        w(std::unique_ptr<SerializingComm>(new SerializingComm(
-            std::unique_ptr<MPIComm>(new MPIComm())
-        )))
+        w(std::make_unique<MPIComm>())
     {
         cur_worker = &w;
     }
