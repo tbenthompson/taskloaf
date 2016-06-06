@@ -69,7 +69,7 @@ struct TypedClosure<Return(Args...),F,Ts...>: public ClosureBase<Return(Args...)
     TypedClosure() = default;
 
     Return operator()(Args... args) override {
-        return call(idxs, args...);
+        return call(idxs, std::forward<Args>(args)...);
     }
 
     template <size_t... I>
@@ -132,7 +132,7 @@ struct Closure<Return(Args...)> {
     }
 
     Return operator()(Args... args) {
-        return ptr->operator()(ensure_data(args)...);
+        return ptr->operator()(std::forward<Args>(args)...);
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {

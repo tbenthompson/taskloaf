@@ -14,10 +14,10 @@ struct WhenBothOutT<std::tuple<T1s...>, std::tuple<T2s...>> {
 
 template <typename F1, typename F2, typename... T1s, typename... T2s>
 auto when_both_helper(F1&& fut1, F2&& fut2, std::tuple<T1s...>, std::tuple<T2s...>) {
-    return fut1.then(Closure<Future<T1s...,T2s...>(AlwaysDataT<T1s>&...)>(
-        [] (F2& fut2, AlwaysDataT<T1s>&... args1) {
-            return fut2.then(Closure<std::tuple<T1s...,T2s...>(AlwaysDataT<T2s>&...)>(
-                [] (AlwaysDataT<T1s>&... args1, AlwaysDataT<T2s>&... args2) {
+    return fut1.then(Closure<Future<T1s...,T2s...>(Data<T1s>&...)>(
+        [] (F2& fut2, Data<T1s>&... args1) {
+            return fut2.then(Closure<std::tuple<T1s...,T2s...>(Data<T2s>&...)>(
+                [] (Data<T1s>&... args1, Data<T2s>&... args2) {
                     return std::make_tuple(args1..., args2...);
                 },
                 args1...

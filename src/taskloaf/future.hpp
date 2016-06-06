@@ -19,8 +19,8 @@ auto ensure_all_data(TupleT&& t, std::index_sequence<I...>) {
 
 template <typename... Ts>
 struct SharedFutureData {
-    using TriggerT = Closure<void(std::tuple<AlwaysDataT<Ts>...>)>;
-    using ValT = std::tuple<AlwaysDataT<Ts>...>;
+    using TriggerT = Closure<void(std::tuple<Data<Ts>...>)>;
+    using ValT = std::tuple<Data<Ts>...>;
 
     bool fulfilled = false;
     ValT vals;
@@ -104,7 +104,7 @@ struct SharedFutureInternal {
 template <typename Derived, typename... Ts>
 struct FutureBase {
     using TupleT = std::tuple<Ts...>;
-    using DataTupleT = std::tuple<AlwaysDataT<Ts>...>;
+    using DataTupleT = std::tuple<Data<Ts>...>;
     using TriggerT = typename SharedFutureData<Ts...>::TriggerT;
 
     SharedFutureInternal<Ts...> internal;
@@ -130,7 +130,7 @@ struct FutureBase {
 
     template <typename T>
     void fulfill(T v) {
-        internal.fulfill_helper(std::make_tuple(make_data(std::move(v)))); 
+        internal.fulfill_helper(std::make_tuple(ensure_data(std::move(v)))); 
     }
 
     template <typename... ArgTypes>
@@ -140,12 +140,8 @@ struct FutureBase {
         ));
     }
 
-    void fulfill(Data val) {
-        internal.fulfill_helper(std::make_tuple(std::move(val)));
-    }
-
     template <typename F, typename... ArgTypes>
-    void fulfill_with(F& f, std::tuple<AlwaysDataT<ArgTypes>...>& args) {
+    void fulfill_with(F& f, std::tuple<Data<ArgTypes>...>& args) {
         fulfill(apply_args(
             f, args, std::index_sequence_for<ArgTypes...>{}
         ));
@@ -218,7 +214,7 @@ struct Future<>: public FutureBase<Future<>> {
     }
 
     template <typename F, typename... ArgTypes>
-    void fulfill_with(F& f, std::tuple<AlwaysDataT<ArgTypes>...>& args) {
+    void fulfill_with(F& f, std::tuple<Data<ArgTypes>...>& args) {
         apply_args(f, args, std::index_sequence_for<ArgTypes...>{});
         fulfill();
     }

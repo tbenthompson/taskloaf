@@ -26,40 +26,40 @@ TEST_CASE("Unwrap") {
     REQUIRE(x == 1);
 }
 
-TEST_CASE("When all") {
-    auto ctx = launch_local(2);
-    auto x = when_all(ready(0.2), ready(5)).then(
-        [] (double a, int b) -> int {
-            return a * b;
-        }).get();
-    REQUIRE(x == 1);
-}
-
-TEST_CASE("Async") {
-    auto ctx = launch_local(2);
-    REQUIRE(async([] () { return 1; }).get() == 1);
-}
-
-std::string bark() { return "arf"; }
-TEST_CASE("Async fnc") {
-    auto ctx = launch_local(2);
-    async(bark).wait();
-}
-
-std::string make_sound(int x) { return "llamasound" + std::to_string(x); }
-TEST_CASE("Then fnc") {
-    auto ctx = launch_local(2);
-    ready(2).then(make_sound).wait();
-}
-
-void bark_silently() {}
-TEST_CASE("void async fnc") {
-    auto ctx = launch_local(2);
-    async(bark_silently).wait();
-}
-
-TEST_CASE("Get second val") {
-    auto ctx = launch_local(2);
-    REQUIRE(when_all(ready(2), ready(3)).get_idx<1>() == 3);
-    REQUIRE(when_all(ready(2), async([] { return 3; })).get_idx<1>() == 3);
-}
+// TEST_CASE("When all") {
+//     auto ctx = launch_local(2);
+//     auto x = when_all(ready(0.2), ready(5)).then(
+//         [] (double a, int b) -> int {
+//             return a * b;
+//         }).get();
+//     REQUIRE(x == 1);
+// }
+// 
+// TEST_CASE("Async") {
+//     auto ctx = launch_local(2);
+//     REQUIRE(async([] () { return 1; }).get() == 1);
+// }
+// 
+// std::string bark() { return "arf"; }
+// TEST_CASE("Async fnc") {
+//     auto ctx = launch_local(2);
+//     async(bark).wait();
+// }
+// 
+// std::string make_sound(int x) { return "llamasound" + std::to_string(x); }
+// TEST_CASE("Then fnc") {
+//     auto ctx = launch_local(2);
+//     ready(2).then(make_sound).wait();
+// }
+// 
+// void bark_silently() {}
+// TEST_CASE("void async fnc") {
+//     auto ctx = launch_local(2);
+//     async(bark_silently).wait();
+// }
+// 
+// TEST_CASE("Get second val") {
+//     auto ctx = launch_local(2);
+//     REQUIRE(when_all(ready(2), ready(3)).get_idx<1>() == 3);
+//     REQUIRE(when_all(ready(2), async([] { return 3; })).get_idx<1>() == 3);
+// }

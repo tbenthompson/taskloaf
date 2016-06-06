@@ -52,7 +52,7 @@ struct RemoveTupleFuture<std::tuple<Ts...>> {
 
 template <typename F, typename... Ts>
 auto then(int loc, Future<Ts...>& fut, F&& fnc) {
-    typedef std::result_of_t<F(AlwaysDataT<Ts>&...)> Return;
+    typedef std::result_of_t<F(Data<Ts>&...)> Return;
     typedef typename RemoveTupleFuture<Return>::type OutFut;
     typedef Closure<Return(Ts&...)> FType;
 
@@ -61,11 +61,11 @@ auto then(int loc, Future<Ts...>& fut, F&& fnc) {
     auto iloc = internal_loc(loc);
     fut.add_trigger(typename Future<Ts...>::TriggerT(
         [] (FType& f, OutFut& out_future,
-            InternalLoc iloc, std::tuple<AlwaysDataT<Ts>...>& args) 
+            InternalLoc iloc, std::tuple<Data<Ts>...>& args) 
         {
             Closure<void()> t(
                 [] (FType& f, OutFut& out_future,
-                    std::tuple<AlwaysDataT<Ts>...>& args)  
+                    std::tuple<Data<Ts>...>& args)  
                 {
                     out_future.template fulfill_with<FType,Ts...>(f, args);
                 },
@@ -121,7 +121,7 @@ auto async(int loc, F&& fnc) {
     auto iloc = internal_loc(loc);
     Closure<void()> t(
         [] (FType& f, OutFut& out_future) { out_future.fulfill_with(f); },
-        f_serializable, out_future
+        std::move(f_serializable), out_future
     );
     schedule(iloc, std::move(t));
     return out_future;

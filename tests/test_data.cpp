@@ -27,6 +27,12 @@ TEST_CASE("Copying promotes", "[data]") {
     REQUIRE(d.get() == 11);
 }
 
+TEST_CASE("Move doesn't promote") {
+    Data<int> d = make_data(10);
+    Data<int> d2 = std::move(d);
+    REQUIRE(d2.which == 0);
+}
+
 TEST_CASE("Serialize/deserialize", "[data]") {
     auto d = make_data(10);
     auto ss = serialize(d);
@@ -65,11 +71,6 @@ TEST_CASE("Measure serialized size", "[data]") {
     SECTION("double") {
         auto d = make_data(0.015);
         REQUIRE(serialize(d).size() - baseline == 8);
-    }
-
-    SECTION("null") {
-        Data<int> d;
-        REQUIRE(serialize(d).size() == 1);
     }
 }
 

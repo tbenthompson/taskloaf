@@ -2,8 +2,6 @@
 
 #include "fnc.hpp"
 
-#include <eggs/variant.hpp>
-
 namespace taskloaf {
 
 template <typename F>
@@ -18,47 +16,64 @@ struct Data {
         is_serializable<std::decay_t<T>>::value,
         "Types encapsulated in Data must be serializable."
     );
+    
+    union {
+        T val;
+        std::shared_ptr<T> ptr;
+    };
+    int which = 0;
 
-    using VariantT = eggs::variant<T,std::shared_ptr<T>>;
+    Data(): val() {}
+    Data(const T& v): val(v) {}
+    Data(T&& v): val(std::move(v)) {}
 
-    VariantT val;
+    Data(Data<T>&& other):
+        val()
+    {
+        *this = std::move(other);
+    }
 
-    Data() = default;
-    Data(Data<T>&& other) = default;
-    Data& operator=(Data<T>&& other) = default;
+    Data& operator=(Data<T>&& other) {
+        this->~Data();    
+        which = other.which;
+        if (which == 0) {
+            new (&val) T(std::move(other.val));
+        } else {
+            new (&ptr) std::shared_ptr<T>(std::move(other.ptr));
+        }
+        return *this;
+    }
 
     Data(const Data<T>& other) {
         *this = other;
     }
     Data& operator=(const Data<T>& other) {
         const_cast<Data<T>*>(&other)->promote();
-        val = other.val;
+        this->~Data();
+        which = 1;
+        new (&ptr) std::shared_ptr<T>(other.ptr);
         return *this;
     }
 
-    template <typename U,
-        std::enable_if_t<
-            !std::is_same<std::decay_t<U>,Data<T>>::value
-        >* = nullptr>
-    Data(U&& v): val(std::forward<U>(v)) {}
+    ~Data() {
+        if (which == 0) {
+            val.~T();
+        } else if (which == 1) {
+            ptr.~shared_ptr();
+        }
+    }
 
     void promote() {
-        if (val.which() != 0) {
+        if (which != 0) {
             return;
         }
-        val = std::make_shared<T>(std::move(get()));
-    }
-
-    bool operator==(std::nullptr_t) const {
-        return val.which() == VariantT::npos;
-    }
-
-    bool operator!=(std::nullptr_t) const {
-        return !(*this == nullptr);
+        T tmp_val = std::move(val);
+        val.~T();
+        which = 1;
+        new (&ptr) std::shared_ptr<T>(std::make_shared<T>(std::move(tmp_val)));
     }
 
     T& get() {
-        tlassert(*this != nullptr);
         return *this;
     }
 
@@ -67,10 +82,11 @@ struct Data {
     }
 
     operator T&() {
-        if (val.which() == 0) {
-            return *val.template target<T>();
+        if (which == 0) {
+            return val;
         } else {
-            return **val.template target<std::shared_ptr<T>>();
+            tlassert(ptr != nullptr);
+            return *ptr;
         }
     }
 
@@ -80,21 +96,11 @@ struct Data {
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {
-        bool is_null = *this == nullptr;
-        ar(is_null);
-        if (!is_null) {
-            ar(get());
-        }
+        ar(get());
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        tlassert(*this == nullptr);
-        bool is_null;
-        ar(is_null);
-        if (!is_null) {
-            val.template emplace<0>();
-            ar(get());
-        }
+        ar(val);
     }
 };
 
