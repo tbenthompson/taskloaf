@@ -51,33 +51,22 @@ struct Data {
     template <typename T>
     static void save_fnc(const Data& d, cereal::BinaryOutputArchive& ar) {
         tlassert(d.ptr != nullptr);
-        auto f =  [] (Data& d, cereal::BinaryInputArchive& ar) {
+        auto deserializer = [] (Data& d, cereal::BinaryInputArchive& ar) {
+#ifdef TLDEBUG
+            d.type = std::make_shared<
+                std::reference_wrapper<const std::type_info>
+            >(typeid(T));
+#endif
             d.initialize<T>();
             ar(d.get_as<T>());
         };
         auto deserializer_id = RegisterFnc<
-            decltype(f),void,Data&,cereal::BinaryInputArchive&
+            decltype(deserializer),void,
+            Data&,cereal::BinaryInputArchive&
         >::add_to_registry();
         ar(deserializer_id);
         ar(d.get_as<T>());
     };
-
-    void save(cereal::BinaryOutputArchive& ar) const {
-        tlassert(ptr != nullptr);
-        serializer(*this, ar);
-    }
-
-    void load(cereal::BinaryInputArchive& ar) {
-        std::pair<int,int> deserializer_id;
-        ar(deserializer_id);
-        auto deserializer = reinterpret_cast<DeserializerT>(
-            get_caller_registry().get_function(deserializer_id)
-        );
-        const char* x = "";
-        deserializer(x, *this, ar);
-    }
-
-    bool operator==(std::nullptr_t) const { return ptr == nullptr; }
     
     template <typename T>
     T& unchecked_get_as() {
@@ -96,9 +85,10 @@ struct Data {
         return const_cast<Data*>(this)->get_as<T>();
     }
 
-    ConvertibleData convertible() {
-        return {*this};
-    }
+    void save(cereal::BinaryOutputArchive& ar) const;
+    void load(cereal::BinaryInputArchive& ar);
+    bool operator==(std::nullptr_t) const;
+    ConvertibleData convertible();
 };
 
 template <typename T>

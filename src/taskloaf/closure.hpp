@@ -47,7 +47,7 @@ struct Closure<Return(Args...)> {
     }
 
     template <typename F, typename... Ts>
-    static auto closure_caller(Closure<Return(Args...)>& c, Args... args) {
+    static Return closure_caller(Closure<Return(Args...)>& c, Args... args) {
         return closure_apply(
             c.f.template unchecked_get_as<F>(), c.d, std::index_sequence_for<Ts...>{},
             std::forward<Args>(args)...
@@ -57,14 +57,18 @@ struct Closure<Return(Args...)> {
     template <typename F, typename... Ts>
     Closure(F f, Ts&&... vs):
         f(make_data(*reinterpret_cast<std::array<uint8_t,sizeof(F)>*>(&f))),
-        d{ensure_data(std::forward<Ts>(vs))...},
-        caller(&closure_caller<F,Ts...>),
-        serializer(&closure_serializer<F,Ts...>)
+        d{ensure_data(std::forward<Ts>(vs))...}
     {
+        static_assert(
+            std::is_same<std::result_of_t<F(Ts&...,Args...)>,Return>::value,
+            "Function in Closure has the wrong return type."
+        );
         static_assert(
             !is_serializable<std::decay_t<F>>::value,
             "The function type for Closure cannot be serializable"
         );
+        caller = &closure_caller<F,Ts...>;
+        serializer = &closure_serializer<F,Ts...>;
     }
 
     Closure() = default;

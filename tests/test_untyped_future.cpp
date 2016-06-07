@@ -41,3 +41,15 @@ TEST_CASE("Unwrap") {
     })).unwrap().get()[0].convertible();
     REQUIRE(x == 40);
 }
+
+TEST_CASE("When all") {
+    auto ctx = launch_local(2);
+    int x = when_all({ready({make_data(2)}), ready({make_data(3)})}).then(
+        [] (std::vector<Data>& d) {
+            return std::vector<Data>{
+                make_data(d[0].get_as<int>() + d[1].get_as<int>())
+            };
+        }
+    ).get()[0].convertible();
+    REQUIRE(x == 5);
+}

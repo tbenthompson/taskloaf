@@ -1,6 +1,7 @@
 #include "catch.hpp"
 
-#include "taskloaf.hpp"
+#include "taskloaf/untyped_future.hpp"
+#include "taskloaf/launcher.hpp"
 #include "worker_test_helpers.hpp"
 
 using namespace taskloaf;
@@ -13,9 +14,10 @@ TEST_CASE("Run here") {
     auto ctx = launch_local(4);
     Worker* submit_worker = cur_worker;
     for (size_t i = 0; i < 5; i++) {
-        async(Loc::here, [=] () {
+        async(Loc::here, AsyncTaskT([=] () {
             REQUIRE(cur_worker == submit_worker);
-        }).wait();
+            return std::vector<Data>{};
+        })).wait();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }

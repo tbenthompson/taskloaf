@@ -4,7 +4,6 @@
 
 namespace taskloaf {
 
-
 struct ContextInternals {
     virtual ~ContextInternals() {};
 };

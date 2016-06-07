@@ -1,21 +1,19 @@
 #include "catch.hpp"
 
 #include "taskloaf/mpi_comm.hpp"
-#include "taskloaf/future.hpp"
-#include "taskloaf/fnc.hpp"
+#include "taskloaf/closure.hpp"
 
 #include "serializable_functor.hpp"
 
 #include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
 
 using namespace taskloaf;
 
-template <typename T, typename F>
-void test_send(T&& v, F&& f) {
-    SerializingComm c(std::make_unique<MPIComm>());
+void test_send(Closure<void()> f) {
+    MPIComm c;
     if (mpi_rank(c) == 0) {
-        c.send({1}, make_data(std::forward<T>(v)));
-        c.send({1}, Data());
+        c.send({1}, f);
     } else {
         bool stop = false;
         while (!stop) {
@@ -23,60 +21,50 @@ void test_send(T&& v, F&& f) {
             if (d == nullptr) {
                 continue;
             }
-            auto& val = d.get_as<typename std::decay<T>::type>();
-            f(c, val);
+            d();
             stop = true;
         }
     }
 }
 
 void test_send_simple() {
-    test_send(10, [] (Comm&, int v) {
-        REQUIRE(v == 10); 
-    });
-}
-
-void test_send_fnc() {
-    int b = 3;
-    Function<int(int)> f([=] (int a) { return a * b; });
-
-    test_send(f, [] (Comm&, Function<int(int)> f) {
-        REQUIRE(f(3) == 9);
-    });
-}
-
-void test_send_nested_fnc() {
-    Function<int(int)> f([] (int a) { return a * 2; });
-    Function<int(int)> f2([=] (int a) { return f(a) * 3; });
-
-    test_send(f2, [] (Comm&, Function<int(int)> f) {
-        REQUIRE(f(3) == 18);
-    });
+    test_send(Closure<void()>(
+        [] (int v) { REQUIRE(v == 10); },
+        10
+    ));
 }
 
 void test_send_data() {
-    auto d = make_data(std::string("HI"));
-    test_send(d, [] (Comm&, Data d) {
-        REQUIRE(d.get_as<std::string>() == "HI");
-    });
+    test_send(Closure<void()>(
+        [] (std::string s) { REQUIRE(s == "HI"); },
+        std::string("HI")
+    ));
 }
 
-void test_send_closure() {
+void test_send_closure_lambda() {
+    int b = 3;
+    test_send(Closure<void()>(
+        [] (Closure<int(int)>& f) { REQUIRE(f(3) == 9); },
+        Closure<int(int)>([=] (int a) { return a * b; })
+    ));
+}
+
+void test_send_closure_functor() {
     auto f = get_serializable_functor();
 
-    test_send(std::move(f), [] (Comm&, decltype(f)& f) {
-        REQUIRE(f(5) == 120);
-    });
+    test_send(Closure<void()>(
+        [] (Closure<int(int)>& f) { REQUIRE(f(5) == 120); },
+        std::move(f)
+    ));
 }
 
 TEST_CASE("MPI") {
     MPI_Init(nullptr, nullptr);
 
     test_send_simple();
-    test_send_fnc();
-    test_send_nested_fnc();
     test_send_data();
-    test_send_closure();
+    test_send_closure_lambda();
+    test_send_closure_functor();
 
     std::cout << "MPI Tests passed" << std::endl;
 

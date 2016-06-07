@@ -1,40 +1,8 @@
 #pragma once
-
-#include "closure.hpp"
 #include "location.hpp"
-#include "worker.hpp"
-
-#include <cereal/types/memory.hpp>
+#include "ivar.hpp"
 
 namespace taskloaf {
-
-using TriggerT = Closure<void(std::vector<Data>&)>;
-using TaskT = Closure<void()>;
-
-struct IVarData {
-    bool fulfilled = false;
-    std::vector<Data> vals;
-    std::vector<TriggerT> triggers;
-    Address owner;
-
-    void save(cereal::BinaryOutputArchive& ar) const {
-        (void)ar;
-    }
-
-    void load(cereal::BinaryInputArchive& ar) {
-        (void)ar;
-    }
-};
-
-struct IVar {
-    std::shared_ptr<IVarData> data;
-
-    IVar();
-
-    void add_trigger(TriggerT trigger);
-    void fulfill(std::vector<Data> vals);
-    std::vector<Data> get_vals();
-};
 
 using ThenTaskT = Closure<std::vector<Data>(std::vector<Data>&)>;
 using AsyncTaskT = Closure<std::vector<Data>()>;
@@ -51,9 +19,6 @@ UntypedFuture unwrap(UntypedFuture& fut);
 struct UntypedFuture {
     IVar ivar;
 
-    void add_trigger(TriggerT trigger);
-    void fulfill(std::vector<Data> vals);
-
     void save(cereal::BinaryOutputArchive& ar) const;
     void load(cereal::BinaryInputArchive& ar);
 
@@ -64,5 +29,34 @@ struct UntypedFuture {
     std::vector<Data> get();
     void wait();
 };
+
+inline UntypedFuture when_both(UntypedFuture a, UntypedFuture b) {
+    return a.then(ThenTaskT(
+        [] (UntypedFuture& b, std::vector<Data>& a_data) {
+            return std::vector<Data>({make_data(b.then(ThenTaskT(
+                [] (std::vector<Data> a_data,
+                    std::vector<Data>& b_data) 
+                {
+                    a_data.insert(a_data.end(), b_data.begin(), b_data.end());
+                    return a_data;
+                },
+                a_data
+            )))});
+        },
+        std::move(b)
+    )).unwrap();
+}
+
+inline UntypedFuture when_all(std::vector<UntypedFuture> fs) {
+    tlassert(fs.size() != 0);
+    if (fs.size() == 1) {
+        return fs[0];
+    }
+    std::vector<UntypedFuture> recurse_fs;
+    for (size_t i = 0; i < fs.size(); i += 2) {
+        recurse_fs.push_back(when_both(fs[i], fs[i + 1]));
+    }
+    return when_all(recurse_fs);
+}
 
 } //end namespace taskloaf
