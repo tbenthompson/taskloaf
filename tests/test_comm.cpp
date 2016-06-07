@@ -1,7 +1,6 @@
 #include "catch.hpp"
 
 #include "taskloaf/local_comm.hpp"
-#include "taskloaf/fnc.hpp"
 
 #include "ownership_tracker.hpp"
 
@@ -20,28 +19,21 @@ TEST_CASE("MPMC Queue", "[comm]") {
 
 void test_comm(Comm& a, Comm& b) {
     SECTION("Recv") {
-        int x = 0;
         auto nothing_yet = b.recv() == nullptr;
         REQUIRE(nothing_yet);
-        int send = 13;
-        a.send({1}, make_data(send));
-        REQUIRE(b.recv().get_as<int>() == 13); 
+        int x = 0;
+        a.send({1}, TaskT([&] { x = 13; }));
+        b.recv()();
+        REQUIRE(x == 13); 
     }
 
     SECTION("Msg ordering") {
         double x = 4.5;
-        a.send({1}, make_data(4.5));
-        a.send({1}, make_data(1.0));
-        auto m1 = b.recv();
-        auto m2 = b.recv();
-        REQUIRE((x / m1.get_as<double>()) - m2.get_as<double>() == 0.0);
-    }
-
-    SECTION("Recv complex") {
-        int x = 0;
-        auto d = make_data(Function<int(int)>([] (int x) { return 2 * x; })); 
-        a.send({1}, std::move(d));
-        REQUIRE(b.recv().get_as<Function<int(int)>>()(3) == 6);
+        a.send({1}, TaskT([&] { x /= 4.5; }));
+        a.send({1}, TaskT([&] { x -= 1.0; }));
+        b.recv()();
+        b.recv()();
+        REQUIRE(x == 0.0);
     }
 }
 

@@ -1,159 +1,95 @@
 #pragma once
 
-#include "fnc.hpp"
+#include "fnc_registry.hpp"
 #include "data.hpp"
 
 #include <cereal/types/vector.hpp>
-#include <cereal/types/tuple.hpp>
-#include <cstring>
-#include <algorithm>
+#include <cereal/types/array.hpp>
 
 namespace taskloaf {
 
-template <typename F, typename = void>
-struct BytesIfNotSerializable {
-    std::array<uint8_t,sizeof(F)> data;
-
-    BytesIfNotSerializable(F f) {
-        std::copy_n(reinterpret_cast<uint8_t*>(&f), sizeof(F), data.begin()); 
-    }
-    BytesIfNotSerializable() = default;
-
-    void save(cereal::BinaryOutputArchive& ar) const {
-        ar.saveBinary(data.begin(), sizeof(F));
-    }
-    void load(cereal::BinaryInputArchive& ar) {
-        ar.loadBinary(data.begin(), sizeof(F));
-    }
-
-    F& get() { return *reinterpret_cast<F*>(data.begin()); }
-};
-
-template <typename F>
-struct BytesIfNotSerializable<
-    F, std::enable_if_t<is_serializable<std::decay_t<F>>::value>
->  
+template <typename F, size_t... I, typename... Args>
+auto closure_apply(F& f, std::vector<Data>& d, std::index_sequence<I...>,
+    Args&&... args) 
 {
-    F f;
-
-    BytesIfNotSerializable(F f): f(f) {}
-    BytesIfNotSerializable() = default;
-
-    void save(cereal::BinaryOutputArchive& ar) const { ar(f); }
-    void load(cereal::BinaryInputArchive& ar) { ar(f); }
-
-    F& get() { return f; }
-};
-
-template <typename F>
-struct ClosureBase {};
-
-template <typename Return, typename... Args>
-struct ClosureBase<Return(Args...)> {
-    virtual Return operator()(Args... args) = 0;
-    virtual void save(cereal::BinaryOutputArchive& ar) const = 0;
-    virtual std::pair<int,int> get_deserializer_id() const = 0;
-};
-
-template <typename ClosureType, typename F, typename... Ts>
-struct TypedClosure {};
-template <typename Return, typename... Args, typename F, typename... Ts>
-struct TypedClosure<Return(Args...),F,Ts...>: public ClosureBase<Return(Args...)> {
-    constexpr static std::index_sequence_for<Ts...> idxs{};
-    using TupleT = std::tuple<EnsureDataT<Ts>...>;
-
-    BytesIfNotSerializable<F> f;
-    std::tuple<EnsureDataT<Ts>...> vs;
-
-    TypedClosure(F f, TupleT vs): f(std::move(f)), vs(std::move(vs)) {}
-    TypedClosure() = default;
-
-    Return operator()(Args... args) override {
-        return call(idxs, std::forward<Args>(args)...);
-    }
-
-    template <size_t... I>
-    Return call(std::index_sequence<I...>, Args... args) {
-        return f.get()(std::get<I>(vs)..., args...);
-    }
-
-    std::pair<int,int> get_deserializer_id() const override {
-        auto f = [] (cereal::BinaryInputArchive& ar) {
-            auto out = std::make_unique<TypedClosure<Return(Args...),F,Ts...>>();
-            ar(*out);
-            return out;
-        };
-
-        return RegisterFnc<
-            decltype(f),
-            std::unique_ptr<ClosureBase<Return(Args...)>>,
-            cereal::BinaryInputArchive&
-        >::add_to_registry();
-    }
-
-    void save(cereal::BinaryOutputArchive& ar) const override {
-        ar(f);
-        ar(vs);
-    }
-
-    void load(cereal::BinaryInputArchive& ar) {
-        ar(f);
-        ar(vs);
-    }
-};
+    return f(d[I].convertible()..., std::forward<Args>(args)...);
+}
 
 template <typename F>
 struct Closure {};
+
 template <typename Return, typename... Args>
 struct Closure<Return(Args...)> {
-    using DerivedPtr = std::unique_ptr<ClosureBase<Return(Args...)>>;
-    using DeserializerT = DerivedPtr(*)(const char*,cereal::BinaryInputArchive&);
-    DerivedPtr ptr;
+    using CallerT = Return (*) (Closure<Return(Args...)>&,Args...);
+    using SerializerT = void (*)(cereal::BinaryOutputArchive&);
+    using DeserializerT = void (*)(
+        const char*,Closure<Return(Args...)>&,cereal::BinaryInputArchive&
+    );
+
+    Data f;
+    std::vector<Data> d;
+    CallerT caller;
+    SerializerT serializer;
 
     template <typename F, typename... Ts>
-    Closure(F&& f, Ts&&... vs):
-        ptr(std::make_unique<
-                TypedClosure<Return(Args...),std::decay_t<F>,std::decay_t<Ts>...>
-            >(
-                std::forward<F>(f),
-                std::make_tuple(ensure_data(std::forward<Ts>(vs))...)
-            )
-        )
-    {}
+    static void closure_serializer(cereal::BinaryOutputArchive& ar) 
+    {
+        auto f = [] (Closure<Return(Args...)>& c, cereal::BinaryInputArchive& ar) {
+            ar(c.f);
+            ar(c.d);
+            c.caller = &closure_caller<F,Ts...>;
+            c.serializer = &closure_serializer<F,Ts...>;
+        };
+        auto deserializer_id = RegisterFnc<
+            decltype(f),void,Closure<Return(Args...)>&,cereal::BinaryInputArchive&
+        >::add_to_registry();
+        ar(deserializer_id);
+    }
+
+    template <typename F, typename... Ts>
+    static auto closure_caller(Closure<Return(Args...)>& c, Args... args) {
+        return closure_apply(
+            c.f.template unchecked_get_as<F>(), c.d, std::index_sequence_for<Ts...>{},
+            std::forward<Args>(args)...
+        );
+    }
+
+    template <typename F, typename... Ts>
+    Closure(F f, Ts&&... vs):
+        f(make_data(*reinterpret_cast<std::array<uint8_t,sizeof(F)>*>(&f))),
+        d{ensure_data(std::forward<Ts>(vs))...},
+        caller(&closure_caller<F,Ts...>),
+        serializer(&closure_serializer<F,Ts...>)
+    {
+        static_assert(
+            !is_serializable<std::decay_t<F>>::value,
+            "The function type for Closure cannot be serializable"
+        );
+    }
 
     Closure() = default;
 
-    bool operator==(std::nullptr_t) const {
-        return ptr == nullptr;
-    }
-
-    bool operator!=(std::nullptr_t) const {
-        return !(ptr == nullptr);
-    }
+    bool operator==(std::nullptr_t) const { return f == nullptr; }
 
     Return operator()(Args... args) {
-        return ptr->operator()(std::forward<Args>(args)...);
+        return caller(*this, std::forward<Args>(args)...);
     }
 
     void save(cereal::BinaryOutputArchive& ar) const {
-        ar(ptr->get_deserializer_id());
-        ptr->save(ar);
+        serializer(ar);
+        ar(f);
+        ar(d);
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        std::pair<int,int> caller_id;
-        ar(caller_id);
-        auto caller = reinterpret_cast<DeserializerT>(
-            get_caller_registry().get_function(caller_id)
+        std::pair<int,int> deserializer_id;
+        ar(deserializer_id);
+        auto deserializer = reinterpret_cast<DeserializerT>(
+            get_caller_registry().get_function(deserializer_id)
         );
-        char* empty = nullptr;
-        ptr = caller(empty, ar);
+        const char* x = "";
+        deserializer(x, *this, ar);
     }
 };
-
-template <typename F>
-auto make_closure(F&& f) {
-    return Closure<GetSignature<F>>(std::forward<F>(f));
-}
 
 } //end namespace taskloaf

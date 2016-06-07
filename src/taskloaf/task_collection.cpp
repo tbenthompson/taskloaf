@@ -1,7 +1,6 @@
 #include "task_collection.hpp"
 #include "default_worker.hpp"
 #include "comm.hpp"
-#include "protocol.hpp"
 #include "address.hpp"
 #include "logging.hpp"
 #include <cereal/types/utility.hpp>

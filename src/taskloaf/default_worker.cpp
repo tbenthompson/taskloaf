@@ -1,5 +1,4 @@
 #include "default_worker.hpp"
-#include "protocol.hpp"
 #include "comm.hpp"
 
 #include <iostream>
@@ -61,7 +60,7 @@ void DefaultWorker::recv() {
 
 void DefaultWorker::one_step() {
     auto t = comm->recv();
-    if (t != nullptr) {
+    if (!(t == nullptr)) {
         tasks.add_local_task(std::move(t));
     }
 

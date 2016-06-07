@@ -2,7 +2,6 @@
 #include "default_worker.hpp"
 #include "local_comm.hpp"
 #include "mpi_comm.hpp"
-#include "protocol.hpp"
 
 #include <thread>
 #include <atomic>

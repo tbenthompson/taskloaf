@@ -35,7 +35,7 @@ void MPIComm::send(const Address& dest, TaskT msg) {
     cereal::BinaryOutputArchive oarchive(serialized_data);
     oarchive(msg);
 
-    outbox.push_back({std::move(serialized_data.str()), MPI_Request()});  
+    outbox.push_back({serialized_data.str(), MPI_Request()});  
 
     auto& str_data = outbox.back().msg;
     MPI_Isend(

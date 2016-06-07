@@ -1,6 +1,5 @@
 #include "catch.hpp"
 
-#include "taskloaf/fnc.hpp"
 #include "taskloaf/closure.hpp"
 
 #include "serialize.hpp"
@@ -55,18 +54,7 @@ TEST_CASE("three params", "[fnc]") {
     REQUIRE(std::fabs(c(3) - 118.8) < 0.001);
 }
 
-TEST_CASE("Serialize/deserialize typed", "[fnc]") {
-    int mult = 256;
-    auto f = [=] (int x) { return x * mult; };
-    mult = 255;
-    TypedClosure<int(int), decltype(f)> c(f, std::make_tuple());
-    auto s = serialize(c);
-    auto c2 = deserialize<decltype(c)>(s);
-    REQUIRE(c(10) == 2560);
-    REQUIRE(c2(10) == c(10));
-}
-
-TEST_CASE("Serialize/deserialize untyped", "[fnc]") {
+TEST_CASE("Serialize/deserialize", "[fnc]") {
     int mult = 256;
     auto c = make_closure([=] (int x) { return x * mult; });
     auto s = serialize(c);

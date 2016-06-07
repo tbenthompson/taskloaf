@@ -1,9 +1,13 @@
 #pragma once
+
 #include "tlassert.hpp"
+#include "fnc_registry.hpp"
 
+#ifdef TLDEBUG
+#include <typeinfo>
+#endif
+ 
 #include <cereal/archives/binary.hpp>
-
-#include <mapbox/variant.hpp>
 
 namespace taskloaf {
 
@@ -13,85 +17,119 @@ struct is_serializable: std::integral_constant<bool,
     cereal::traits::is_input_serializable<F,cereal::BinaryInputArchive>::value &&
     !std::is_pointer<F>::value> {};
 
-template <typename T>
-struct Data {
-    static_assert(
-        is_serializable<std::decay_t<T>>::value,
-        "Types encapsulated in Data must be serializable."
-    );
+struct Data;
+struct ConvertibleData {
+    Data& d;
     
-    mapbox::util::variant<T,std::shared_ptr<T>> v;
+    template <typename T>
+    operator T&();
 
-    Data() = default;
-    Data(const T& v): v(v) {}
-    Data(T&& v): v(std::move(v)) {}
+    template <typename T>
+    operator const T&() const;
+};
 
-    Data(Data<T>&& other) = default;
-    Data& operator=(Data<T>&& other) = default;
+struct Data {
+    using SerializerT = void (*)(const Data&,cereal::BinaryOutputArchive&);
+    using DeserializerT = void (*)(const char*,Data&,cereal::BinaryInputArchive&);
+    std::shared_ptr<void> ptr;
+    SerializerT serializer;
+#ifdef TLDEBUG
+    std::shared_ptr<std::reference_wrapper<const std::type_info>> type;
+#endif
 
-    Data(const Data<T>& other) { *this = other; }
-    Data& operator=(const Data<T>& other) {
-        const_cast<Data<T>*>(&other)->promote();
-        v = other.v;
-        return *this;
+    template <typename T, typename... Ts>
+    void initialize(Ts&&... args) {
+#ifdef TLDEBUG
+        type = std::make_shared<std::reference_wrapper<const std::type_info>>(typeid(T));
+#endif
+        ptr.reset(new T(std::forward<Ts>(args)...), [] (void* data_ptr) {
+            delete reinterpret_cast<T*>(data_ptr);
+        });
+        serializer = &save_fnc<T>;
     }
 
-    void promote() {
-        if (v.which() != 0) {
-            return;
-        }
-        v = std::make_shared<T>(std::move(v.template get_unchecked<T>()));
+    template <typename T>
+    static void save_fnc(const Data& d, cereal::BinaryOutputArchive& ar) {
+        tlassert(d.ptr != nullptr);
+        auto f =  [] (Data& d, cereal::BinaryInputArchive& ar) {
+            d.initialize<T>();
+            ar(d.get_as<T>());
+        };
+        auto deserializer_id = RegisterFnc<
+            decltype(f),void,Data&,cereal::BinaryInputArchive&
+        >::add_to_registry();
+        ar(deserializer_id);
+        ar(d.get_as<T>());
+    };
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        tlassert(ptr != nullptr);
+        serializer(*this, ar);
     }
 
-    operator T&() {
-        if (v.which() == 0) {
-            return v.template get_unchecked<T>();
-        } else {
-            auto& ptr = v.template get_unchecked<std::shared_ptr<T>>();
-            tlassert(ptr != nullptr);
-            return *ptr;
-        }
+    void load(cereal::BinaryInputArchive& ar) {
+        std::pair<int,int> deserializer_id;
+        ar(deserializer_id);
+        auto deserializer = reinterpret_cast<DeserializerT>(
+            get_caller_registry().get_function(deserializer_id)
+        );
+        const char* x = "";
+        deserializer(x, *this, ar);
     }
 
-    operator const T&() const { return *const_cast<Data<T>*>(this); }
+    bool operator==(std::nullptr_t) const { return ptr == nullptr; }
+    
+    template <typename T>
+    T& unchecked_get_as() {
+        return *reinterpret_cast<T*>(ptr.get()); 
+    }
 
-    T& get() { return *this; }
-    const T& get() const { return *this; }
+    template <typename T>
+    T& get_as() {
+        tlassert(typeid(T) == *type);
+        tlassert(ptr != nullptr);
+        return unchecked_get_as<T>();
+    }
 
-    void save(cereal::BinaryOutputArchive& ar) const { ar(get()); }
-    void load(cereal::BinaryInputArchive& ar) { ar(get()); }
+    template <typename T>
+    const T& get_as() const {
+        return const_cast<Data*>(this)->get_as<T>();
+    }
+
+    ConvertibleData convertible() {
+        return {*this};
+    }
 };
 
 template <typename T>
-auto make_data(T&& v) {
-    return Data<std::decay_t<T>>(std::forward<T>(v));
+ConvertibleData::operator T&() {
+    return d.get_as<T>();
 }
 
 template <typename T>
-struct IsData: std::false_type {};
+ConvertibleData::operator const T&() const {
+    return d.get_as<T>();
+}
 
 template <typename T>
-struct IsData<Data<T>>: std::true_type {};
+auto make_data(T&& v) {
+    static_assert(
+        is_serializable<std::decay_t<T>>::value,
+        "Data requires the contained type be serializable"
+    );
+    Data d;
+    d.initialize<std::decay_t<T>>(std::forward<T>(v));
+    return d;
+}
 
-template <typename T>
-struct EnsureData {
-    using type = Data<T>;
-};
-
-template <typename T>
-struct EnsureData<Data<T>> {
-    using type = Data<T>;
-};
-
-template <typename T>
-using EnsureDataT = typename EnsureData<T>::type;
-
-template <typename T, std::enable_if_t<!IsData<T>::value>* = nullptr>
+template <typename T,
+    std::enable_if_t<!std::is_same<std::decay_t<T>,Data>::value>* = nullptr>
 auto ensure_data(T&& v) {
     return make_data(std::forward<T>(v));
 }
 
-template <typename T, std::enable_if_t<IsData<T>::value>* = nullptr>
+template <typename T,
+    std::enable_if_t<std::is_same<std::decay_t<T>,Data>::value>* = nullptr>
 auto ensure_data(T&& v) {
     return std::forward<T>(v);
 }

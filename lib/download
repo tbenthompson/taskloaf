@@ -20,7 +20,7 @@ git clone --depth 1 git@github.com:pybind/pybind11.git pybind11_git
 mv pybind11_git/include/pybind11 ./pybind11
 rm -rf pybind11_git
 
-git clone --depth 1 git@github.com:eggs-cpp/variant.git
-[ -d eggs ] && rm -r eggs
-mv variant/include/eggs ./eggs
+git clone --depth 1 git@github.com:mapbox/variant.git
+[ -d mapbox ] && rm -r mapbox
+mv variant/include/mapbox ./mapbox
 rm -rf variant

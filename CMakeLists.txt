@@ -46,7 +46,7 @@ find_package(Threads REQUIRED)
 
 # Turn on taskloaf assertions
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_definitions(-DTLASSERT)
+    add_definitions(-DTLDEBUG)
 endif()
 
 ################################################################################
@@ -70,7 +70,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_SRC "src/taskloaf/untyped_future.cpp;src/taskloaf/location.cpp;src/taskloaf/address.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
@@ -123,14 +123,11 @@ if(BUILD_TESTS)
     enable_testing()
 
     add_custom_target(tests)
-    taskloaf_tests(task_locations True)
-    taskloaf_tests(future True)
-    taskloaf_tests(future2 True)
-    taskloaf_tests(fnc True)
+    taskloaf_tests(closure True)
     taskloaf_tests(data True)
     taskloaf_tests(worker True)
     taskloaf_tests(comm True)
-    taskloaf_tests(launch True)
+    taskloaf_tests(untyped_future True)
 
     if (MPI_CXX_FOUND)
         taskloaf_tests(mpi False)

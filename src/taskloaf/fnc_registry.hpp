@@ -1,13 +1,9 @@
 #pragma once
 #include "tlassert.hpp"
 
-#include "get_signature.hpp"
-
-#include <cereal/archives/binary.hpp>
-#include <cereal/types/string.hpp>
-#include <cereal/types/utility.hpp>
-
 #include <memory>
+#include <utility>
+#include <cereal/types/utility.hpp>
 
 namespace taskloaf {
 
