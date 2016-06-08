@@ -29,12 +29,12 @@ const std::vector<Address>& LocalComm::remote_endpoints() {
     return remotes;
 }
 
-void LocalComm::send(const Address& dest, TaskT msg) {
+void LocalComm::send(const Address& dest, Closure msg) {
     queues->qs[dest.id].enqueue(std::move(msg));
 }
 
-TaskT LocalComm::recv() {
-    TaskT cur_msg;
+Closure LocalComm::recv() {
+    Closure cur_msg;
     queues->qs[my_addr.id].try_dequeue(cur_msg);
     return cur_msg;
 }

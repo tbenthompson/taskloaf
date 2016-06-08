@@ -9,61 +9,54 @@
 using namespace taskloaf;
 
 TEST_CASE("lambda") {
-    auto f = Closure<int(int)>([] (int x) { return x * 2; });
-    REQUIRE(f(3) == 6);
+    auto f = Closure([] (Data&, int x) { return x * 2; });
+    int x = f(ensure_data(3));
+    REQUIRE(x == 6);
 }
 
-int test_fnc(int x) {
+int test_fnc(Data&, int x) {
     return x * 2;
 }
 
 TEST_CASE("free fnc") {
-    auto f = Closure<int(int)>(test_fnc);
-    REQUIRE(f(3) == 6);
+    auto f = Closure(test_fnc);
+    int x = f(ensure_data(3));
+    REQUIRE(x == 6);
 }
 
 TEST_CASE("capture") {
     int y = 10;
-    auto f = Closure<int(int)>([=] (int x) { return y * x; });
-    REQUIRE(f(3) == 30);
+    auto f = Closure([=] (Data&, int x) { return y * x; });
+    int x = f(ensure_data(3));
+    REQUIRE(x == 30);
 }
 
 TEST_CASE("capture by ref") {
     int x = 0;
-    auto f = Closure<void(int)>([&] (int y) { x = y; });
-    f(1);
+    auto f = Closure([&] (Data&, int y) { x = y; return Data{}; });
+    f(ensure_data(1));
     REQUIRE(x == 1);
 }
 
-TEST_CASE("one param") {
-    Closure<int(int)> c([] (int x, int y) { return x * y; }, 12); 
-    REQUIRE(c(3) == 36);
-}
-
-TEST_CASE("three params") {
-    Closure<double(int)> c{
-        [] (int a, double b, bool c, int d) { 
-            if (c) {
-                return a * b * d; 
-            } else {
-                return 1.1;
-            }
-        }, 
-        12, 3.3, true
-    }; 
-    REQUIRE(std::fabs(c(3) - 118.8) < 0.001);
+TEST_CASE("param") {
+    Closure c([] (int x, int y) { return x * y; }, 12); 
+    int x = c(ensure_data(3));
+    REQUIRE(x == 36);
 }
 
 TEST_CASE("Serialize/deserialize fnc") {
-    auto c = Closure<int(int)>(test_fnc);
-    auto c2 = deserialize<Closure<int(int)>>(serialize(c));
-    REQUIRE(c2(3) == 6);
+    auto c = Closure(test_fnc);
+    auto c2 = deserialize<Closure>(serialize(c));
+    int x = c2(ensure_data(3));
+    REQUIRE(x == 6);
 }
 
 TEST_CASE("Serialize/deserialize lambda") {
     int mult = 256;
-    auto c = Closure<int(int)>([=] (int x) { return x * mult; });
+    auto c = Closure([=] (Data&, int x) { return x * mult; });
     auto s = serialize(c);
     auto c2 = deserialize<decltype(c)>(s);
-    REQUIRE(c2(10) == c(10));
+    int x = c(ensure_data(10));
+    int y = c2(ensure_data(10));
+    REQUIRE(x == y);
 }

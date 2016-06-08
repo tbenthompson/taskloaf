@@ -10,7 +10,7 @@
 
 using namespace taskloaf;
 
-void test_send(Closure<void()> f) {
+void test_send(Closure f) {
     MPIComm c;
     if (mpi_rank(c) == 0) {
         c.send({1}, f);
@@ -28,32 +28,40 @@ void test_send(Closure<void()> f) {
 }
 
 void test_send_simple() {
-    test_send(Closure<void()>(
-        [] (int v) { REQUIRE(v == 10); },
+    test_send(Closure(
+        [] (int v, Data&) { REQUIRE(v == 10); return Data{};},
         10
     ));
 }
 
 void test_send_data() {
-    test_send(Closure<void()>(
-        [] (std::string s) { REQUIRE(s == "HI"); },
+    test_send(Closure(
+        [] (std::string s, Data&) { REQUIRE(s == "HI"); return Data{};},
         std::string("HI")
     ));
 }
 
 void test_send_closure_lambda() {
     int b = 3;
-    test_send(Closure<void()>(
-        [] (Closure<int(int)>& f) { REQUIRE(f(3) == 9); },
-        Closure<int(int)>([=] (int a) { return a * b; })
+    test_send(Closure(
+        [] (Closure& f, Data&) {
+            int x = f(ensure_data(3));
+            REQUIRE(x == 9);
+            return Data{};
+        },
+        Closure([=] (Data&, int a) { return a * b; })
     ));
 }
 
 void test_send_closure_functor() {
     auto f = get_serializable_functor();
 
-    test_send(Closure<void()>(
-        [] (Closure<int(int)>& f) { REQUIRE(f(5) == 120); },
+    test_send(Closure(
+        [] (Closure& f, Data&) { 
+            int x = f(ensure_data(5));
+            REQUIRE(x == 120);
+            return Data{};
+        },
         std::move(f)
     ));
 }

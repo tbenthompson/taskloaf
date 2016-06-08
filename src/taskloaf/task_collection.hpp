@@ -12,22 +12,22 @@ struct Log;
 struct TaskCollection {
     Log& log;
     Comm& comm;
-    std::deque<std::pair<int,TaskT>> stealable_tasks;
-    std::stack<std::pair<int,TaskT>> local_tasks;
+    std::deque<std::pair<int,Closure>> stealable_tasks;
+    std::stack<std::pair<int,Closure>> local_tasks;
     int next_token = 0;
     bool stealing;
 
     TaskCollection(Log& log, Comm& comm);
 
     size_t size() const;
-    void add_task(TaskT t);
-    void add_task(const Address& where, TaskT t);
+    void add_task(Closure t);
+    void add_task(const Address& where, Closure t);
     void run_next();
     void steal();
 
-    void add_local_task(TaskT t);
-    std::vector<TaskT> victimized();
-    void receive_tasks(std::vector<TaskT> stolen_tasks);
+    void add_local_task(Closure t);
+    std::vector<Closure> victimized();
+    void receive_tasks(std::vector<Closure> stolen_tasks);
 };
 
 } //end namespace taskloaf 

@@ -12,21 +12,10 @@
 namespace taskloaf {
 
 template <typename F>
-struct is_serializable: std::integral_constant<bool,
+struct IsSerializable: std::integral_constant<bool,
     cereal::traits::is_output_serializable<F,cereal::BinaryOutputArchive>::value &&
     cereal::traits::is_input_serializable<F,cereal::BinaryInputArchive>::value &&
     !std::is_pointer<F>::value> {};
-
-struct Data;
-struct ConvertibleData {
-    Data& d;
-    
-    template <typename T>
-    operator T&();
-
-    template <typename T>
-    operator const T&() const;
-};
 
 // Situations:
 // 1. Large type, shared reference --> pool
@@ -46,15 +35,18 @@ struct Data {
     std::shared_ptr<std::reference_wrapper<const std::type_info>> type;
 #endif
 
+    Data() = default;
+
     template <typename T, typename... Ts>
     void initialize(Ts&&... args) {
+        using DecayT = std::decay_t<T>;
 #ifdef TLDEBUG
         type = std::make_shared<std::reference_wrapper<const std::type_info>>(typeid(T));
 #endif
-        ptr.reset(new T(std::forward<Ts>(args)...), [] (void* data_ptr) {
-            delete reinterpret_cast<T*>(data_ptr);
+        ptr.reset(new DecayT(std::forward<Ts>(args)...), [] (void* data_ptr) {
+            delete reinterpret_cast<DecayT*>(data_ptr);
         });
-        serializer = &save_fnc<T>;
+        serializer = &save_fnc<DecayT>;
     }
 
     template <typename T>
@@ -91,7 +83,12 @@ struct Data {
     T& get_as() {
         // In debug builds, do a runtime check to make sure the data type is
         // correct.
-        tlassert(typeid(T) == *type); 
+#ifdef TLDEBUG
+        if (typeid(T) != *type) {
+            std::cout << type->get().name() << "     " << typeid(T).name() << std::endl;
+            tlassert(typeid(T) == *type); 
+        }
+#endif
         tlassert(ptr != nullptr);
         return unchecked_get_as<T>();
     }
@@ -100,44 +97,46 @@ struct Data {
     const T& get_as() const {
         return const_cast<Data*>(this)->get_as<T>();
     }
+    
+    template <typename T>
+    operator T&() {
+        return get_as<T>();
+    }
+
+    template <typename T>
+    operator const T&() const {
+        return get_as<T>();
+    }
 
     void save(cereal::BinaryOutputArchive& ar) const;
     void load(cereal::BinaryInputArchive& ar);
     bool operator==(std::nullptr_t) const;
-    ConvertibleData convertible();
+    bool operator!=(std::nullptr_t) const;
 };
 
 template <typename T>
-ConvertibleData::operator T&() {
-    return d.get_as<T>();
-}
+struct SerializeAsBytes: std::integral_constant<bool,
+    std::is_trivially_copyable<std::decay_t<T>>::value &&
+    !IsSerializable<std::decay_t<T>>::value> {};
 
-template <typename T>
-ConvertibleData::operator const T&() const {
-    return d.get_as<T>();
-}
-
-template <typename T>
-auto make_data(T&& v) {
-    static_assert(
-        is_serializable<std::decay_t<T>>::value,
-        "Data requires the contained type be serializable"
-    );
+template <typename T, std::enable_if_t<!SerializeAsBytes<T>::value>* = nullptr>
+Data ensure_data(T&& v) {
+    using DecayT = std::decay_t<T>;
     Data d;
-    d.initialize<std::decay_t<T>>(std::forward<T>(v));
+    d.initialize<DecayT>(std::forward<T>(v));
     return d;
 }
 
-template <typename T,
-    std::enable_if_t<!std::is_same<std::decay_t<T>,Data>::value>* = nullptr>
-auto ensure_data(T&& v) {
-    return make_data(std::forward<T>(v));
+template <typename T, std::enable_if_t<SerializeAsBytes<T>::value>* = nullptr>
+Data ensure_data(T&& v) {
+    using DecayT = std::decay_t<T>;
+    using ArrayT = std::array<uint8_t,sizeof(DecayT)>;
+    Data d;
+    d.initialize<ArrayT>(*reinterpret_cast<ArrayT*>(&v));
+    return d;
 }
 
-template <typename T,
-    std::enable_if_t<std::is_same<std::decay_t<T>,Data>::value>* = nullptr>
-auto ensure_data(T&& v) {
-    return std::forward<T>(v);
-}
+Data ensure_data(Data& d);
+Data ensure_data(Data&& d);
 
 } //end namespace taskloaf

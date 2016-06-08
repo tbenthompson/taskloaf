@@ -20,27 +20,24 @@ void run_many_times(int n_cores, int n, void (*fnc)()) {
 
 UntypedFuture fib(int idx) {
     if (idx < 3) {
-        return ready({make_data(1)});
+        return ready(ensure_data(1));
     } else {
-        return async(AsyncTaskT(
-            [=] () {
-                return std::vector<Data>{make_data(
-                    when_all({fib(idx - 1), fib(idx - 2)}).then(
-                        [] (std::vector<Data>& d) {
-                            return std::vector<Data>{
-                                make_data(d[0].get_as<int>() + d[1].get_as<int>())
-                            };
-                        }
-                    )
-                )};
-            }
-        )).unwrap();
+        return async(Closure([=] (Data&, Data&) {
+            return ensure_data(fib(idx - 1).then(Closure(
+                [=] (UntypedFuture& a, int x) {
+                    return ensure_data(a.then(Closure(
+                        [x] (Data&, int y) { return x + y; }
+                    )));
+                },
+                fib(idx - 2)
+            )));
+        })).unwrap();
     }
 }
 
 void bench_untyped_fib() {
     auto ctx = launch_local(1);
-    std::cout << fib(27).get()[0].get_as<int>() << std::endl;
+    std::cout << int(fib(27).get()) << std::endl;
 }
 
 void bench_ivar() {
@@ -53,11 +50,11 @@ void bench_allocation() {
 }
 
 void bench_make_data() {
-    auto d = make_data(10);
+    auto d = ensure_data(10);
 }
 
 void bench_make_bigger_data() {
-    auto d = make_data(std::vector<double>{1,2,3,4,5,6,7,8,9,10});
+    auto d = ensure_data(std::vector<double>{1,2,3,4,5,6,7,8,9,10});
 }
 
 int main() {

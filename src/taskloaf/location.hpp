@@ -1,6 +1,5 @@
 #pragma once
 #include "address.hpp"
-#include "closure.hpp"
 
 #include <cereal/archives/binary.hpp>
 
@@ -21,6 +20,7 @@ struct InternalLoc {
 
 InternalLoc internal_loc(int loc);
 
-void schedule(const InternalLoc& iloc, Closure<void()> t);
+struct Closure;
+void schedule(const InternalLoc& iloc, Closure t);
 
 } //end namespace taskloaf

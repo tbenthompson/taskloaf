@@ -12,25 +12,25 @@
 using namespace taskloaf;
 
 TEST_CASE("Typed Data") {
-    auto d = make_data(10);
-    int v = d.convertible();
+    auto d = ensure_data(10);
+    int v = d;
     REQUIRE(v == 10);
 }
 
 TEST_CASE("make data", "[data]") {
-    auto d = make_data(std::string("yea!"));
+    auto d = ensure_data(std::string("yea!"));
     REQUIRE(d.get_as<std::string>() == "yea!");
 }
 
 TEST_CASE("Serialize/deserialize", "[data]") {
-    auto d = make_data(10);
+    auto d = ensure_data(10);
     auto ss = serialize(d);
     auto d2 = deserialize<Data>(ss);
     REQUIRE(d2.get_as<int>() == 10);
 }
 
 TEST_CASE("Reserialize opened", "[data]") {
-    auto d = make_data(10);
+    auto d = ensure_data(10);
     auto ss = serialize(d);
     auto d2 = deserialize<Data>(ss);
     REQUIRE(d2.get_as<int>() == 10);
@@ -41,7 +41,7 @@ TEST_CASE("Reserialize opened", "[data]") {
 }
 
 TEST_CASE("Reserialize unopened", "[data]") {
-    auto d = make_data(10);
+    auto d = ensure_data(10);
     auto ss = serialize(d);
     auto d2 = deserialize<Data>(ss);
     auto ss2 = serialize(d2);
@@ -50,15 +50,15 @@ TEST_CASE("Reserialize unopened", "[data]") {
 }
 
 TEST_CASE("Measure serialized size", "[data]") {
-    auto baseline = serialize(make_data(false)).size() - 1;
+    auto baseline = serialize(ensure_data(false)).size() - 1;
     SECTION("string") {
         std::string s("abcdef");
-        auto d = make_data(s);
+        auto d = ensure_data(s);
         REQUIRE(serialize(d).size() - baseline == 14);
     }
 
     SECTION("double") {
-        auto d = make_data(0.015);
+        auto d = ensure_data(0.015);
         REQUIRE(serialize(d).size() - baseline == 8);
     }
 }
@@ -67,24 +67,18 @@ TEST_CASE("Deleter called", "[data]") {
     OwnershipTracker::reset();
     OwnershipTracker a;
     {
-        auto d = make_data(a);
+        auto d = ensure_data(a);
     }
     REQUIRE(OwnershipTracker::deletes() == 1);
 }
     
 TEST_CASE("Deserialized deleter called", "[data]") {
     OwnershipTracker a;
-    auto d = make_data(a);
+    auto d = ensure_data(a);
     OwnershipTracker::deletes() = 0;
     {
         auto ss = serialize(d);
         auto d2 = deserialize<Data>(ss);
     }
     REQUIRE(OwnershipTracker::deletes() == 1);
-}
-
-TEST_CASE("Implicit conversion") {
-    auto d = make_data(10);
-    int a = d.convertible();
-    REQUIRE(a == 10);
 }

@@ -31,28 +31,28 @@ namespace taskloaf {
 // destructible
 // serializable
 // 
-struct iany {
-    using get_ptr_type = (void*)(*)();
-    using serializer_type = void (*)(const iany&,cereal::BinaryOutputArchive&);
-    using deserializer_type = void (*)(iany&,cereal::BinaryOutputArchive&);
-    constexpr size_t N_small = 16;
-
-    typename std::aligned_storage<N_small>::type data;
-
-    void save(cereal::BinaryOutputArchive& ar) const;
-    void load(cereal::BinaryInputArchive& ar);
-
-    template <typename T>
-    T& unchecked_cast() {
-        return *reinterpret_cast<T*>(ptr.get()); 
-    }
-
-    template <typename T>
-    T& cast() {
-        // In debug builds, do a runtime check to make sure the data type is
-        // correct.
-        tlassert(&serialize == &serialize_fnc<T>);
-    }
-};
+// struct iany {
+//     using get_ptr_type = (void*)(*)();
+//     using serializer_type = void (*)(const iany&,cereal::BinaryOutputArchive&);
+//     using deserializer_type = void (*)(iany&,cereal::BinaryOutputArchive&);
+//     constexpr size_t N_small = 16;
+// 
+//     typename std::aligned_storage<N_small>::type data;
+// 
+//     void save(cereal::BinaryOutputArchive& ar) const;
+//     void load(cereal::BinaryInputArchive& ar);
+// 
+//     template <typename T>
+//     T& unchecked_cast() {
+//         return *reinterpret_cast<T*>(ptr.get()); 
+//     }
+// 
+//     template <typename T>
+//     T& cast() {
+//         // In debug builds, do a runtime check to make sure the data type is
+//         // correct.
+//         tlassert(&serialize == &serialize_fnc<T>);
+//     }
+// };
 
 }

@@ -6,8 +6,6 @@
 
 namespace taskloaf { 
 
-typedef Closure<void()> TaskT;
-
 struct Worker {
     virtual ~Worker() {}
 
@@ -18,8 +16,8 @@ struct Worker {
     virtual const Address& get_addr() const = 0;
     virtual size_t n_workers() const = 0;
 
-    virtual void add_task(TaskT t) = 0;
-    virtual void add_task(const Address& where, TaskT t) = 0;
+    virtual void add_task(Closure t) = 0;
+    virtual void add_task(const Address& where, Closure t) = 0;
 };
 
 extern __thread Worker* cur_worker;

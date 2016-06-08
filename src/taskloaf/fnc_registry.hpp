@@ -28,7 +28,8 @@ struct RegisterFnc
     }
 
     static Return call(Args... args) {
-        auto& closure = *reinterpret_cast<Func*>(this);
+        static int data = 0;
+        auto& closure = *reinterpret_cast<Func*>(&data);
         return closure(std::forward<Args>(args)...);
     }
 

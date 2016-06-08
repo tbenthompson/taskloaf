@@ -22,15 +22,15 @@ void test_comm(Comm& a, Comm& b) {
         auto nothing_yet = b.recv() == nullptr;
         REQUIRE(nothing_yet);
         int x = 0;
-        a.send({1}, TaskT([&] { x = 13; }));
+        a.send({1}, Closure([&] (Data&,Data&) { x = 13; return Data{}; }));
         b.recv()();
         REQUIRE(x == 13); 
     }
 
     SECTION("Msg ordering") {
         double x = 4.5;
-        a.send({1}, TaskT([&] { x /= 4.5; }));
-        a.send({1}, TaskT([&] { x -= 1.0; }));
+        a.send({1}, Closure([&] (Data&,Data&) { x /= 4.5; return Data{}; }));
+        a.send({1}, Closure([&] (Data&,Data&) { x -= 1.0; return Data{}; }));
         b.recv()();
         b.recv()();
         REQUIRE(x == 0.0);

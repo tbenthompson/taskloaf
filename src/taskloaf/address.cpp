@@ -5,7 +5,6 @@
 namespace taskloaf {
 
 void Address::save(cereal::BinaryOutputArchive& ar) const { ar(id); }
-
 void Address::load(cereal::BinaryInputArchive& ar) { ar(id); }
 
 bool operator<(const Address& a, const Address& b) { return a.id < b.id; }

@@ -20,17 +20,17 @@ size_t TaskCollection::size() const {
     return stealable_tasks.size() + local_tasks.size();
 }
 
-void TaskCollection::add_task(TaskT t) {
+void TaskCollection::add_task(Closure t) {
     stealable_tasks.push_front(std::make_pair(next_token, std::move(t)));
     next_token++;
 }
 
-void TaskCollection::add_local_task(TaskT t) {
+void TaskCollection::add_local_task(Closure t) {
     local_tasks.push(std::make_pair(next_token, std::move(t)));
     next_token++;
 }
 
-void TaskCollection::add_task(const Address& where, TaskT t) {
+void TaskCollection::add_task(const Address& where, Closure t) {
     if (where != comm.get_addr()) {
         comm.send(where, std::move(t));
     } else {
@@ -40,7 +40,7 @@ void TaskCollection::add_task(const Address& where, TaskT t) {
 
 void TaskCollection::run_next() {
     tlassert(size() > 0);
-    TaskT t;
+    Closure t;
     auto grab_local_task = [&] () {
         t = std::move(local_tasks.top().second);
         local_tasks.pop();
@@ -81,28 +81,30 @@ void TaskCollection::steal() {
     std::uniform_int_distribution<> dis(0, remotes.size() - 1);
     auto idx = dis(gen);
 
-    add_task(remotes[idx], TaskT(
-        [] (const Address& sender) {
+    add_task(remotes[idx], Closure(
+        [] (const Address& sender, Data&) {
             auto& tc = ((DefaultWorker*)(cur_worker))->tasks;
             auto response = tc.victimized();
 
-            tc.add_task(sender, TaskT(
-                [] (std::vector<TaskT>& tasks) {
+            tc.add_task(sender, Closure(
+                [] (std::vector<Closure>& tasks, Data&) {
                     auto& tc = ((DefaultWorker*)(cur_worker))->tasks;
                     tc.receive_tasks(std::move(tasks));
+                    return Data{};
                 },
                 std::move(response)
             ));
+            return Data{};
         },
         comm.get_addr()
     ));
 }
 
-std::vector<TaskT> TaskCollection::victimized() {
+std::vector<Closure> TaskCollection::victimized() {
     log.n_victimized++;
     auto n_steals = std::min(static_cast<size_t>(1), stealable_tasks.size());
     tlassert(n_steals <= stealable_tasks.size());
-    std::vector<TaskT> steals;
+    std::vector<Closure> steals;
     for (size_t i = 0; i < n_steals; i++) {
         steals.push_back(std::move(stealable_tasks.back().second));
         stealable_tasks.pop_back();
@@ -110,7 +112,7 @@ std::vector<TaskT> TaskCollection::victimized() {
     return steals;
 }
 
-void TaskCollection::receive_tasks(std::vector<TaskT> stolen_tasks) {
+void TaskCollection::receive_tasks(std::vector<Closure> stolen_tasks) {
     if (stolen_tasks.size() > 0) {
         log.n_successful_steals++;
     }

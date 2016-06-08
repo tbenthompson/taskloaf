@@ -21,7 +21,9 @@ DefaultWorker::~DefaultWorker() {
 void DefaultWorker::shutdown() {
     auto& remotes = comm->remote_endpoints();
     for (auto& r: remotes) {
-        add_task(r, [] () { cur_worker->set_stopped(true); });
+        add_task(r, [] (Data&, Data&) {
+            cur_worker->set_stopped(true); return Data{}; 
+        });
     }
     set_stopped(true);
 }
@@ -30,11 +32,11 @@ void DefaultWorker::set_stopped(bool val) {
     should_stop = val;
 }
 
-void DefaultWorker::add_task(TaskT t) {
+void DefaultWorker::add_task(Closure t) {
     tasks.add_task(std::move(t));
 }
 
-void DefaultWorker::add_task(const Address& where, TaskT t) {
+void DefaultWorker::add_task(const Address& where, Closure t) {
     tasks.add_task(where, std::move(t));
 }
 

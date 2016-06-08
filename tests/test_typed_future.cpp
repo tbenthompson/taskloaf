@@ -14,7 +14,7 @@ struct Future {
 
 template <typename T>
 auto ready(T&& v) {
-    return Future<T>{ready({make_data(std::forward<T>(v))})};
+    return Future<T>{ready({ensure_data(std::forward<T>(v))})};
 }
 
 // template <typename T, typename F>
@@ -28,7 +28,7 @@ using namespace taskloaf;
 
 TEST_CASE("Ready") {
     auto ctx = launch_local(2);
-    int x = ready(2).untyped().get()[0].convertible();
+    int x = ready(2).untyped().get();
     REQUIRE(x == 2);
 }
 

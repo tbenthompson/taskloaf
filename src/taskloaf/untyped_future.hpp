@@ -4,16 +4,13 @@
 
 namespace taskloaf {
 
-using ThenTaskT = Closure<std::vector<Data>(std::vector<Data>&)>;
-using AsyncTaskT = Closure<std::vector<Data>()>;
-
 struct UntypedFuture;
 
-UntypedFuture ready(std::vector<Data> d);
-UntypedFuture then(int loc, UntypedFuture& f, ThenTaskT fnc);
-UntypedFuture async(int loc, AsyncTaskT fnc);
-UntypedFuture async(Loc loc, AsyncTaskT fnc);
-UntypedFuture async(AsyncTaskT fnc);
+UntypedFuture ready(Data d);
+UntypedFuture then(int loc, UntypedFuture& f, Closure fnc);
+UntypedFuture async(int loc, Closure fnc);
+UntypedFuture async(Loc loc, Closure fnc);
+UntypedFuture async(Closure fnc);
 UntypedFuture unwrap(UntypedFuture& fut);
 
 struct UntypedFuture {
@@ -22,11 +19,11 @@ struct UntypedFuture {
     void save(cereal::BinaryOutputArchive& ar) const;
     void load(cereal::BinaryInputArchive& ar);
 
-    UntypedFuture then(ThenTaskT f);
-    UntypedFuture then(Loc loc, ThenTaskT f);
-    UntypedFuture then(int loc, ThenTaskT f);
+    UntypedFuture then(Closure f);
+    UntypedFuture then(Loc loc, Closure f);
+    UntypedFuture then(int loc, Closure f);
     UntypedFuture unwrap();
-    std::vector<Data> get();
+    Data get();
     void wait();
 };
 
