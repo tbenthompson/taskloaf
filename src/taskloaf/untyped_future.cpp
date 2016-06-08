@@ -111,4 +111,36 @@ UntypedFuture unwrap(UntypedFuture& fut) {
     return out_future;
 }
 
+UntypedFuture when_both(UntypedFuture a, UntypedFuture b) {
+    return a.then(ThenTaskT(
+        [] (UntypedFuture& b, std::vector<Data>& a_data) {
+            std::vector<Data> out;
+            out.push_back(make_data(b.then(ThenTaskT(
+                [] (std::vector<Data> a_data, std::vector<Data>& b_data) 
+                {
+                    for (auto& b: b_data) {
+                        a_data.push_back(b);
+                    }
+                    return a_data;
+                },
+                a_data
+            ))));
+            return out;
+        },
+        std::move(b)
+    )).unwrap();
+}
+
+UntypedFuture when_all(std::vector<UntypedFuture> fs) {
+    tlassert(fs.size() != 0);
+    if (fs.size() == 1) {
+        return fs[0];
+    }
+    std::vector<UntypedFuture> recurse_fs;
+    for (size_t i = 0; i < fs.size(); i += 2) {
+        recurse_fs.push_back(when_both(fs[i], fs[i + 1]));
+    }
+    return when_all(recurse_fs);
+}
+
 }

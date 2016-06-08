@@ -27,8 +27,8 @@ struct RegisterFnc
         get_caller_registry().insert(typeid(Func), reinterpret_cast<void*>(call));
     }
 
-    static Return call(const char* data, Args... args) {
-        auto& closure = *const_cast<Func*>(reinterpret_cast<const Func*>(data));
+    static Return call(Args... args) {
+        auto& closure = *reinterpret_cast<Func*>(this);
         return closure(std::forward<Args>(args)...);
     }
 

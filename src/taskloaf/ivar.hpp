@@ -1,17 +1,42 @@
 #pragma once
 #include "closure.hpp"
 #include "address.hpp"
+#include "worker.hpp"
+
+#include <boost/pool/pool.hpp>
+#include <boost/intrusive_ptr.hpp>
 
 namespace taskloaf {
 
 using TriggerT = Closure<void(std::vector<Data>&)>;
 using TaskT = Closure<void()>;
 
+struct IVarData;
+
+struct Ref {
+    size_t handle;
+    
+    Ref();
+    Ref(size_t handle); 
+    Ref(const Ref&);
+    Ref& operator=(const Ref&);
+    ~Ref();
+
+    IVarData& get();
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar(handle);
+    }
+    void load(cereal::BinaryInputArchive& ar) {
+        ar(handle);
+    }
+};
+
 struct IVarData {
     bool fulfilled = false;
-    std::vector<Data> vals;
+    Data val;
     std::vector<TriggerT> triggers;
-    Address owner;
+    size_t references = 1;
 
     void save(cereal::BinaryOutputArchive& ar) const {
         (void)ar;
@@ -23,7 +48,8 @@ struct IVarData {
 };
 
 struct IVar {
-    std::shared_ptr<IVarData> data;
+    Ref ref;
+    Address owner;
 
     IVar();
 

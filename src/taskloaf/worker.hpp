@@ -22,6 +22,10 @@ struct Worker {
     virtual void add_task(const Address& where, TaskT t) = 0;
 };
 
-thread_local extern Worker* cur_worker;
+extern __thread Worker* cur_worker;
+extern __thread Address cur_addr;
+
+void set_cur_worker(Worker* w);
+void clear_cur_worker();
 
 } //end namespace taskloaf

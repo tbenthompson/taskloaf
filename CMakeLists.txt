@@ -31,6 +31,7 @@ endif()
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     # Turn on O3 and lto for Clang and gcc.
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -flto -g")
     # Clang 3.5 can't handle generating debug symbols for auto return type
     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.6) 
         set(CMAKE_CXX_FLAGS_DEBUG "-O0")
@@ -81,7 +82,7 @@ if (BUILD_LIBRARY)
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         )
 
-    target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(taskloaf ${CMAKE_THREAD_LIBS_INIT} boost_system)
 
     if (MPI_CXX_FOUND)
         target_include_directories(taskloaf SYSTEM PRIVATE ${MPI_INCLUDE_PATH})
@@ -129,6 +130,7 @@ if(BUILD_TESTS)
     taskloaf_tests(comm True)
     taskloaf_tests(untyped_future True)
     taskloaf_tests(typed_future True)
+    taskloaf_tests(iany True)
 
     if (MPI_CXX_FOUND)
         taskloaf_tests(mpi False)

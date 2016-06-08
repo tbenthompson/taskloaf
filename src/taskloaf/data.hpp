@@ -6,7 +6,7 @@
 #ifdef TLDEBUG
 #include <typeinfo>
 #endif
- 
+
 #include <cereal/archives/binary.hpp>
 
 namespace taskloaf {
@@ -28,12 +28,21 @@ struct ConvertibleData {
     operator const T&() const;
 };
 
+// Situations:
+// 1. Large type, shared reference --> pool
+// 2. Small type, shared reference --> pool
+// 3. Large type, unique reference --> pool
+// 4. Small type, unique reference --> inside
 struct Data {
     using SerializerT = void (*)(const Data&,cereal::BinaryOutputArchive&);
-    using DeserializerT = void (*)(const char*,Data&,cereal::BinaryInputArchive&);
+    using DeserializerT = void (*)(Data&,cereal::BinaryInputArchive&);
     std::shared_ptr<void> ptr;
     SerializerT serializer;
 #ifdef TLDEBUG
+    // type_info refers to a static lifetime object managed internally by the
+    // runtime, but it's copy constructor is deleted. So, in order to track the
+    // object's type across copies, I put the type in a shared_ptr. shared_ptr
+    // cannot contain a reference, so I use reference_wrapper.
     std::shared_ptr<std::reference_wrapper<const std::type_info>> type;
 #endif
 
@@ -51,6 +60,10 @@ struct Data {
     template <typename T>
     static void save_fnc(const Data& d, cereal::BinaryOutputArchive& ar) {
         tlassert(d.ptr != nullptr);
+
+        // Create and register the deserialization function that will be called
+        // on the other end of the wire. This is done here as opposed to in 
+        // initialize so that serialization is zero-overhead unless it is used.
         auto deserializer = [] (Data& d, cereal::BinaryInputArchive& ar) {
 #ifdef TLDEBUG
             d.type = std::make_shared<
@@ -64,6 +77,7 @@ struct Data {
             decltype(deserializer),void,
             Data&,cereal::BinaryInputArchive&
         >::add_to_registry();
+
         ar(deserializer_id);
         ar(d.get_as<T>());
     };
@@ -75,7 +89,9 @@ struct Data {
 
     template <typename T>
     T& get_as() {
-        tlassert(typeid(T) == *type);
+        // In debug builds, do a runtime check to make sure the data type is
+        // correct.
+        tlassert(typeid(T) == *type); 
         tlassert(ptr != nullptr);
         return unchecked_get_as<T>();
     }

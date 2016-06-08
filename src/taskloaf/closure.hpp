@@ -20,16 +20,35 @@ struct Closure {};
 
 template <typename Return, typename... Args>
 struct Closure<Return(Args...)> {
-    using CallerT = Return (*) (Closure<Return(Args...)>&,Args...);
+    using closure_type = Closure<Return(Args...)>
+    using CallerT = Return (*) (closure_type&,Args...);
     using SerializerT = void (*)(cereal::BinaryOutputArchive&);
-    using DeserializerT = void (*)(
-        const char*,Closure<Return(Args...)>&,cereal::BinaryInputArchive&
-    );
+    using DeserializerT = void (*)(closure_type&,cereal::BinaryInputArchive&);
 
     Data f;
     std::vector<Data> d;
     CallerT caller;
     SerializerT serializer;
+
+    Closure() = default;
+
+    template <typename F, typename... Ts>
+    Closure(F f, Ts&&... vs):
+        f(make_data(*reinterpret_cast<std::array<uint8_t,sizeof(F)>*>(&f)))
+    {
+        using expand_type = int[];
+        expand_type{ 0, (d.push_back(ensure_data(std::forward<Ts>(vs))), 0)...};
+        static_assert(
+            std::is_same<std::result_of_t<F(Ts&...,Args...)>,Return>::value,
+            "Function in Closure has the wrong return type."
+        );
+        static_assert(
+            !is_serializable<std::decay_t<F>>::value,
+            "The function type for Closure cannot be serializable"
+        );
+        caller = &closure_caller<F,Ts...>;
+        serializer = &closure_serializer<F,Ts...>;
+    }
 
     template <typename F, typename... Ts>
     static void closure_serializer(cereal::BinaryOutputArchive& ar) 
@@ -54,25 +73,6 @@ struct Closure<Return(Args...)> {
         );
     }
 
-    template <typename F, typename... Ts>
-    Closure(F f, Ts&&... vs):
-        f(make_data(*reinterpret_cast<std::array<uint8_t,sizeof(F)>*>(&f))),
-        d{ensure_data(std::forward<Ts>(vs))...}
-    {
-        static_assert(
-            std::is_same<std::result_of_t<F(Ts&...,Args...)>,Return>::value,
-            "Function in Closure has the wrong return type."
-        );
-        static_assert(
-            !is_serializable<std::decay_t<F>>::value,
-            "The function type for Closure cannot be serializable"
-        );
-        caller = &closure_caller<F,Ts...>;
-        serializer = &closure_serializer<F,Ts...>;
-    }
-
-    Closure() = default;
-
     bool operator==(std::nullptr_t) const { return f == nullptr; }
 
     Return operator()(Args... args) {
@@ -91,8 +91,7 @@ struct Closure<Return(Args...)> {
         auto deserializer = reinterpret_cast<DeserializerT>(
             get_caller_registry().get_function(deserializer_id)
         );
-        const char* x = "";
-        deserializer(x, *this, ar);
+        deserializer(*this, ar);
     }
 };
 

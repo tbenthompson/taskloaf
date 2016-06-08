@@ -13,8 +13,7 @@ void Data::load(cereal::BinaryInputArchive& ar) {
     auto deserializer = reinterpret_cast<DeserializerT>(
         get_caller_registry().get_function(deserializer_id)
     );
-    const char* x = "";
-    deserializer(x, *this, ar);
+    deserializer(*this, ar);
 }
 
 bool Data::operator==(std::nullptr_t) const { return ptr == nullptr; }

@@ -20,7 +20,7 @@ struct LocalContextInternals: public ContextInternals {
         main_worker(std::make_unique<LocalComm>(lcq, 0)),
         cfg(cfg)
     {
-        cur_worker = &main_worker;
+        set_cur_worker(&main_worker);
         main_worker.set_core_affinity(0);
 
         for (size_t i = 1; i < n_workers; i++) { 
@@ -32,10 +32,10 @@ struct LocalContextInternals: public ContextInternals {
             threads.emplace_back(
                 [i, this] () mutable {
                     auto& w = workers[i - 1];
-                    cur_worker = w.get();
+                    set_cur_worker(w.get());
                     w->set_core_affinity(i);
                     w->run();
-                    cur_worker = nullptr;
+                    clear_cur_worker();
                 }
             );
         }
@@ -52,7 +52,7 @@ struct LocalContextInternals: public ContextInternals {
                 w->log.write_stats(std::cout);
             }
         }
-        cur_worker = nullptr;
+        clear_cur_worker();
     }
 
     LocalContextInternals(const ContextInternals&) = delete;
@@ -77,12 +77,12 @@ struct MPIContextInternals: public ContextInternals {
     MPIContextInternals():
         w(std::make_unique<MPIComm>())
     {
-        cur_worker = &w;
+        set_cur_worker(&w);
     }
 
     ~MPIContextInternals() {
         w.shutdown();
-        cur_worker = nullptr;
+        clear_cur_worker();
     }
 };
 
