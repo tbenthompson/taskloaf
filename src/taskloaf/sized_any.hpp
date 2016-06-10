@@ -56,7 +56,7 @@
 
 #pragma once
 
-#include "tlassert.hpp"
+#include "debug.hpp"
 #include "fnc_registry.hpp"
 
 #include <cereal/archives/binary.hpp>
@@ -69,8 +69,7 @@ template <size_t N, bool TC>
 struct sized_any {};
 
 template <size_t N>
-struct sized_any<N,false>
-{
+struct sized_any<N,false> {
     constexpr static size_t max_size = N;
 
     enum class action { get_type, copy, move, destroy, serialize };
@@ -82,22 +81,88 @@ struct sized_any<N,false>
     storage_type storage;
     policy_type policy = nullptr;
 
-    sized_any();
-    sized_any(const sized_any& other);
-    sized_any& operator=(const sized_any& other);
-    sized_any(sized_any&& other);
-    sized_any& operator=(sized_any&& other);
-    void copy_from(const sized_any& other);
-    void move_from(sized_any&& other);
+    sized_any() = default;
+        
+    sized_any(const sized_any& other) {
+        copy_from(other);
+    }
 
-    ~sized_any();
-    void clear(); 
+    sized_any& operator=(const sized_any& other) {
+        clear();
+        copy_from(other);
+        return *this;
+    }
 
-    bool empty() const;
-    const std::type_info& type() const;
+    sized_any(sized_any&& other) {
+        move_from(std::move(other));
+    }
 
-    void save(cereal::BinaryOutputArchive& ar) const;
-    void load(cereal::BinaryInputArchive& ar);
+    sized_any& operator=(sized_any&& other) {
+        clear();
+        move_from(std::move(other));
+        return *this;
+    }
+
+    void copy_from(const sized_any& other) {
+        policy = other.policy;
+        if (!empty()) {
+            auto other_ptr = const_cast<void*>(reinterpret_cast<const void*>(&other));
+            policy(action::copy, this, other_ptr);
+        }
+    }
+
+    void move_from(sized_any&& other) {
+        policy = other.policy;
+        if (!empty()) {
+            policy(action::move, this, &other);
+        }
+    }
+
+    ~sized_any() {
+        clear();
+    }
+
+    void clear() { 
+        if (!empty()) {
+            policy(action::destroy, this, nullptr);
+            policy = nullptr;
+        }
+    }
+
+    bool empty() const {
+        return policy == nullptr;
+    }
+
+    const std::type_info& type() const {
+        if (empty()) {
+            return typeid(void);
+        }
+        const std::type_info* out;
+        policy(action::get_type, const_cast<sized_any<N,false>*>(this), &out);
+        return *out;
+    }
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar(empty());
+        if (!empty()) {
+            policy(action::serialize, const_cast<sized_any<N,false>*>(this), &ar);
+        }
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        clear();
+
+        bool is_empty;
+        ar(is_empty);
+        if (!is_empty) {
+            std::pair<size_t,size_t> deserializer_id;
+            ar(deserializer_id);
+            auto deserializer = reinterpret_cast<deserializer_type>(
+                get_fnc_registry().get_function(deserializer_id)
+            );
+            deserializer(*this, ar);
+        }
+    }
 
     template <typename T,
         std::enable_if_t<
@@ -112,9 +177,19 @@ struct sized_any<N,false>
     }
 
     template <typename T>
-    T& get() {
-        tlassert(type() == typeid(T));
+    T& unchecked_get() {
         return *reinterpret_cast<T*>(&storage);
+    }
+
+    template <typename T>
+    T& get() {
+        TLASSERT(type() == typeid(T));
+        return unchecked_get<T>();
+    }
+
+    template <typename T>
+    operator T&() {
+        return get<T>();
     }
 
     template <typename T>
@@ -127,24 +202,26 @@ struct sized_any<N,false>
             break;
         } case sized_any<N,false>::action::copy: {
             auto* other_any_ptr = reinterpret_cast<sized_any<N,false>*>(ptr2);
-            T* other_obj_ptr = reinterpret_cast<T*>(&other_any_ptr->storage);
-            tlassert(obj_ptr != nullptr);
-            tlassert(other_obj_ptr != nullptr);
-            new (obj_ptr) T(*other_obj_ptr);
+            TLASSERT(other_any_ptr != nullptr);
+            auto& other_obj = other_any_ptr->get<T>();
+
+            TLASSERT(obj_ptr != nullptr);
+            new (obj_ptr) T(other_obj);
             break;
         } case sized_any<N,false>::action::move: {
             auto* other_any_ptr = reinterpret_cast<sized_any<N,false>*>(ptr2);
-            T* other_obj_ptr = reinterpret_cast<T*>(&other_any_ptr->storage);
-            tlassert(obj_ptr != nullptr);
-            tlassert(other_obj_ptr != nullptr);
-            new (obj_ptr) T(std::move(*other_obj_ptr));
+            TLASSERT(other_any_ptr != nullptr);
+            auto& other_obj = other_any_ptr->get<T>();
+
+            TLASSERT(obj_ptr != nullptr);
+            new (obj_ptr) T(std::move(other_obj));
             break;
         } case sized_any<N,false>::action::destroy: {
-            tlassert(obj_ptr != nullptr);
+            TLASSERT(obj_ptr != nullptr);
             obj_ptr->~T();
             break;
         } case sized_any<N,false>::action::serialize: {
-            tlassert(obj_ptr != nullptr);
+            TLASSERT(obj_ptr != nullptr);
             auto ar = *reinterpret_cast<cereal::BinaryOutputArchive*>(ptr2);
             auto deserializer =
                 [] (sized_any<N,false>& a, cereal::BinaryInputArchive& ar) {
@@ -171,10 +248,15 @@ struct sized_any<N,true> {
 
     storage_type storage;
 
-    sized_any();
+    sized_any() = default;
 
-    void save(cereal::BinaryOutputArchive& ar) const;
-    void load(cereal::BinaryInputArchive& ar);
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar.saveBinary(&storage, N);
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        ar.loadBinary(&storage, N);
+    }
 
     template <typename T,
         std::enable_if_t<
@@ -187,8 +269,18 @@ struct sized_any<N,true> {
     }
 
     template <typename T>
-    T& get() {
+    T& unchecked_get() {
         return *reinterpret_cast<T*>(&storage);
+    }
+
+    template <typename T>
+    T& get() {
+        return unchecked_get<T>();
+    }
+
+    template <typename T>
+    operator T&() {
+        return get<T>();
     }
 };
 
@@ -197,11 +289,21 @@ constexpr size_t sized_any<N,false>::max_size;
 template <size_t N>
 constexpr size_t sized_any<N,true>::max_size;
 
-#define TL_N_ANY_SIZES 11
+#define TL_N_ANY_SIZES 8
 
 constexpr size_t size_ranges[TL_N_ANY_SIZES+1] = {
-    0, 4, 8, 16, 24, 32, 64, 128, 256, 512, 1024, 2048
+    0, 4, 8, 16, 24, 32, 128, 512, 2048
 };
+
+#define FOREACH_ANY_SIZE(DO, ...)\
+    DO(0, __VA_ARGS__)\
+    DO(1, __VA_ARGS__)\
+    DO(2, __VA_ARGS__)\
+    DO(3, __VA_ARGS__)\
+    DO(4, __VA_ARGS__)\
+    DO(5, __VA_ARGS__)\
+    DO(6, __VA_ARGS__)\
+    DO(7, __VA_ARGS__)
 
 template <size_t N, size_t L, size_t U>
 using upper_inclusive_in_range = std::integral_constant<bool, L < N && N <= U>;
@@ -209,32 +311,34 @@ using upper_inclusive_in_range = std::integral_constant<bool, L < N && N <= U>;
 template <size_t N, size_t L, size_t U>
 constexpr bool upper_inclusive_in_range_v = upper_inclusive_in_range<N,L,U>::value;
 
-#define ENSURE_ANY(I) \
+template <typename T>
+struct is_sized_any: std::false_type {};
+template <size_t I, bool TC>
+struct is_sized_any<sized_any<I,TC>>: std::true_type {};
+
+#define ENSURE_ANY(I,UNUSED) \
     template <typename T, \
-        std::enable_if_t<upper_inclusive_in_range_v<\
-            sizeof(std::decay_t<T>),size_ranges[I],size_ranges[I+1]\
-        >>* = nullptr>\
+        std::enable_if_t<\
+            upper_inclusive_in_range_v<\
+                sizeof(std::decay_t<T>),size_ranges[I],size_ranges[I+1]>\
+            && !is_sized_any<std::decay_t<T>>::value\
+        >* = nullptr>\
     auto ensure_any(T&& v) {\
         return sized_any<\
             size_ranges[I+1],\
             std::is_trivially_copyable<std::decay_t<T>>::value\
         >(std::forward<T>(v)); \
-    }\
-
-#define FOREACH_ANY_SIZE(DO)\
-    DO(0)\
-    DO(1)\
-    DO(2)\
-    DO(3)\
-    DO(4)\
-    DO(5)\
-    DO(6)\
-    DO(7)\
-    DO(8)\
-    DO(9)\
-    DO(10)
+    }
 
 FOREACH_ANY_SIZE(ENSURE_ANY)
+
+template <typename T, 
+    std::enable_if_t<is_sized_any<std::decay_t<T>>::value>* = nullptr>
+auto ensure_any(T&& v) {
+    return std::forward<T>(v); 
+}
+
+inline auto ensure_any() { return sized_any<4,true>{}; }
 
 template <typename T,
     std::enable_if_t<(sizeof(std::decay_t<T>) > size_ranges[TL_N_ANY_SIZES])>* = nullptr>

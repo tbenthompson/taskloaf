@@ -39,7 +39,7 @@ void TaskCollection::add_task(const Address& where, closure t) {
 }
 
 void TaskCollection::run_next() {
-    tlassert(size() > 0);
+    TLASSERT(size() > 0);
     closure t;
     auto grab_local_task = [&] () {
         t = std::move(local_tasks.top().second);
@@ -103,7 +103,7 @@ void TaskCollection::steal() {
 std::vector<closure> TaskCollection::victimized() {
     log.n_victimized++;
     auto n_steals = std::min(static_cast<size_t>(1), stealable_tasks.size());
-    tlassert(n_steals <= stealable_tasks.size());
+    TLASSERT(n_steals <= stealable_tasks.size());
     std::vector<closure> steals;
     for (size_t i = 0; i < n_steals; i++) {
         steals.push_back(std::move(stealable_tasks.back().second));

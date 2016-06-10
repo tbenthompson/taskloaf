@@ -34,7 +34,7 @@ void IVar::add_trigger(closure trigger) {
 }
 
 void fulfill_helper(std::shared_ptr<IVarData>& data, Data& val) {
-    tlassert(data->val == nullptr);
+    TLASSERT(data->val == nullptr);
     data->val = std::move(val);
     for (auto& t: data->triggers) {
         t(data->val);

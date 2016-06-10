@@ -28,9 +28,21 @@ TEST_CASE("Ranged ensure_any") {
     REQUIRE(ensure_any(std::array<double,100>()).max_size == 1024);
 }
 
+TEST_CASE("Check standard layout") {
+    // static_assert(std::is_standard_layout<sized_any<4,false>>::value,
+    //     "sized_any needs to be standard layout");
+    // static_assert(std::is_standard_layout<sized_any<4,true>>::value,
+    //     "sized_any needs to be standard layout");
+}
+
 TEST_CASE("Create trivial") {
     auto a = ensure_any(10); 
     REQUIRE(a.get<int>() == 10);
+}
+
+TEST_CASE("Ensure any with any") {
+    auto a = ensure_any(ensure_any(std::vector<double>{2.1}));
+    REQUIRE(a.get<std::vector<double>>()[0] == 2.1);
 }
 
 TEST_CASE("Create vector") {

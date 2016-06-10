@@ -35,11 +35,13 @@ fnc_registry::lookup_location(const std::type_info& t_info ) {
             return {tid, i};
         }
     }
-    tlassert(false);
+    TLASSERT(false);
     return {0, 0};
 }
 
 void* fnc_registry::get_function(const std::pair<size_t,size_t>& loc) {
+    TLASSERT(impl->registry.count(loc.first) > 0);
+    TLASSERT(impl->registry[loc.first].size() > loc.second);
     return impl->registry[loc.first][loc.second].second;
 }
 

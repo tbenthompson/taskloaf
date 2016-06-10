@@ -136,7 +136,7 @@ UntypedFuture unwrap(UntypedFuture& fut) {
 // }
 // 
 // UntypedFuture when_all(std::vector<UntypedFuture> fs) {
-//     tlassert(fs.size() != 0);
+//     TLASSERT(fs.size() != 0);
 //     if (fs.size() == 1) {
 //         return fs[0];
 //     }
