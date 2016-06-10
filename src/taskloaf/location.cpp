@@ -21,7 +21,7 @@ InternalLoc internal_loc(int loc) {
     }
 }
 
-void schedule(const InternalLoc& iloc, Closure t) {
+void schedule(const InternalLoc& iloc, closure t) {
     if (iloc.anywhere) {
         cur_worker->add_task(std::move(t));
     } else {

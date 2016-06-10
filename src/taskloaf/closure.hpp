@@ -9,20 +9,20 @@
 
 namespace taskloaf {
 
-struct Closure {
-    using CallerT = Data (*)(Closure&, Data&);
-    using SerializerT = void (*)(cereal::BinaryOutputArchive&);
-    using DeserializerT = void (*)(Closure&, cereal::BinaryInputArchive&);
+struct closure {
+    using caller_type = Data (*)(closure&, Data&);
+    using serializer_type = void (*)(cereal::BinaryOutputArchive&);
+    using deserializer_type = void (*)(closure&, cereal::BinaryInputArchive&);
 
     Data f;
     Data d;
-    CallerT caller;
-    SerializerT serializer;
+    caller_type caller;
+    serializer_type serializer;
 
-    Closure() = default;
+    closure() = default;
 
     template <typename F, typename... Ts>
-    Closure(F fnc, Ts... val):
+    closure(F fnc, Ts... val):
         f(ensure_data(fnc)),
         d(ensure_data(std::move(val))...)
     {
@@ -37,7 +37,7 @@ struct Closure {
     //TODO: Static asserts for F being trivially copyable, etc.
     // static_assert(
     //     !is_serializable<std::decay_t<F>>::value,
-    //     "The function type for Closure cannot be serializable"
+    //     "The function type for closure cannot be serializable"
     // );
 
     template <typename F>
@@ -49,20 +49,20 @@ struct Closure {
     template <typename F>
     static void closure_serializer(cereal::BinaryOutputArchive& ar) 
     {
-        auto f = [] (Closure& c, cereal::BinaryInputArchive& ar) {
+        auto f = [] (closure& c, cereal::BinaryInputArchive& ar) {
             ar(c.f);
             ar(c.d);
             c.caller = &closure_caller<F>;
             c.serializer = &closure_serializer<F>;
         };
-        auto deserializer_id = RegisterFnc<
-            decltype(f),void,Closure&,cereal::BinaryInputArchive&
+        auto deserializer_id = register_fnc<
+            decltype(f),void,closure&,cereal::BinaryInputArchive&
         >::add_to_registry();
         ar(deserializer_id);
     }
 
     template <typename F>
-    static Data closure_caller(Closure& c, Data& arg) {
+    static Data closure_caller(closure& c, Data& arg) {
         return ensure_data(c.f.template unchecked_get_as<F>()(c.d, arg));
     }
 

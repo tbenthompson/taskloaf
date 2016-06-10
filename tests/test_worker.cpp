@@ -14,7 +14,7 @@ TEST_CASE("Run here") {
     auto ctx = launch_local(4);
     Worker* submit_worker = cur_worker;
     for (size_t i = 0; i < 5; i++) {
-        async(Loc::here, Closure([=] (Data&, Data&) {
+        async(Loc::here, closure([=] (Data&, Data&) {
             REQUIRE(cur_worker == submit_worker);
             return Data{};
         })).wait();
@@ -30,13 +30,13 @@ TEST_CASE("Number of workers", "[worker]") {
 struct TestingComm: public Comm {
     Address addr = {0};
     std::vector<Address> remotes = {{1}};
-    std::vector<Closure> sent;
+    std::vector<closure> sent;
 
     const Address& get_addr() const { return addr; }
     const std::vector<Address>& remote_endpoints() { return remotes; }
-    Closure recv() { return Closure(); }
+    closure recv() { return closure(); }
 
-    void send(const Address&, Closure msg) {
+    void send(const Address&, closure msg) {
         sent.push_back(std::move(msg));
     }
 };

@@ -7,10 +7,10 @@ namespace taskloaf {
 struct UntypedFuture;
 
 UntypedFuture ready(Data d);
-UntypedFuture then(int loc, UntypedFuture& f, Closure fnc);
-UntypedFuture async(int loc, Closure fnc);
-UntypedFuture async(Loc loc, Closure fnc);
-UntypedFuture async(Closure fnc);
+UntypedFuture then(int loc, UntypedFuture& f, closure fnc);
+UntypedFuture async(int loc, closure fnc);
+UntypedFuture async(Loc loc, closure fnc);
+UntypedFuture async(closure fnc);
 UntypedFuture unwrap(UntypedFuture& fut);
 
 struct UntypedFuture {
@@ -19,9 +19,9 @@ struct UntypedFuture {
     void save(cereal::BinaryOutputArchive& ar) const;
     void load(cereal::BinaryInputArchive& ar);
 
-    UntypedFuture then(Closure f);
-    UntypedFuture then(Loc loc, Closure f);
-    UntypedFuture then(int loc, Closure f);
+    UntypedFuture then(closure f);
+    UntypedFuture then(Loc loc, closure f);
+    UntypedFuture then(int loc, closure f);
     UntypedFuture unwrap();
     Data get();
     void wait();

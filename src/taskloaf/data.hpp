@@ -29,10 +29,8 @@ struct Data {
     SerializerT serializer;
 #ifdef TLDEBUG
     // type_info refers to a static lifetime object managed internally by the
-    // runtime, but it's copy constructor is deleted. So, in order to track the
-    // object's type across copies, I put the type in a shared_ptr. shared_ptr
-    // cannot contain a reference, so I use reference_wrapper.
-    std::shared_ptr<std::reference_wrapper<const std::type_info>> type;
+    // runtime, so there's no need to worry about ownership of a pointer.
+    const std::type_info* type;
 #endif
 
     Data() = default;
@@ -41,7 +39,7 @@ struct Data {
     void initialize(Ts&&... args) {
         using DecayT = std::decay_t<T>;
 #ifdef TLDEBUG
-        type = std::make_shared<std::reference_wrapper<const std::type_info>>(typeid(T));
+        type = &typeid(T);
 #endif
         ptr.reset(new DecayT(std::forward<Ts>(args)...), [] (void* data_ptr) {
             delete reinterpret_cast<DecayT*>(data_ptr);
@@ -58,14 +56,12 @@ struct Data {
         // initialize so that serialization is zero-overhead unless it is used.
         auto deserializer = [] (Data& d, cereal::BinaryInputArchive& ar) {
 #ifdef TLDEBUG
-            d.type = std::make_shared<
-                std::reference_wrapper<const std::type_info>
-            >(typeid(T));
+            d.type = &typeid(T);
 #endif
             d.initialize<T>();
             ar(d.get_as<T>());
         };
-        auto deserializer_id = RegisterFnc<
+        auto deserializer_id = register_fnc<
             decltype(deserializer),void,
             Data&,cereal::BinaryInputArchive&
         >::add_to_registry();
@@ -85,7 +81,7 @@ struct Data {
         // correct.
 #ifdef TLDEBUG
         if (typeid(T) != *type) {
-            std::cout << type->get().name() << "     " << typeid(T).name() << std::endl;
+            std::cout << type->name() << "     " << typeid(T).name() << std::endl;
             tlassert(typeid(T) == *type); 
         }
 #endif

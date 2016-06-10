@@ -23,8 +23,8 @@ struct MPIComm: public Comm {
 
     const Address& get_addr() const override;
     const std::vector<Address>& remote_endpoints() override;
-    void send(const Address& dest, Closure d) override;
-    Closure recv() override;
+    void send(const Address& dest, closure d) override;
+    closure recv() override;
 };
 
 } //end namespace taskloaf

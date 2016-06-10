@@ -7,7 +7,7 @@ namespace taskloaf {
 
 struct IVarData {
     Data val;
-    std::vector<Closure> triggers;
+    std::vector<closure> triggers;
     Address owner = cur_addr;
 
     void save(cereal::BinaryOutputArchive& ar) const {
@@ -24,7 +24,7 @@ struct IVar {
 
     IVar();
 
-    void add_trigger(Closure trigger);
+    void add_trigger(closure trigger);
     void fulfill(Data vals);
     Data get();
 };

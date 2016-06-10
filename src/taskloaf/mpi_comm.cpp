@@ -30,7 +30,7 @@ const Address& MPIComm::get_addr() const {
     return addr; 
 }
 
-void MPIComm::send(const Address& dest, Closure msg) {
+void MPIComm::send(const Address& dest, closure msg) {
     std::stringstream serialized_data;
     cereal::BinaryOutputArchive oarchive(serialized_data);
     oarchive(msg);
@@ -56,12 +56,12 @@ const std::vector<Address>& MPIComm::remote_endpoints() {
     return endpoints;
 }
 
-Closure MPIComm::recv() {
+closure MPIComm::recv() {
     MPI_Status stat;
     int msg_exists;
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &msg_exists, &stat);
     if (!msg_exists) {
-        return Closure();
+        return closure();
     }
 
     int n_bytes;
@@ -77,7 +77,7 @@ Closure MPIComm::recv() {
 
     std::stringstream serialized_ss(s);
     cereal::BinaryInputArchive iarchive(serialized_ss);
-    Closure t;
+    closure t;
     iarchive(t);
 
     return t;

@@ -7,24 +7,37 @@
 
 namespace taskloaf {
 
-struct RegistryImpl;
-struct FncRegistry {
-    std::unique_ptr<RegistryImpl> impl;
+// A function registry for retrieving functions at runtime. Registry keys
+// are a pair of integers. The registry should work across any executables
+// that are ABI compatible. So far, I have only tested using idential 
+// exectuables. However, I think that two machines compiling ABI-compatible C++
+// with ABI-compatible (clang and gcc for examples) should work. This is
+// worth further-testing at some point.
+struct registry_impl;
+struct fnc_registry {
+    std::unique_ptr<registry_impl> impl;
     
-    FncRegistry();
-    ~FncRegistry();
+    fnc_registry();
+    ~fnc_registry();
 
     void insert(const std::type_info& t_info, void* f_ptr);
-    std::pair<int,int> lookup_location(const std::type_info& t_info );
-    void* get_function(const std::pair<int,int>& loc);
+    std::pair<size_t,size_t> lookup_location(const std::type_info& t_info );
+    void* get_function(const std::pair<size_t,size_t>& loc);
 };
-FncRegistry& get_caller_registry();
 
+// Return a fnc_registry with static lifetime. Despite being used from 
+// multiple threads, this is thread safe because the construction happens 
+// only on the main thread before main() is run (static construction time).
+fnc_registry& get_fnc_registry();
+
+// Calling the static function register_fnc<Func,...>::add_to_registry() anywhere
+// within the code will result in the Func function type getting added to
+// the fnc_registry.
 template<typename Func, typename Return, typename... Args>
-struct RegisterFnc
+struct register_fnc
 {
-    RegisterFnc() {
-        get_caller_registry().insert(typeid(Func), reinterpret_cast<void*>(call));
+    register_fnc() {
+        get_fnc_registry().insert(typeid(Func), reinterpret_cast<void*>(call));
     }
 
     static Return call(Args... args) {
@@ -33,14 +46,16 @@ struct RegisterFnc
         return closure(std::forward<Args>(args)...);
     }
 
-    static RegisterFnc instance;
-    static std::pair<int,int> add_to_registry() {
+    // When instance is constructed, Func is inserted into the registry.
+    static register_fnc instance;
+
+    static std::pair<size_t,size_t> add_to_registry() {
         (void)instance;
-        return get_caller_registry().lookup_location(typeid(Func));
+        return get_fnc_registry().lookup_location(typeid(Func));
     }
 };
 
 template<typename Func, typename Return, typename... Args>
-RegisterFnc<Func,Return,Args...> RegisterFnc<Func,Return,Args...>::instance;
+register_fnc<Func,Return,Args...> register_fnc<Func,Return,Args...>::instance;
 
 } //end namespace taskloaf

@@ -11,15 +11,15 @@ void UntypedFuture::load(cereal::BinaryInputArchive& ar) {
     (void)ar;
 }
 
-UntypedFuture UntypedFuture::then(Closure f) {
+UntypedFuture UntypedFuture::then(closure f) {
     return then(Loc::anywhere, std::move(f));
 }
 
-UntypedFuture UntypedFuture::then(Loc loc, Closure f) {
+UntypedFuture UntypedFuture::then(Loc loc, closure f) {
     return then(static_cast<int>(loc), std::move(f));
 }
 
-UntypedFuture UntypedFuture::then(int loc, Closure f) {
+UntypedFuture UntypedFuture::then(int loc, closure f) {
     return taskloaf::then(loc, *this, std::move(f));
 }
 
@@ -35,7 +35,7 @@ Data UntypedFuture::get() {
 void UntypedFuture::wait() {
     cur_worker->set_stopped(false);
     bool already_thenned = false;
-    this->then(Loc::here, Closure(
+    this->then(Loc::here, closure(
         [&] (Data&, Data&) {
             cur_worker->set_stopped(true);
             already_thenned = true;
@@ -53,13 +53,13 @@ UntypedFuture ready(Data d) {
     return out;
 }
 
-UntypedFuture then(int loc, UntypedFuture& f, Closure fnc) {
+UntypedFuture then(int loc, UntypedFuture& f, closure fnc) {
     UntypedFuture out_future; 
     auto iloc = internal_loc(loc);
-    f.ivar.add_trigger(Closure(
-        [] (std::tuple<UntypedFuture,Closure,InternalLoc>& d, Data& v) {
-            Closure t(
-                [] (std::tuple<UntypedFuture,Closure,Data>& d, Data&) {
+    f.ivar.add_trigger(closure(
+        [] (std::tuple<UntypedFuture,closure,InternalLoc>& d, Data& v) {
+            closure t(
+                [] (std::tuple<UntypedFuture,closure,Data>& d, Data&) {
                     std::get<0>(d).ivar.fulfill(std::get<1>(d)(std::get<2>(d)));
                     return Data{};
                 },
@@ -75,11 +75,11 @@ UntypedFuture then(int loc, UntypedFuture& f, Closure fnc) {
     return out_future;
 }
 
-UntypedFuture async(int loc, Closure fnc) {
+UntypedFuture async(int loc, closure fnc) {
     UntypedFuture out_future;
     auto iloc = internal_loc(loc);
-    Closure t(
-        [] (std::tuple<UntypedFuture,Closure>& d, Data&) {
+    closure t(
+        [] (std::tuple<UntypedFuture,closure>& d, Data&) {
             std::get<0>(d).ivar.fulfill(std::get<1>(d)());
             return Data{};
         },
@@ -89,19 +89,19 @@ UntypedFuture async(int loc, Closure fnc) {
     return out_future;
 }
 
-UntypedFuture async(Loc loc, Closure fnc) {
+UntypedFuture async(Loc loc, closure fnc) {
     return async(static_cast<int>(loc), std::move(fnc));
 }
 
-UntypedFuture async(Closure fnc) {
+UntypedFuture async(closure fnc) {
     return async(Loc::anywhere, std::move(fnc));
 }
 
 UntypedFuture unwrap(UntypedFuture& fut) {
     UntypedFuture out_future;
-    fut.ivar.add_trigger(Closure(
+    fut.ivar.add_trigger(closure(
         [] (UntypedFuture& out_future, Data& d) {
-            d.get_as<UntypedFuture>().ivar.add_trigger(Closure(
+            d.get_as<UntypedFuture>().ivar.add_trigger(closure(
                 [] (UntypedFuture& out_future, Data& d) {
                     out_future.ivar.fulfill(d);
                     return Data{};
@@ -116,13 +116,13 @@ UntypedFuture unwrap(UntypedFuture& fut) {
 }
 // 
 // UntypedFuture when_both_leaf(UntypedFuture a, UntypedFuture b) {
-//     return a.then(Closure(
+//     return a.then(closure(
 //         [] (UntypedFuture& b, Data& a_data) {
 //             std::vector<Data> out{a_data};
-//             out.push_back(make_data(b.then(Closure(
+//             out.push_back(make_data(b.then(closure(
 //                 [] (std::vector<Data> a_data, std::vector<Data>& b_data) 
 //                 {
-//                     for (auto& b: b_data) {
+//                     for (auto& b: b_data) {o
 //                         a_data.push_back(b);
 //                     }
 //                     return a_data;

@@ -9,7 +9,7 @@
 
 namespace taskloaf {
 
-using MsgQueue = moodycamel::ConcurrentQueue<Closure>;
+using MsgQueue = moodycamel::ConcurrentQueue<closure>;
 
 struct LocalCommQueues {
     const size_t starting_queue_size = 20;
@@ -23,14 +23,14 @@ struct LocalComm: public Comm {
     std::vector<Address> remotes;
     Address my_addr;
     bool ready_msg = false;
-    Closure cur_msg;
+    closure cur_msg;
 
     LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index);
 
     const Address& get_addr() const override;
     const std::vector<Address>& remote_endpoints() override;
-    void send(const Address& dest, Closure d) override;
-    Closure recv() override;
+    void send(const Address& dest, closure d) override;
+    closure recv() override;
 };
 
 } //end namespace taskloaf

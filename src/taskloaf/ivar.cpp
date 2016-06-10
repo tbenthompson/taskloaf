@@ -10,7 +10,7 @@ IVar::IVar():
 {}
 
     
-void add_trigger_helper(std::shared_ptr<IVarData>& data, Closure& trigger) {
+void add_trigger_helper(std::shared_ptr<IVarData>& data, closure& trigger) {
     if (data->val != nullptr) {
         trigger(data->val);
     } else {
@@ -18,16 +18,16 @@ void add_trigger_helper(std::shared_ptr<IVarData>& data, Closure& trigger) {
     }
 }
 
-Data add_trigger_sendable(std::tuple<std::shared_ptr<IVarData>,Closure>& p, Data&) {
+Data add_trigger_sendable(std::tuple<std::shared_ptr<IVarData>,closure>& p, Data&) {
     add_trigger_helper(std::get<0>(p), std::get<1>(p));
     return Data{};
 }
 
-void IVar::add_trigger(Closure trigger) {
+void IVar::add_trigger(closure trigger) {
     if (data->owner == cur_addr) {
         add_trigger_helper(data, trigger); 
     } else {
-        cur_worker->add_task(data->owner, Closure(
+        cur_worker->add_task(data->owner, closure(
             add_trigger_sendable, std::make_tuple(data, std::move(trigger))
         ));
     }
@@ -51,7 +51,7 @@ void IVar::fulfill(Data val) {
     if (data->owner == cur_addr) {
         fulfill_helper(data, val); 
     } else {
-        cur_worker->add_task(data->owner, Closure(
+        cur_worker->add_task(data->owner, closure(
             fulfill_sendable, std::make_tuple(data, std::move(val))
         ));
     }

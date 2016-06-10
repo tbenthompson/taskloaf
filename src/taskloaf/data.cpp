@@ -17,7 +17,7 @@ void Data::load(cereal::BinaryInputArchive& ar) {
         std::pair<int,int> deserializer_id;
         ar(deserializer_id);
         auto deserializer = reinterpret_cast<DeserializerT>(
-            get_caller_registry().get_function(deserializer_id)
+            get_fnc_registry().get_function(deserializer_id)
         );
         deserializer(*this, ar);
     }

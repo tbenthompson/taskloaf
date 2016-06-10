@@ -21,7 +21,7 @@ struct SerializableFunctor {
     }
 };
 
-inline Closure get_serializable_functor() {
+inline closure get_serializable_functor() {
     SerializableFunctor s;
     s.vs = {1,2,3,4};
     return {[] (SerializableFunctor& f, int a) { return f(a); }, s};

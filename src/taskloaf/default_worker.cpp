@@ -32,11 +32,11 @@ void DefaultWorker::set_stopped(bool val) {
     should_stop = val;
 }
 
-void DefaultWorker::add_task(Closure t) {
+void DefaultWorker::add_task(closure t) {
     tasks.add_task(std::move(t));
 }
 
-void DefaultWorker::add_task(const Address& where, Closure t) {
+void DefaultWorker::add_task(const Address& where, closure t) {
     tasks.add_task(where, std::move(t));
 }
 

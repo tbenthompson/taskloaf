@@ -20,7 +20,7 @@ struct InternalLoc {
 
 InternalLoc internal_loc(int loc);
 
-struct Closure;
-void schedule(const InternalLoc& iloc, Closure t);
+struct closure;
+void schedule(const InternalLoc& iloc, closure t);
 
 } //end namespace taskloaf

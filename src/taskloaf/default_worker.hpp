@@ -31,8 +31,8 @@ struct DefaultWorker: public Worker {
     void run() override;
     const Address& get_addr() const override;
     size_t n_workers() const override;
-    void add_task(Closure t) override;
-    void add_task(const Address& where, Closure t) override;
+    void add_task(closure t) override;
+    void add_task(const Address& where, closure t) override;
 
     bool is_stopped() const;
     Comm& get_comm();
