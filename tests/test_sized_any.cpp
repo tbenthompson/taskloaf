@@ -24,15 +24,15 @@ TEST_CASE("Ranged ensure_any") {
     REQUIRE(ensure_any(std::tuple<double,long>()).max_size == 16);
     REQUIRE(ensure_any(std::vector<double>()).max_size == 24);
     REQUIRE(ensure_any(std::array<double,16>()).max_size == 128);
-    REQUIRE(ensure_any(std::array<double,17>()).max_size == 256);
-    REQUIRE(ensure_any(std::array<double,100>()).max_size == 1024);
+    REQUIRE(ensure_any(std::array<double,17>()).max_size == 136);
+    REQUIRE(ensure_any(std::array<double,100>()).max_size == 800);
 }
 
 TEST_CASE("Check standard layout") {
-    // static_assert(std::is_standard_layout<sized_any<4,false>>::value,
-    //     "sized_any needs to be standard layout");
-    // static_assert(std::is_standard_layout<sized_any<4,true>>::value,
-    //     "sized_any needs to be standard layout");
+    static_assert(std::is_standard_layout<sized_any<4,false>>::value,
+        "sized_any needs to be standard layout");
+    static_assert(std::is_standard_layout<sized_any<4,true>>::value,
+        "sized_any needs to be standard layout");
 }
 
 TEST_CASE("Create trivial") {
@@ -122,7 +122,7 @@ TEST_CASE("Serialize/deserialize", "[data]") {
 
 TEST_CASE("Measure serialized size", "[data]") {
     auto baseline_non_trivial = serialize(ensure_any(Empty())).size();
-    auto baseline_trivial = serialize(ensure_any(false)).size() - 4;
+    auto baseline_trivial = serialize(ensure_any(false)).size() - 1;
 
     SECTION("string") {
         std::string s("abcdef");

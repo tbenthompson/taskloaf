@@ -71,8 +71,8 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/sized_any.cpp;src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/closure.cpp")
-#set(TASKLOAF_SRC "src/taskloaf/sized_any.cpp;src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp;src/taskloaf/location.cpp;src/taskloaf/address.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/data.cpp;src/taskloaf/closure.cpp")
+set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/closure.cpp")
+#set(TASKLOAF_SRC "src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp;src/taskloaf/location.cpp;src/taskloaf/address.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/tlassert.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/data.cpp;src/taskloaf/closure.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
@@ -130,7 +130,6 @@ if(BUILD_TESTS)
     taskloaf_tests(comm True)
     taskloaf_tests(untyped_future True)
     taskloaf_tests(typed_future True)
-    taskloaf_tests(sized_any True)
 
     if (MPI_CXX_FOUND)
         taskloaf_tests(mpi False)

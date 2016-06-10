@@ -1,22 +1,80 @@
 #pragma once
 
+#include "debug.hpp"
 #include "fnc_registry.hpp"
-#include "sized_any.hpp"
 
+#include <cereal/archives/binary.hpp>
 #include <cereal/types/vector.hpp>
 #include <cereal/types/array.hpp>
 #include <cereal/types/tuple.hpp>
 
 namespace taskloaf {
 
-template <typename RetT, typename FncT, typename EncT, typename ArgT>
+struct data {
+    virtual void save(cereal::BinaryOutputArchive& ar) const = 0;
+    virtual void* get_storage() = 0;
+    virtual const std::type_info& type() = 0;
+};
+
+struct data_ptr {
+    std::unique_ptr<data> ptr;
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        (void)ar;
+    }
+
+    void load(cereal::BinaryInputArchive& ar) { 
+        (void)ar;
+    }
+
+    template <typename T>
+    T& get() {
+        TLASSERT(ptr->type() == typeid(T));
+        return *reinterpret_cast<T*>(ptr->get_storage());
+    }
+
+    template <typename T>
+    operator T&() {
+        return get<T>();
+    }
+};
+
+template <typename T>
+struct typed_data: public data {
+    T v;
+
+    typed_data(T& v): v(v) {}
+    typed_data(T&& v): v(std::move(v)) {}
+
+    void* get_storage() {
+        return &v;
+    }
+
+    const std::type_info& type() {
+        return typeid(T);
+    }
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar(v);
+    }
+};
+
+template <typename T>
+data_ptr ensure_data(T&& v) {
+    return {std::make_unique<typed_data<std::decay_t<T>>>(std::forward<T>(v))};
+}
+
+inline data_ptr ensure_data() {
+    return {std::make_unique<typed_data<bool>>(false)};
+}
+
 struct closure {
-    using caller_type = RetT(*)(closure&,ArgT&);
+    using caller_type = data_ptr(*)(closure&,data_ptr&);
     using serializer_type = void(*)(cereal::BinaryOutputArchive&);
     using deserializer_type = void(*)(closure&,cereal::BinaryInputArchive&);
 
-    FncT f;
-    EncT d;
+    data_ptr f;
+    data_ptr d;
     caller_type caller;
     serializer_type serializer;
 
@@ -38,8 +96,8 @@ struct closure {
     }
 
     template <typename F>
-    static auto caller_fnc(closure& c, ArgT& arg) {
-        return ensure_any(c.f.template unchecked_get<F>()(c.d, arg));
+    static data_ptr caller_fnc(closure& c, data_ptr& arg) {
+        return ensure_data(c.f.template get<F>()(c.d, arg));
     }
 
     bool operator==(std::nullptr_t) const {
@@ -49,85 +107,50 @@ struct closure {
         return !(*this == nullptr);
     }
 
-    RetT operator()(ArgT& arg) {
+    data_ptr operator()(data_ptr& arg) {
         return caller(*this, arg);
     }
 
-    RetT operator()(ArgT&& arg) {
+    data_ptr operator()(data_ptr&& arg) {
         return caller(*this, arg);
     }
 
-    RetT operator()() {
-        auto d = ensure_any();
+    data_ptr operator()() {
+        auto d = ensure_data();
         return caller(*this, d);
     }
-
-    void save(cereal::BinaryOutputArchive& ar) const {
-        serializer(ar);
-        ar(f);
-        ar(d);
-    }
-
-    void load(cereal::BinaryInputArchive& ar) {
-        std::pair<size_t,size_t> deserializer_id;
-        ar(deserializer_id);
-        auto deserializer = reinterpret_cast<deserializer_type>(
-            get_fnc_registry().get_function(deserializer_id)
-        );
-        deserializer(*this, ar);
-    }
+// 
+//     void save(cereal::BinaryOutputArchive& ar) const {
+//         serializer(ar);
+//         ar(f);
+//         ar(d);
+//     }
+// 
+//     void load(cereal::BinaryInputArchive& ar) {
+//         std::pair<size_t,size_t> deserializer_id;
+//         ar(deserializer_id);
+//         auto deserializer = reinterpret_cast<deserializer_type>(
+//             get_fnc_registry().get_function(deserializer_id)
+//         );
+//         deserializer(*this, ar);
+//     }
 };
-
-template<typename T>
-struct get_signature: 
-    public get_signature<decltype(&std::decay_t<T>::operator())> {};
-
-template <typename Return, typename Arg1, typename Arg2>
-struct get_signature<Return(Arg1,Arg2)> {
-    using return_type = Return;
-    using arg1_type = Arg1;
-    using arg2_type = Arg2;
-};
-
-template <typename Return, typename Class, typename Arg1, typename Arg2>
-struct get_signature<Return(Class::*)(Arg1,Arg2)>: 
-    public get_signature<Return(Arg1,Arg2)> {};
-
-template <typename Return, typename Class, typename Arg1, typename Arg2>
-struct get_signature<Return(Class::*)(Arg1,Arg2) const>: 
-    public get_signature<Return(Arg1,Arg2)> {};
-
-template <typename Return, typename Arg1, typename Arg2>
-struct get_signature<Return(&)(Arg1,Arg2)>: 
-    public get_signature<Return(Arg1,Arg2)> {};
-
-template <typename Return, typename Arg1, typename Arg2>
-struct get_signature<Return(*)(Arg1,Arg2)>: 
-    public get_signature<Return(Arg1,Arg2)> {};
 
 template <typename F, typename T>
 auto make_closure(F fnc, T val) {
-    auto f = ensure_any(std::move(fnc));
-    auto d = ensure_any(std::move(val));
+    auto f = ensure_data(std::move(fnc));
+    auto d = ensure_data(std::move(val));
 
-    using signature = get_signature<F>;
-
-    using return_type = decltype(
-        ensure_any(std::declval<typename signature::return_type>())
-    );
-    using arg_type = typename signature::arg2_type;
-    using closure_type = closure<return_type,decltype(f),decltype(d),arg_type>;
-
-    return closure_type{
-        f, d, 
-        closure_type::template caller_fnc<F>,
-        closure_type::template serializer_fnc<F>
+    return closure{
+        std::move(f), std::move(d), 
+        closure::template caller_fnc<F>,
+        closure::template serializer_fnc<F>
     };
 }
 
 template <typename F>
 auto make_closure(F fnc) {
-    return make_closure(std::move(fnc), ensure_any());
+    return make_closure(std::move(fnc), ensure_data());
 }
 
 } //end namespace taskloaf
