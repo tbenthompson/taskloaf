@@ -4,24 +4,24 @@
 
 namespace taskloaf {
 
-struct ContextInternals {
-    virtual ~ContextInternals() {};
+struct context_internals {
+    virtual ~context_internals() {};
 };
-struct Context {
-    std::unique_ptr<ContextInternals> internals;
-    Context(std::unique_ptr<ContextInternals> internals);
-    ~Context();
-    Context(Context&&);
+struct context {
+    std::unique_ptr<context_internals> internals;
+    context(std::unique_ptr<context_internals> internals);
+    ~context();
+    context(context&&);
 };
 
-struct Config {
+struct config {
     bool print_stats = false;
 };
 
-Context launch_local(size_t n_workers, Config cfg = Config());
+context launch_local(size_t n_workers, config cfg = config());
 
 #ifdef MPI_FOUND
-Context launch_mpi();
+context launch_mpi();
 #endif
 
 } //end namespace taskloaf

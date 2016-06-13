@@ -3,10 +3,10 @@
 
 namespace taskloaf {
 
-__thread Worker* cur_worker;
-__thread Address cur_addr;
+__thread worker* cur_worker;
+__thread address cur_addr;
 
-void set_cur_worker(Worker* w) {
+void set_cur_worker(worker* w) {
     cur_worker = w;
     cur_addr = w->get_addr();
 }

@@ -2,14 +2,14 @@
 
 namespace taskloaf {
 
-LocalCommQueues::LocalCommQueues(size_t n_workers)
+local_comm_queues::local_comm_queues(size_t n_workers)
 {
     for (size_t i = 0; i < n_workers; i++) {
         qs.emplace_back(starting_queue_size);
     }
 }
     
-LocalComm::LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index):
+local_comm::local_comm(std::shared_ptr<local_comm_queues> qs, uint16_t my_index):
     queues(qs),
     my_addr{my_index}
 {
@@ -21,19 +21,19 @@ LocalComm::LocalComm(std::shared_ptr<LocalCommQueues> qs, uint16_t my_index):
     }
 }
 
-const Address& LocalComm::get_addr() const {
+const address& local_comm::get_addr() const {
     return my_addr;
 }
 
-const std::vector<Address>& LocalComm::remote_endpoints() {
+const std::vector<address>& local_comm::remote_endpoints() {
     return remotes;
 }
 
-void LocalComm::send(const Address& dest, closure msg) {
+void local_comm::send(const address& dest, closure msg) {
     queues->qs[dest.id].enqueue(std::move(msg));
 }
 
-closure LocalComm::recv() {
+closure local_comm::recv() {
     closure cur_msg;
     queues->qs[my_addr.id].try_dequeue(cur_msg);
     return cur_msg;

@@ -4,14 +4,14 @@
 
 namespace taskloaf {
 
-void Address::save(cereal::BinaryOutputArchive& ar) const { ar(id); }
-void Address::load(cereal::BinaryInputArchive& ar) { ar(id); }
+void address::save(cereal::BinaryOutputArchive& ar) const { ar(id); }
+void address::load(cereal::BinaryInputArchive& ar) { ar(id); }
 
-bool operator<(const Address& a, const Address& b) { return a.id < b.id; }
-bool operator==(const Address& a, const Address& b) { return a.id == b.id; }
-bool operator!=(const Address& a, const Address& b) { return !(a == b); }
+bool operator<(const address& a, const address& b) { return a.id < b.id; }
+bool operator==(const address& a, const address& b) { return a.id == b.id; }
+bool operator!=(const address& a, const address& b) { return !(a == b); }
 
-std::ostream& operator<<(std::ostream& os, const Address& a) {
+std::ostream& operator<<(std::ostream& os, const address& a) {
     os << a.id;
     return os;
 }

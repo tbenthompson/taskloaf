@@ -5,10 +5,10 @@
 
 namespace taskloaf {
 
-struct IVarData {
-    Data val;
+struct ivar_data {
+    data_ptr val;
     std::vector<closure> triggers;
-    Address owner = cur_addr;
+    address owner = cur_addr;
 
     void save(cereal::BinaryOutputArchive& ar) const {
         (void)ar;
@@ -19,14 +19,14 @@ struct IVarData {
     }
 };
 
-struct IVar {
-    std::shared_ptr<IVarData> data;
+struct ivar {
+    std::shared_ptr<ivar_data> iv;
 
-    IVar();
+    ivar();
 
     void add_trigger(closure trigger);
-    void fulfill(Data vals);
-    Data get();
+    void fulfill(data_ptr vals);
+    data_ptr& get();
 };
 
 } //end namespace taskloaf

@@ -7,17 +7,17 @@
 namespace taskloaf {
 
 //TODO: remote id and local id?
-struct Address {
+struct address {
     int id;
 
     void save(cereal::BinaryOutputArchive& ar) const;
     void load(cereal::BinaryInputArchive& ar);
 };
 
-bool operator<(const Address& a, const Address& b);
-bool operator==(const Address& a, const Address& b);
-bool operator!=(const Address& a, const Address& b);
+bool operator<(const address& a, const address& b);
+bool operator==(const address& a, const address& b);
+bool operator!=(const address& a, const address& b);
 
-std::ostream& operator<<(std::ostream& os, const Address& a);
+std::ostream& operator<<(std::ostream& os, const address& a);
 
 } //end namespace taskloaf

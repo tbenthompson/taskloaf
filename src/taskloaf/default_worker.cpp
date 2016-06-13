@@ -7,62 +7,62 @@
 
 namespace taskloaf {
 
-DefaultWorker::DefaultWorker(std::unique_ptr<Comm> p_comm):
-    comm(std::move(p_comm)),
-    log(comm->get_addr()),
-    tasks(log, *comm),
+default_worker::default_worker(std::unique_ptr<comm> p_comm):
+    my_comm(std::move(p_comm)),
+    my_log(my_comm->get_addr()),
+    tasks(my_log, *my_comm),
     should_stop(false)
 {}
 
-DefaultWorker::~DefaultWorker() {
+default_worker::~default_worker() {
     set_stopped(true);
 }
 
-void DefaultWorker::shutdown() {
-    auto& remotes = comm->remote_endpoints();
+void default_worker::shutdown() {
+    auto& remotes = my_comm->remote_endpoints();
     for (auto& r: remotes) {
-        add_task(r, [] (Data&, Data&) {
-            cur_worker->set_stopped(true); return Data{}; 
-        });
+        add_task(r, make_closure([] (ignore, ignore) {
+            cur_worker->set_stopped(true); return ignore{}; 
+        }));
     }
     set_stopped(true);
 }
 
-void DefaultWorker::set_stopped(bool val) {
+void default_worker::set_stopped(bool val) {
     should_stop = val;
 }
 
-void DefaultWorker::add_task(closure t) {
+void default_worker::add_task(closure t) {
     tasks.add_task(std::move(t));
 }
 
-void DefaultWorker::add_task(const Address& where, closure t) {
+void default_worker::add_task(const address& where, closure t) {
     tasks.add_task(where, std::move(t));
 }
 
-size_t DefaultWorker::n_workers() const {
-    return comm->remote_endpoints().size() + 1;
+size_t default_worker::n_workers() const {
+    return my_comm->remote_endpoints().size() + 1;
 }
 
-const Address& DefaultWorker::get_addr() const {
-    return comm->get_addr();
+const address& default_worker::get_addr() const {
+    return my_comm->get_addr();
 }
 
-bool DefaultWorker::is_stopped() const {
+bool default_worker::is_stopped() const {
     return should_stop;
 }
 
-Comm& DefaultWorker::get_comm() {
-    return *comm;
+comm& default_worker::get_comm() {
+    return *my_comm;
 }
 
-void DefaultWorker::recv() {
-    comm->recv();
+void default_worker::recv() {
+    my_comm->recv();
 }
 
-void DefaultWorker::one_step() {
-    auto t = comm->recv();
-    if (!(t == nullptr)) {
+void default_worker::one_step() {
+    auto t = my_comm->recv();
+    if (!t.empty()) {
         tasks.add_local_task(std::move(t));
     }
 
@@ -73,13 +73,13 @@ void DefaultWorker::one_step() {
     }
 }
 
-void DefaultWorker::run() {
+void default_worker::run() {
     while (!is_stopped()) {
         one_step();
     }
 }
 
-void DefaultWorker::set_core_affinity(int core_id) {
+void default_worker::set_core_affinity(int core_id) {
     this->core_id = core_id;
     cpu_set_t cs;
     CPU_ZERO(&cs);

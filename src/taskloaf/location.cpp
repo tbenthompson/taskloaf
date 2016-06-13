@@ -3,25 +3,25 @@
 
 namespace taskloaf {
 
-void InternalLoc::save(cereal::BinaryOutputArchive& ar) const {
+void internal_location::save(cereal::BinaryOutputArchive& ar) const {
     ar(anywhere); ar(where); 
 }
 
-void InternalLoc::load(cereal::BinaryInputArchive& ar) {
+void internal_location::load(cereal::BinaryInputArchive& ar) {
     ar(anywhere); ar(where); 
 }
 
-InternalLoc internal_loc(int loc) {
-    if (loc == static_cast<int>(Loc::anywhere)) {
+internal_location internal_loc(int loc) {
+    if (loc == static_cast<int>(location::anywhere)) {
         return {true, {}};
-    } else if (loc == static_cast<int>(Loc::here)) {
+    } else if (loc == static_cast<int>(location::here)) {
         return {false, cur_worker->get_addr()};
     } else {
         return {false, {loc}};
     }
 }
 
-void schedule(const InternalLoc& iloc, closure t) {
+void schedule(const internal_location& iloc, closure t) {
     if (iloc.anywhere) {
         cur_worker->add_task(std::move(t));
     } else {

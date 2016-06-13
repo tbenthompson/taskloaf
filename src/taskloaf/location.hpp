@@ -5,22 +5,22 @@
 
 namespace taskloaf {
 
-enum class Loc: int {
+enum class location: int {
     anywhere = -2,
     here = -1
 };
 
-struct InternalLoc {
+struct internal_location {
     bool anywhere;
-    Address where;
+    address where;
 
     void save(cereal::BinaryOutputArchive& ar) const;
     void load(cereal::BinaryInputArchive& ar);
 };
 
-InternalLoc internal_loc(int loc);
+internal_location internal_loc(int loc);
 
 struct closure;
-void schedule(const InternalLoc& iloc, closure t);
+void schedule(const internal_location& iloc, closure t);
 
 } //end namespace taskloaf

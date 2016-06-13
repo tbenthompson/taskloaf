@@ -5,13 +5,13 @@
 
 namespace taskloaf {
 
-struct Address;
+struct address;
 
-struct Comm {
-    virtual const Address& get_addr() const = 0;
-    virtual const std::vector<Address>& remote_endpoints() = 0;
-    virtual void send(const Address& dest, std::unique_ptr<generic_closure> d) = 0;
-    virtual std::unique_ptr<generic_closure> recv() = 0;
+struct comm {
+    virtual const address& get_addr() const = 0;
+    virtual const std::vector<address>& remote_endpoints() = 0;
+    virtual void send(const address& dest, closure d) = 0;
+    virtual closure recv() = 0;
 };
 
 } //end namespace taskloaf

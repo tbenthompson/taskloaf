@@ -2,63 +2,64 @@
 #include "worker.hpp"
 
 #include <cereal/types/memory.hpp>
+#include <cereal/types/tuple.hpp>
 
 namespace taskloaf {
 
-IVar::IVar():
-    data(std::make_shared<IVarData>())
+ivar::ivar():
+    iv(std::make_shared<ivar_data>())
 {}
 
     
-void add_trigger_helper(std::shared_ptr<IVarData>& data, closure& trigger) {
-    if (data->val != nullptr) {
-        trigger(data->val);
+void add_trigger_helper(std::shared_ptr<ivar_data>& iv, closure& trigger) {
+    if (iv->val.empty()) {
+        iv->triggers.push_back(std::move(trigger));
     } else {
-        data->triggers.push_back(std::move(trigger));
+        trigger(iv->val);
     }
 }
 
-Data add_trigger_sendable(std::tuple<std::shared_ptr<IVarData>,closure>& p, Data&) {
+auto add_trigger_sendable(std::tuple<std::shared_ptr<ivar_data>,closure>& p, ignore) {
     add_trigger_helper(std::get<0>(p), std::get<1>(p));
-    return Data{};
+    return ignore{};
 }
 
-void IVar::add_trigger(closure trigger) {
-    if (data->owner == cur_addr) {
-        add_trigger_helper(data, trigger); 
+void ivar::add_trigger(closure trigger) {
+    if (iv->owner == cur_addr) {
+        add_trigger_helper(iv, trigger); 
     } else {
-        cur_worker->add_task(data->owner, closure(
-            add_trigger_sendable, std::make_tuple(data, std::move(trigger))
+        cur_worker->add_task(iv->owner, make_closure(
+            add_trigger_sendable, std::make_tuple(iv, std::move(trigger))
         ));
     }
 }
 
-void fulfill_helper(std::shared_ptr<IVarData>& data, Data& val) {
-    TLASSERT(data->val == nullptr);
-    data->val = std::move(val);
-    for (auto& t: data->triggers) {
-        t(data->val);
+void fulfill_helper(std::shared_ptr<ivar_data>& iv, data_ptr val) {
+    TLASSERT(iv->val.empty());
+    iv->val = std::move(val);
+    for (auto& t: iv->triggers) {
+        t(iv->val);
     }
-    data->triggers.clear();
+    iv->triggers.clear();
 }
 
-Data fulfill_sendable(std::tuple<std::shared_ptr<IVarData>,Data>& p, Data&) {
-    fulfill_helper(std::get<0>(p), std::get<1>(p));
-    return Data{};
+auto fulfill_sendable(std::tuple<std::shared_ptr<ivar_data>,data_ptr>& p, ignore&) {
+    fulfill_helper(std::get<0>(p), std::move(std::get<1>(p)));
+    return ignore{};
 };
 
-void IVar::fulfill(Data val) {
-    if (data->owner == cur_addr) {
-        fulfill_helper(data, val); 
+void ivar::fulfill(data_ptr val) {
+    if (iv->owner == cur_addr) {
+        fulfill_helper(iv, std::move(val)); 
     } else {
-        cur_worker->add_task(data->owner, closure(
-            fulfill_sendable, std::make_tuple(data, std::move(val))
+        cur_worker->add_task(iv->owner, make_closure(
+            fulfill_sendable, std::make_tuple(iv, std::move(val))
         ));
     }
 }
 
-Data IVar::get() {
-    return data->val;
+data_ptr& ivar::get() {
+    return iv->val;
 }
 
 } //end namespace taskloaf

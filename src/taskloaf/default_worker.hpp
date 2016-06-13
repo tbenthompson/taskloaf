@@ -10,11 +10,11 @@
 
 namespace taskloaf { 
 
-struct Comm;
-struct DefaultWorker: public Worker {
-    std::unique_ptr<Comm> comm;
-    Log log;
-    TaskCollection tasks;
+struct comm;
+struct default_worker: public worker {
+    std::unique_ptr<comm> my_comm;
+    log my_log;
+    task_collection tasks;
 
     int core_id = -1;
     bool stealing = false;
@@ -22,20 +22,20 @@ struct DefaultWorker: public Worker {
     int immediate_computes = 0;
     static const int immediates_allowed = 2;
 
-    DefaultWorker(std::unique_ptr<Comm> comm);
-    DefaultWorker(const DefaultWorker&) = delete;
-    ~DefaultWorker();
+    default_worker(std::unique_ptr<comm> comm);
+    default_worker(const default_worker&) = delete;
+    ~default_worker();
 
     void shutdown() override;
     void set_stopped(bool) override;
     void run() override;
-    const Address& get_addr() const override;
+    const address& get_addr() const override;
     size_t n_workers() const override;
     void add_task(closure t) override;
-    void add_task(const Address& where, closure t) override;
+    void add_task(const address& where, closure t) override;
 
     bool is_stopped() const;
-    Comm& get_comm();
+    comm& get_comm();
 
     void recv();
     void one_step();

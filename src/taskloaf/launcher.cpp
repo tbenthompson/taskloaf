@@ -8,24 +8,24 @@
 
 namespace taskloaf {
 
-struct LocalContextInternals: public ContextInternals {
+struct local_context_internals: public context_internals {
     std::vector<std::thread> threads;
-    std::vector<std::unique_ptr<DefaultWorker>> workers;
-    std::shared_ptr<LocalCommQueues> lcq;
-    DefaultWorker main_worker;
-    Config cfg;
+    std::vector<std::unique_ptr<default_worker>> workers;
+    std::shared_ptr<local_comm_queues> lcq;
+    default_worker main_worker;
+    config cfg;
 
-    LocalContextInternals(size_t n_workers, Config cfg):
-        lcq(std::make_shared<LocalCommQueues>(n_workers)),
-        main_worker(std::make_unique<LocalComm>(lcq, 0)),
+    local_context_internals(size_t n_workers, config cfg):
+        lcq(std::make_shared<local_comm_queues>(n_workers)),
+        main_worker(std::make_unique<local_comm>(lcq, 0)),
         cfg(cfg)
     {
         set_cur_worker(&main_worker);
         main_worker.set_core_affinity(0);
 
         for (size_t i = 1; i < n_workers; i++) { 
-            workers.emplace_back(std::make_unique<DefaultWorker>(
-                std::make_unique<LocalComm>(lcq, i)
+            workers.emplace_back(std::make_unique<default_worker>(
+                std::make_unique<local_comm>(lcq, i)
             ));
         }
         for (size_t i = 1; i < n_workers; i++) { 
@@ -41,7 +41,7 @@ struct LocalContextInternals: public ContextInternals {
         }
     }
 
-    ~LocalContextInternals() {
+    ~local_context_internals() {
         main_worker.shutdown();
 
         for (auto& t: threads) {
@@ -49,45 +49,45 @@ struct LocalContextInternals: public ContextInternals {
         }
         if (cfg.print_stats) {
             for (auto& w: workers) {
-                w->log.write_stats(std::cout);
+                w->my_log.write_stats(std::cout);
             }
         }
         clear_cur_worker();
     }
 
-    LocalContextInternals(const ContextInternals&) = delete;
-    LocalContextInternals(ContextInternals&&) = delete;
+    local_context_internals(const context_internals&) = delete;
+    local_context_internals(context_internals&&) = delete;
 };
 
-Context::Context(std::unique_ptr<ContextInternals> internals): 
+context::context(std::unique_ptr<context_internals> internals): 
     internals(std::move(internals)) 
 {}
-Context::~Context() = default;
-Context::Context(Context&&) = default;
+context::~context() = default;
+context::context(context&&) = default;
 
-Context launch_local(size_t n_workers, Config cfg) {
-    return Context(std::make_unique<LocalContextInternals>(n_workers, cfg));
+context launch_local(size_t n_workers, config cfg) {
+    return context(std::make_unique<local_context_internals>(n_workers, cfg));
 }
 
 #ifdef MPI_FOUND
 
-struct MPIContextInternals: public ContextInternals {
-    DefaultWorker w; 
+struct mpi_context_internals: public context_internals {
+    default_worker w; 
 
-    MPIContextInternals():
-        w(std::make_unique<MPIComm>())
+    mpi_context_internals():
+        w(std::make_unique<mpi_comm>())
     {
         set_cur_worker(&w);
     }
 
-    ~MPIContextInternals() {
+    ~mpi_context_internals() {
         w.shutdown();
         clear_cur_worker();
     }
 };
 
-Context launch_mpi() {
-    return Context(std::make_unique<MPIContextInternals>());
+context launch_mpi() {
+    return context(std::make_unique<mpi_context_internals>());
 }
 
 #endif

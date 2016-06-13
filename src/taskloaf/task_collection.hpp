@@ -6,22 +6,22 @@
 
 namespace taskloaf {
 
-struct Comm;
-struct Log;
+struct comm;
+struct log;
 
-struct TaskCollection {
-    Log& log;
-    Comm& comm;
+struct task_collection {
+    log& my_log;
+    comm& my_comm;
     std::deque<std::pair<int,closure>> stealable_tasks;
     std::stack<std::pair<int,closure>> local_tasks;
     int next_token = 0;
     bool stealing;
 
-    TaskCollection(Log& log, Comm& comm);
+    task_collection(log& log, comm& comm);
 
     size_t size() const;
     void add_task(closure t);
-    void add_task(const Address& where, closure t);
+    void add_task(const address& where, closure t);
     void run_next();
     void steal();
 

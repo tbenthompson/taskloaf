@@ -5,11 +5,11 @@
 
 namespace taskloaf {
 
-int mpi_rank(const Comm& c) {
+int mpi_rank(const comm& c) {
     return c.get_addr().id;
 }
 
-MPIComm::MPIComm() {
+mpi_comm::mpi_comm() {
     int rank;
     int size;
 
@@ -26,11 +26,11 @@ MPIComm::MPIComm() {
     }
 }
 
-const Address& MPIComm::get_addr() const {
+const address& mpi_comm::get_addr() const {
     return addr; 
 }
 
-void MPIComm::send(const Address& dest, closure msg) {
+void mpi_comm::send(const address& dest, closure msg) {
     std::stringstream serialized_data;
     cereal::BinaryOutputArchive oarchive(serialized_data);
     oarchive(msg);
@@ -43,7 +43,7 @@ void MPIComm::send(const Address& dest, closure msg) {
         dest.id, 0, MPI_COMM_WORLD, &outbox.back().state
     );
 
-    auto it = std::remove_if(outbox.begin(), outbox.end(), [] (const SentMsg& m) {
+    auto it = std::remove_if(outbox.begin(), outbox.end(), [] (const sent_mpi_msg& m) {
         int send_done;
         MPI_Status status;
         MPI_Request_get_status(m.state, &send_done, &status);
@@ -52,11 +52,11 @@ void MPIComm::send(const Address& dest, closure msg) {
     outbox.erase(it, outbox.end());
 }
 
-const std::vector<Address>& MPIComm::remote_endpoints() {
+const std::vector<address>& mpi_comm::remote_endpoints() {
     return endpoints;
 }
 
-closure MPIComm::recv() {
+closure mpi_comm::recv() {
     MPI_Status stat;
     int msg_exists;
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &msg_exists, &stat);

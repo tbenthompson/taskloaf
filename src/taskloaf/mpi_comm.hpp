@@ -7,23 +7,23 @@
 
 namespace taskloaf {
 
-int mpi_rank(const Comm& c);
+int mpi_rank(const comm& c);
 
-struct SentMsg {
+struct sent_mpi_msg {
     std::string msg;
     MPI_Request state;
 };
 
-struct MPIComm: public Comm {
-    Address addr;
-    std::vector<Address> endpoints;
-    std::vector<SentMsg> outbox;
+struct mpi_comm: public comm {
+    address addr;
+    std::vector<address> endpoints;
+    std::vector<sent_mpi_msg> outbox;
 
-    MPIComm(); 
+    mpi_comm(); 
 
-    const Address& get_addr() const override;
-    const std::vector<Address>& remote_endpoints() override;
-    void send(const Address& dest, closure d) override;
+    const address& get_addr() const override;
+    const std::vector<address>& remote_endpoints() override;
+    void send(const address& dest, closure d) override;
     closure recv() override;
 };
 
