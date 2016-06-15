@@ -38,7 +38,6 @@ struct default_worker: public worker {
     bool is_stopped() const;
     comm& get_comm();
 
-    void recv();
     void one_step();
     void set_core_affinity(int core_id);
 };

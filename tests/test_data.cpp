@@ -1,6 +1,7 @@
 #include "catch.hpp"
 
 #include "taskloaf/data.hpp"
+#include "taskloaf/closure.hpp"
 #include "ownership_tracker.hpp"
 #include "serialize.hpp"
 

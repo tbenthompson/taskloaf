@@ -5,6 +5,7 @@
 #include "ownership_tracker.hpp"
 
 #include <cereal/archives/binary.hpp>
+#include <cereal/types/vector.hpp>
 
 using namespace taskloaf;
 
@@ -21,18 +22,28 @@ void test_comm(comm& a, comm& b) {
     SECTION("Recv") {
         REQUIRE(b.recv().empty());
         int x = 0;
-        a.send({1}, closure([&] (ignore, ignore) { x = 13; return ignore{}; }));
+        a.send({1}, closure([&] (_, _) { x = 13; return _{}; }));
         b.recv()();
         REQUIRE(x == 13); 
     }
 
     SECTION("Msg ordering") {
         double x = 4.5;
-        a.send({1}, closure([&] (ignore,ignore) { x /= 4.5; return ignore{}; }));
-        a.send({1}, closure([&] (ignore,ignore) { x -= 1.0; return ignore{}; }));
+        a.send({1}, closure([&] (_,_) { x /= 4.5; return _{}; }));
+        a.send({1}, closure([&] (_,_) { x -= 1.0; return _{}; }));
         b.recv()();
         b.recv()();
         REQUIRE(x == 0.0);
+    }
+
+    SECTION("Msg deleted") {
+        auto d = data(std::vector<double>());
+        REQUIRE(d.get_references() == 1);
+        a.send({1}, closure([&] (_,_) { return _{}; }, d));
+        REQUIRE(d.get_references() == 2);
+        b.recv()();
+        REQUIRE(a.recv().empty());
+        REQUIRE(d.get_references() == 1);
     }
 }
 

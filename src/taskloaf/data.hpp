@@ -2,6 +2,7 @@
 
 #include "debug.hpp"
 #include "fnc_registry.hpp"
+#include "worker.hpp"
 
 #include <cereal/archives/binary.hpp>
 
@@ -12,9 +13,29 @@ namespace taskloaf {
 struct ignore {};
 using _ = ignore;
 
+struct data_allocator {
+    size_t n_bytes;
+
+    data_allocator(size_t n_bytes): n_bytes(n_bytes) {}
+
+    void* malloc() {
+        return new uint8_t[n_bytes];
+    }
+
+    void free(void* ptr) {
+        delete[] reinterpret_cast<uint8_t*>(ptr);
+    }
+};
+
+// template <size_t AllocSize>
+// static boost::pool<>& get_pool() {
+//     thread_local boost::pool<> pool(AllocSize);
+//     return pool;
+// }
+
 template <size_t AllocSize>
-static boost::pool<>& get_pool() {
-    static __thread boost::pool<> pool(AllocSize);
+static data_allocator& get_pool() {
+    static data_allocator pool(AllocSize);
     return pool;
 }
 
@@ -22,6 +43,13 @@ enum class action {
     get_type,
     serialize,
     destroy
+};
+
+template <typename T>
+struct data_internal {
+    size_t ref_count;
+    address owner;
+    T val;
 };
 
 struct data {
@@ -41,25 +69,20 @@ struct data {
     policy_type policy = nullptr;
     bool is_ptr;
 
-    data() = default;
-
     template <typename T,
         std::enable_if_t<
             !std::is_same<std::decay_t<T>,data>::value && 
             !store_directly_v<std::decay_t<T>>
         >* = nullptr>
     data(T&& v) {
-        using stored_type = std::decay_t<T>;
-        constexpr size_t alloc_size = sizeof(stored_type) + sizeof(size_t);
+        using stored_type = data_internal<std::decay_t<T>>;
+        constexpr size_t alloc_size = sizeof(stored_type);
 
         is_ptr = true;
+        ptr = get_pool<alloc_size>().malloc();
+        new (ptr) stored_type{1, cur_addr, std::forward<T>(v)};
+        policy = policy_fnc<std::decay_t<T>>;
 
-        auto& pool = get_pool<alloc_size>();
-        ptr = pool.malloc();
-
-        new (unchecked_get_ptr<stored_type>()) stored_type(std::forward<T>(v));
-        get_references() = 1;
-        policy = policy_fnc<stored_type>;
         TLASSERT(get_references() == 1); 
     }
 
@@ -73,6 +96,8 @@ struct data {
         std::memcpy(&storage, &v, sizeof(void*));
         policy = policy_fnc<std::decay_t<T>>;
     }
+
+    data() = default;
 
     data(const data& other) {
         copy_from(other);
@@ -107,22 +132,33 @@ struct data {
         }
     }
 
-    void copy_from(const data& other) {
+    void set_policy(const data& other) {
         policy = other.policy;
         is_ptr = other.is_ptr;
-        if (!empty()) {
+    }
+
+    void memcpy_internal(const data& other) {
+        if (other.is_ptr) {
+            std::memcpy(&ptr, &other.ptr, sizeof(void*));
+        } else {
             std::memcpy(&storage, &other.storage, sizeof(InternalStorage));
-            if (other.is_ptr) {
+        }
+    }
+
+    void copy_from(const data& other) {
+        set_policy(other);
+        if (!empty()) {
+            memcpy_internal(other);
+            if (is_ptr) {
                 get_references()++;
             }
         }
     }
 
     void move_from(data&& other) {
-        policy = other.policy;
-        is_ptr = other.is_ptr;
+        set_policy(other);
         if (!empty()) {
-            std::memcpy(&storage, &other.storage, sizeof(InternalStorage));
+            memcpy_internal(other);
             other.policy = nullptr;
         }
     }
@@ -146,7 +182,7 @@ struct data {
 
     template <typename T, std::enable_if_t<!store_directly_v<T>>* = nullptr>
     T* unchecked_get_ptr() {
-        return reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(ptr) + sizeof(size_t));
+        return &reinterpret_cast<data_internal<T>*>(ptr)->val;
     }
 
     template <typename T, std::enable_if_t<store_directly_v<T>>* = nullptr>
@@ -176,7 +212,11 @@ struct data {
     operator T&() { return get<T>(); }
 
     size_t& get_references() {
-        return *reinterpret_cast<size_t*>(ptr);
+        return reinterpret_cast<data_internal<ignore>*>(ptr)->ref_count;
+    }
+
+    address& get_owner() {
+        return reinterpret_cast<data_internal<ignore>*>(ptr)->owner;
     }
 
     template <typename T, 
@@ -233,8 +273,21 @@ struct data {
         case action::get_type: { get_type<T>(ptr2); break; }
         case action::serialize: { serialize<T>(any_ptr, ptr2); break; }
         case action::destroy: {
+            constexpr static size_t obj_size = sizeof(data_internal<T>);
+
             any_ptr->template unchecked_get_ptr<T>()->~T();
-            get_pool<sizeof(T) + sizeof(size_t)>().free(any_ptr->ptr);
+
+            if (any_ptr->get_owner() == cur_addr) {
+                get_pool<obj_size>().free(any_ptr->ptr);
+            } else {
+                cur_worker->add_task(any_ptr->get_owner(), closure(
+                    [] (void* ptr,_) {
+                        get_pool<obj_size>().free(ptr); 
+                        return _{};
+                    },
+                    any_ptr->ptr
+                ));
+            }
             break;
         }
         }

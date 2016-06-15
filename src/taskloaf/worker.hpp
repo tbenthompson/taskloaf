@@ -1,11 +1,11 @@
 #pragma once
 #include "address.hpp"
-#include "closure.hpp"
 
 #include <memory>
 
 namespace taskloaf { 
 
+struct closure;
 struct worker {
     virtual ~worker() {}
 

@@ -1,5 +1,6 @@
 #include "location.hpp"
 #include "worker.hpp"
+#include "closure.hpp"
 
 namespace taskloaf {
 

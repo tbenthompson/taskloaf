@@ -56,10 +56,6 @@ comm& default_worker::get_comm() {
     return *my_comm;
 }
 
-void default_worker::recv() {
-    my_comm->recv();
-}
-
 void default_worker::one_step() {
     auto t = my_comm->recv();
     if (!t.empty()) {

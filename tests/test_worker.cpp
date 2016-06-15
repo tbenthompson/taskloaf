@@ -21,7 +21,7 @@ TEST_CASE("Run here") {
         async(location::here, closure([=] (ignore, ignore) {
             REQUIRE(cur_worker == submit_worker);
             return ignore{};
-        })).wait();
+        })).get();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }

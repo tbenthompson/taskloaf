@@ -4,12 +4,17 @@
 
 #include "concurrentqueue.h"
 
-#include <map>
+#include <queue>
 
 
 namespace taskloaf {
 
-using MsgQueue = moodycamel::ConcurrentQueue<closure>;
+struct msg {
+    closure c;
+    bool done;
+};
+
+using MsgQueue = moodycamel::ConcurrentQueue<msg*>;
 
 struct local_comm_queues {
     const size_t starting_queue_size = 20;
@@ -20,6 +25,7 @@ struct local_comm_queues {
 
 struct local_comm: public comm {
     local_comm_queues& queues;
+    std::queue<msg> outbox;
     std::vector<address> remotes;
     address my_addr;
     bool ready_msg = false;
@@ -31,6 +37,8 @@ struct local_comm: public comm {
     const std::vector<address>& remote_endpoints() override;
     void send(const address& dest, closure d) override;
     closure recv() override;
+
+    void cleanup();
 };
 
 } //end namespace taskloaf

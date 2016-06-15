@@ -6,45 +6,49 @@
 
 namespace taskloaf {
 
-ivar::ivar():
-    iv(ivar_data())
-{}
-    
+thread_local ivar_db cur_ivar_db;
+
+bool ivar::fulfilled_here() const {
+    if (rr.local()) {
+        return !rr.get().val.empty(); 
+    }
+    return false;
+}
+
+closure concat_closures(closure a, closure b) {
+    return closure(
+        [] (std::tuple<closure,closure>& p, data& v) {
+            std::get<0>(p)(v);
+            std::get<1>(p)(v);
+            return ignore{};
+        },
+        std::make_tuple(std::move(a), std::move(b))
+    );
+}
+
 void add_trigger_helper(ivar_data& iv, closure& trigger) {
     if (iv.val.empty()) {
         if (iv.triggers.empty()) {
             iv.triggers = std::move(trigger);
         } else {
-            auto old_trigger = std::move(iv.triggers);
-            iv.triggers = closure(
-                [] (std::tuple<closure,closure>& p, data& v) {
-                    std::get<0>(p)(v);
-                    std::get<1>(p)(v);
-                    return ignore{};
-                },
-                std::make_tuple(
-                    std::move(old_trigger),
-                    std::move(trigger)
-                )
-            );
+            iv.triggers = concat_closures(std::move(iv.triggers), std::move(trigger));
         }
     } else {
         trigger(iv.val);
     }
 }
 
-auto add_trigger_sendable(std::tuple<data,closure>& p, ignore) {
-    add_trigger_helper(std::get<0>(p), std::get<1>(p));
+auto add_trigger_sendable(std::tuple<remote_ref,closure>& p, ignore) {
+    add_trigger_helper(std::get<0>(p).get(), std::get<1>(p));
     return ignore{};
 }
 
 void ivar::add_trigger(closure trigger) {
-    auto& d = iv.get<ivar_data>();
-    if (d.owner == cur_addr) {
-        add_trigger_helper(iv, trigger); 
+    if (rr.local()) {
+        add_trigger_helper(rr.get(), trigger); 
     } else {
-        cur_worker->add_task(d.owner, closure(
-            add_trigger_sendable, std::make_tuple(iv, std::move(trigger))
+        cur_worker->add_task(rr.owner, closure(
+            add_trigger_sendable, std::make_tuple(rr, std::move(trigger))
         ));
     }
 }
@@ -57,28 +61,24 @@ void fulfill_helper(ivar_data& iv, data val) {
     }
 }
 
-auto fulfill_sendable(std::tuple<data,data>& p, ignore&) {
-    fulfill_helper(std::get<0>(p), std::move(std::get<1>(p)));
+auto fulfill_sendable(std::tuple<remote_ref,data>& p, ignore&) {
+    fulfill_helper(std::get<0>(p).get(), std::move(std::get<1>(p)));
     return ignore{};
 };
 
 void ivar::fulfill(data val) {
-    auto& d = iv.get<ivar_data>();
-    if (d.owner == cur_addr) {
-        fulfill_helper(iv, std::move(val)); 
+    if (rr.local()) {
+        fulfill_helper(rr.get(), std::move(val)); 
     } else {
-        cur_worker->add_task(d.owner, closure(
-            fulfill_sendable, std::make_tuple(iv, std::move(val))
+        cur_worker->add_task(rr.owner, closure(
+            fulfill_sendable, std::make_tuple(rr, std::move(val))
         ));
     }
 }
 
-bool ivar::fulfilled() const {
-    return !iv.get<ivar_data>().val.empty();
-}
-
-data& ivar::get() {
-    return iv.get<ivar_data>().val;
+data ivar::get() {
+    TLASSERT(fulfilled_here());
+    return rr.get().val;
 }
 
 } //end namespace taskloaf

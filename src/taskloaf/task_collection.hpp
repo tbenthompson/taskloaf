@@ -2,7 +2,6 @@
 
 #include "worker.hpp"
 
-#include "short_alloc.h"
 #include <deque>
 #include <stack>
 
