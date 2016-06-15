@@ -13,14 +13,14 @@ namespace taskloaf {
 struct comm;
 struct default_worker: public worker {
     std::unique_ptr<comm> my_comm;
-    log my_log;
+    logger log;
     task_collection tasks;
 
     int core_id = -1;
     bool stealing = false;
     std::atomic<bool> should_stop;
     int immediate_computes = 0;
-    static const int immediates_allowed = 2;
+    static const int immediates_allowed = 5000;
 
     default_worker(std::unique_ptr<comm> comm);
     default_worker(const default_worker&) = delete;
@@ -29,6 +29,7 @@ struct default_worker: public worker {
     void shutdown() override;
     void set_stopped(bool) override;
     void run() override;
+
     const address& get_addr() const override;
     size_t n_workers() const override;
     void add_task(closure t) override;

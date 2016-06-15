@@ -19,13 +19,13 @@ struct local_comm_queues {
 };
 
 struct local_comm: public comm {
-    std::shared_ptr<local_comm_queues> queues;
+    local_comm_queues& queues;
     std::vector<address> remotes;
     address my_addr;
     bool ready_msg = false;
     closure cur_msg;
 
-    local_comm(std::shared_ptr<local_comm_queues> qs, uint16_t my_index);
+    local_comm(local_comm_queues& qs, uint16_t my_index);
 
     const address& get_addr() const override;
     const std::vector<address>& remote_endpoints() override;

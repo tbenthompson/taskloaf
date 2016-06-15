@@ -11,14 +11,14 @@
 using namespace taskloaf;
 
 void test_send(closure f) {
-    MPIComm c;
+    mpi_comm c;
     if (mpi_rank(c) == 0) {
         c.send({1}, f);
     } else {
         bool stop = false;
         while (!stop) {
             auto d = c.recv();
-            if (d == nullptr) {
+            if (d.empty()) {
                 continue;
             }
             d();
@@ -29,14 +29,14 @@ void test_send(closure f) {
 
 void test_send_simple() {
     test_send(closure(
-        [] (int v, Data&) { REQUIRE(v == 10); return Data{};},
+        [] (int v, ignore&) { REQUIRE(v == 10); return ignore{};},
         10
     ));
 }
 
 void test_send_data() {
     test_send(closure(
-        [] (std::string s, Data&) { REQUIRE(s == "HI"); return Data{};},
+        [] (std::string s, ignore&) { REQUIRE(s == "HI"); return ignore{};},
         std::string("HI")
     ));
 }
@@ -44,12 +44,12 @@ void test_send_data() {
 void test_send_closure_lambda() {
     int b = 3;
     test_send(closure(
-        [] (closure& f, Data&) {
-            int x = f(ensure_data(3));
+        [] (closure& f, ignore&) {
+            int x = f(data(3));
             REQUIRE(x == 9);
-            return Data{};
+            return ignore{};
         },
-        closure([=] (Data&, int a) { return a * b; })
+        closure([=] (ignore&, int a) { return a * b; })
     ));
 }
 
@@ -57,10 +57,10 @@ void test_send_closure_functor() {
     auto f = get_serializable_functor();
 
     test_send(closure(
-        [] (closure& f, Data&) { 
-            int x = f(ensure_data(5));
+        [] (closure& f, ignore&) { 
+            int x = f(data(5));
             REQUIRE(x == 120);
-            return Data{};
+            return ignore{};
         },
         std::move(f)
     ));

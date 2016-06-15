@@ -11,12 +11,12 @@ namespace taskloaf {
 struct local_context_internals: public context_internals {
     std::vector<std::thread> threads;
     std::vector<std::unique_ptr<default_worker>> workers;
-    std::shared_ptr<local_comm_queues> lcq;
+    local_comm_queues lcq;
     default_worker main_worker;
     config cfg;
 
     local_context_internals(size_t n_workers, config cfg):
-        lcq(std::make_shared<local_comm_queues>(n_workers)),
+        lcq(n_workers),
         main_worker(std::make_unique<local_comm>(lcq, 0)),
         cfg(cfg)
     {
@@ -48,8 +48,9 @@ struct local_context_internals: public context_internals {
             t.join();
         }
         if (cfg.print_stats) {
+            main_worker.log.write_stats(std::cout);
             for (auto& w: workers) {
-                w->my_log.write_stats(std::cout);
+                w->log.write_stats(std::cout);
             }
         }
         clear_cur_worker();

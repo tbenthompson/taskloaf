@@ -11,9 +11,10 @@
 
 namespace taskloaf {
 
-task_collection::task_collection(log& my_log, comm& my_comm):
-    my_log(my_log),
+task_collection::task_collection(logger& log, comm& my_comm):
+    log(log),
     my_comm(my_comm),
+    // stealable_tasks(deque_arena),
     stealing(false)
 {}
 
@@ -62,7 +63,7 @@ void task_collection::run_next() {
     }
 
     t();
-    my_log.n_tasks_run++;
+    log.n_tasks_run++;
 }
 
 void task_collection::steal() {
@@ -70,7 +71,7 @@ void task_collection::steal() {
         return;
     }
     stealing = true;
-    my_log.n_attempted_steals++;
+    log.n_attempted_steals++;
 
     thread_local std::random_device rd;
     thread_local std::mt19937 gen(rd());
@@ -82,12 +83,12 @@ void task_collection::steal() {
     std::uniform_int_distribution<> dis(0, remotes.size() - 1);
     auto idx = dis(gen);
 
-    add_task(remotes[idx], make_closure(
+    add_task(remotes[idx], closure(
         [] (const address& sender, ignore) {
             auto& tc = ((default_worker*)(cur_worker))->tasks;
             auto response = tc.victimized();
 
-            tc.add_task(sender, make_closure(
+            tc.add_task(sender, closure(
                 [] (std::vector<closure>& tasks, ignore) {
                     auto& tc = ((default_worker*)(cur_worker))->tasks;
                     tc.receive_tasks(std::move(tasks));
@@ -102,7 +103,7 @@ void task_collection::steal() {
 }
 
 std::vector<closure> task_collection::victimized() {
-    my_log.n_victimized++;
+    log.n_victimized++;
     auto n_steals = std::min(static_cast<size_t>(1), stealable_tasks.size());
     TLASSERT(n_steals <= stealable_tasks.size());
     std::vector<closure> steals;
@@ -115,7 +116,7 @@ std::vector<closure> task_collection::victimized() {
 
 void task_collection::receive_tasks(std::vector<closure> stolen_tasks) {
     if (stolen_tasks.size() > 0) {
-        my_log.n_successful_steals++;
+        log.n_successful_steals++;
     }
     for (auto& t: stolen_tasks) {
         stealable_tasks.push_back(std::make_pair(next_token, std::move(t)));

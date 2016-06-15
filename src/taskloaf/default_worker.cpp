@@ -9,8 +9,8 @@ namespace taskloaf {
 
 default_worker::default_worker(std::unique_ptr<comm> p_comm):
     my_comm(std::move(p_comm)),
-    my_log(my_comm->get_addr()),
-    tasks(my_log, *my_comm),
+    log(my_comm->get_addr()),
+    tasks(log, *my_comm),
     should_stop(false)
 {}
 
@@ -21,13 +21,13 @@ default_worker::~default_worker() {
 void default_worker::shutdown() {
     auto& remotes = my_comm->remote_endpoints();
     for (auto& r: remotes) {
-        add_task(r, make_closure([] (ignore, ignore) {
+        add_task(r, closure([] (ignore, ignore) {
             cur_worker->set_stopped(true); return ignore{}; 
         }));
     }
     set_stopped(true);
 }
-
+    
 void default_worker::set_stopped(bool val) {
     should_stop = val;
 }

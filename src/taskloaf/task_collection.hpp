@@ -1,23 +1,29 @@
 #pragma once
 
 #include "worker.hpp"
+
+#include "short_alloc.h"
 #include <deque>
 #include <stack>
 
 namespace taskloaf {
 
 struct comm;
-struct log;
+struct logger;
 
 struct task_collection {
-    log& my_log;
+    using task_type = std::pair<size_t,closure>;
+
+    logger& log;
     comm& my_comm;
-    std::deque<std::pair<int,closure>> stealable_tasks;
-    std::stack<std::pair<int,closure>> local_tasks;
-    int next_token = 0;
+
+    std::deque<task_type> stealable_tasks;
+    std::stack<task_type> local_tasks;
+
+    size_t next_token = 0;
     bool stealing;
 
-    task_collection(log& log, comm& comm);
+    task_collection(logger& log, comm& comm);
 
     size_t size() const;
     void add_task(closure t);

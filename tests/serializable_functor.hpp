@@ -24,7 +24,7 @@ struct SerializableFunctor {
 inline closure get_serializable_functor() {
     SerializableFunctor s;
     s.vs = {1,2,3,4};
-    return {[] (SerializableFunctor& f, int a) { return f(a); }, s};
+    return closure([] (SerializableFunctor& f, int a) { return f(a); }, s);
 }
 
 } //end namespace taskloaf

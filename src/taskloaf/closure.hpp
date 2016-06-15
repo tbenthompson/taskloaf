@@ -7,20 +7,32 @@
 namespace taskloaf {
 
 struct closure {
-    using caller_type = data_ptr(*)(closure&,data_ptr&);
+    using caller_type = data(*)(closure&,data&);
     using serializer_type = void(*)(cereal::BinaryOutputArchive&);
     using deserializer_type = void(*)(closure&,cereal::BinaryInputArchive&);
 
-    data_ptr f;
-    data_ptr d;
+    data f;
+    data d;
     caller_type caller;
     serializer_type serializer;
 
     closure() = default;
 
+    template <typename F, typename T>
+    closure(F fnc, T val) {
+        static_assert(std::is_trivially_copyable<F>::value,
+            "Function type must be trivially copyable");
+        f = data(std::move(fnc));
+        d = data(std::move(val));
+        caller = closure::template caller_fnc<F>;
+        serializer = closure::template serializer_fnc<F>;
+    }
+
     template <typename F>
-    static void serializer_fnc(cereal::BinaryOutputArchive& ar) 
-    {
+    closure(F fnc): closure(std::move(fnc), ignore{}) {}
+
+    template <typename F>
+    static void serializer_fnc(cereal::BinaryOutputArchive& ar) {
         auto f = [] (closure& c, cereal::BinaryInputArchive& ar) {
             ar(c.f);
             ar(c.d);
@@ -34,24 +46,24 @@ struct closure {
     }
 
     template <typename F>
-    static data_ptr caller_fnc(closure& c, data_ptr& arg) {
-        return make_data(c.f.template get<F>()(c.d, arg));
+    static data caller_fnc(closure& c, data& arg) {
+        return data(c.f.template get<F>()(c.d, arg));
     }
 
     bool empty() {
         return f.empty();
     }
 
-    data_ptr operator()(data_ptr& arg) {
+    data operator()(data& arg) {
         return caller(*this, arg);
     }
 
-    data_ptr operator()(data_ptr&& arg) {
+    data operator()(data&& arg) {
         return caller(*this, arg);
     }
 
-    data_ptr operator()() {
-        static auto d = make_data(ignore{});
+    data operator()() {
+        static auto d = data(ignore{});
         return caller(*this, d);
     }
 
@@ -70,24 +82,5 @@ struct closure {
         deserializer(*this, ar);
     }
 };
-
-template <typename F, typename T>
-auto make_closure(F fnc, T val) {
-    static_assert(std::is_trivially_copyable<F>::value,
-        "Function type must be trivially copyable");
-    auto f = make_data(std::move(fnc));
-    auto d = make_data(std::move(val));
-
-    return closure{
-        std::move(f), std::move(d), 
-        closure::template caller_fnc<F>,
-        closure::template serializer_fnc<F>
-    };
-}
-
-template <typename F>
-auto make_closure(F fnc) {
-    return make_closure(std::move(fnc), ignore{});
-}
 
 } //end namespace taskloaf

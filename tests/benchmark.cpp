@@ -1,11 +1,13 @@
-#include "taskloaf.hpp"
 #include "taskloaf/timing.hpp"
-#include "taskloaf/sized_any.hpp"
+#include "taskloaf/data.hpp"
+#include "taskloaf/future.hpp"
+#include "taskloaf.hpp"
 
 #include <locale>
 #include <string>
 #include <iostream>
 
+#include <cereal/types/vector.hpp>
 
 using namespace taskloaf;
 
@@ -38,26 +40,24 @@ int run_many_times(int n_cores, int n, size_t(*fnc)(), int baseline = 0) {
         }\
     }
 
-UntypedFuture fib(int idx) {
+future fib(int idx) {
     if (idx < 3) {
-        return ready(ensure_data(1));
+        return ready(1);
     } else {
-        return async(closure([=] (Data&, Data&) {
-            return ensure_data(fib(idx - 1).then(closure(
-                [=] (UntypedFuture& a, int x) {
-                    return ensure_data(a.then(closure(
-                        [x] (Data&, int y) { return x + y; }
-                    )));
+        return async([idx] (_, _) {
+            return fib(idx - 1).then(closure(
+                [] (future& a, int x) {
+                    return a.then([x] (_, int y) { return x + y; });
                 },
                 fib(idx - 2)
-            )).unwrap());
-        })).unwrap();
+            )).unwrap();
+        }).unwrap();
     }
 }
 
-size_t untyped_fib() {
+size_t fib() {
     auto ctx = launch_local(1);
-    std::cout << "Fib: " << int(fib(23).get()) << std::endl;
+    std::cout << "Fib: " << int(fib(33).get()) << std::endl;
     return 0;
 }
 
@@ -67,19 +67,14 @@ size_t taskloaf_startup() {
     return 0;
 }
 
-size_t ivar_construct() {
-    IVar ivar;
+size_t fut_construct() {
+    future fut;
     return 0;
 }
 
-size_t raw_int() {
+size_t raw_int_ops() {
     int x = 10;
     return x * x / (sum + 1);
-}
-
-size_t make_any() {
-    auto d = ensure_any(10);
-    return d.get<int>() * d.get<int>() / (sum + 1);
 }
 
 size_t vector_copy() {
@@ -89,19 +84,34 @@ size_t vector_copy() {
 }
 
 size_t any_copy() {
-    auto a1 = ensure_any(std::vector<double>{1});
+    auto a1 = data(std::vector<double>{1});
     auto a2 = a1;
     return a2.get<std::vector<double>>()[1];
 }
 
 size_t make_data() {
-    auto d = ensure_data(10);
-    return d.get_as<int>();
+    auto d = data(10);
+    return d.get<int>();
 }
 
 size_t make_bigger_data() {
-    auto d = ensure_data(std::vector<double>{1,2,3,4,5,6,7,8,9,10});
+    auto d = data(std::vector<double>{1,2,3,4,5,6,7,8,9,10});
     return 0;
+}
+
+#include <boost/pool/pool.hpp>
+
+size_t boost_pool() {
+    static boost::pool<> pool(32); 
+    void* ptr = pool.malloc();
+    pool.free(ptr);
+    return (intptr_t)ptr;
+}
+
+size_t raw_alloc() {
+    auto* ptr = new uint8_t[32];
+    delete ptr;
+    return (intptr_t)ptr;
 }
 
 int main(int argc, char** argv) {
@@ -112,15 +122,16 @@ int main(int argc, char** argv) {
         cmd_line_arg = argv[1];
     }
 
-    BENCH(1, 1, untyped_fib);
+    BENCH(1, 1, fib);
     BENCH(1, 2000, taskloaf_startup<1>);
     BENCH(1, 2000, taskloaf_startup<2>);
     BENCH(1, 2000, taskloaf_startup<4>);
-    BENCH(1, 1000000, ivar_construct);
-    BENCH(1, 1000000, raw_int);
-    BENCH(1, 1000000, make_any);
+    BENCH(1, 1000000, fut_construct);
     BENCH(1, 1000000, vector_copy);
     BENCH(1, 1000000, any_copy);
     BENCH(1, 1000000, make_data);
     BENCH(1, 1000000, make_bigger_data);
+
+    BENCH(1, 1000000, boost_pool);
+    BENCH(1, 1000000, raw_alloc);
 }

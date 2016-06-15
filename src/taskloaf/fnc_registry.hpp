@@ -50,6 +50,7 @@ struct register_fnc
     static register_fnc instance;
 
     static std::pair<size_t,size_t> add_to_registry() {
+        // instance must be used somewhere in order to be constructed.
         (void)instance;
         return get_fnc_registry().lookup_location(typeid(Func));
     }

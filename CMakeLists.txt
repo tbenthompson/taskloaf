@@ -72,7 +72,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/location.cpp;src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp")
+set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/location.cpp;src/taskloaf/ivar.cpp;src/taskloaf/future.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
@@ -129,8 +129,7 @@ if(BUILD_TESTS)
     taskloaf_tests(data True)
     taskloaf_tests(worker True)
     taskloaf_tests(comm True)
-    taskloaf_tests(untyped_future True)
-    taskloaf_tests(typed_future True)
+    taskloaf_tests(future True)
 
     if (MPI_CXX_FOUND)
         taskloaf_tests(mpi False)
@@ -139,6 +138,7 @@ if(BUILD_TESTS)
 
     add_executable(benchmark "tests/benchmark.cpp")
     test_link_include(benchmark)
+    target_link_libraries(benchmark boost_system)
     add_dependencies(tests benchmark)
 
     add_executable(playground "tests/playground.cpp")
