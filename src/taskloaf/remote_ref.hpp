@@ -4,6 +4,8 @@
 #include "closure.hpp"
 #include "worker.hpp"
 
+#include <short_alloc.h>
+
 namespace taskloaf {
 
 struct delete_tracker {
@@ -15,8 +17,14 @@ inline delete_tracker& get_delete_tracker() {
     return dt;
 };
 
+
 struct intrusive_ref_count {
-    std::vector<int> gen_counts;
+    using count_vector = std::vector<int,short_alloc<int,40,alignof(int)>>;
+
+    count_vector::allocator_type::arena_type arena;
+    count_vector gen_counts;
+
+    intrusive_ref_count(): gen_counts(arena) {}
 
     void dec_ref(unsigned gen, unsigned children) {
         if (gen_counts.size() < gen + 2) {

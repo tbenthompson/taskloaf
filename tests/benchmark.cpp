@@ -59,7 +59,7 @@ size_t fib() {
     config cfg;
     cfg.print_stats = true;
     auto ctx = launch_local(6, cfg);
-    std::cout << "Fib: " << int(fib(30).get()) << std::endl;
+    std::cout << "Fib: " << int(fib(33).get()) << std::endl;
     return 0;
 }
 
