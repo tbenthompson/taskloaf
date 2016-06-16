@@ -23,12 +23,15 @@ endif(NOT CMAKE_BUILD_TYPE)
 
 include(CheckCXXCompilerFlag)
 
-CHECK_CXX_COMPILER_FLAG("-std=c++1y" COMPILER_SUPPORTS_CXX14)
+CHECK_CXX_COMPILER_FLAG("-std=c++1y" COMPILER_SUPPORTS_CXX1Y)
+CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX14)
 if(COMPILER_SUPPORTS_CXX14)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+elseif (COMPILER_SUPPORTS_CXX1Y)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
+    message(WARNING "The compiler ${CMAKE_CXX_COMPILER} has only preliminary C++1y support. There may be lack of support for important features. Compilation might succeed but it would be better to use an updated C++ compiler.")
 else()
-    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support.
-                    Please use a different C++ compiler.")
+    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support. Please use an updated C++ compiler.")
 endif() 
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

@@ -9,7 +9,7 @@ namespace taskloaf {
 struct ivar_data {
     data val;
     closure triggers;
-    size_t refs;
+    intrusive_ref_count ref_count;
 };
 
 using ivar_data_ref = remote_ref<ivar_data>;

@@ -6,14 +6,9 @@
 
 using namespace taskloaf;
 
-template <typename T>
-size_t refs(const remote_ref<T>& rr) {
-    return rr.hdl->refs;
-}
-
 struct OwnershipTrackerWithRef {
     OwnershipTracker o;
-    size_t refs;
+    intrusive_ref_count ref_count;
 };
 
 using tracker_ref = remote_ref<OwnershipTrackerWithRef>;
@@ -23,7 +18,6 @@ TEST_CASE("Create remote ref") {
     cur_addr = address{0};
     tracker_ref rr;
     REQUIRE(rr.owner == address{0});
-    REQUIRE(refs(rr) == 1);
     REQUIRE(OwnershipTracker::constructs() == 1);
 }
 
@@ -55,7 +49,7 @@ TEST_CASE("Copy ref") {
     cur_addr = address{0};
     tracker_ref rr;
     auto rr2 = rr;
-    REQUIRE(refs(rr2) == 2);
+    REQUIRE(rr.children == 1);
     REQUIRE(rr2.hdl == rr.hdl);
 }
 
@@ -63,6 +57,11 @@ TEST_CASE("Move ref") {
     cur_addr = address{0};
     tracker_ref rr;
     auto rr2 = std::move(rr);
-    REQUIRE(refs(rr2) == 1);
     REQUIRE(rr.hdl == nullptr);
+}
+
+TEST_CASE("Copy empty") {
+    tracker_ref rr;
+    auto rr2 = std::move(rr);
+    auto rr3 = rr;
 }

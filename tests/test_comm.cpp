@@ -35,6 +35,16 @@ void test_comm(comm& a, comm& b) {
         b.recv()();
         REQUIRE(x == 0.0);
     }
+
+    SECTION("Deep copy") {
+        cur_addr = {0};
+        auto d = data(std::vector<double>{});
+        a.send({1}, closure([] (_,_) { return _{}; }, d)); 
+        cur_addr = {1};
+        auto cl = b.recv();
+        // std::cout << cl.d.ptr << " " << d.ptr << std::endl;
+        // std::cout <<  << std::endl;
+    }
 }
 
 TEST_CASE("Local comm", "[comm]") {

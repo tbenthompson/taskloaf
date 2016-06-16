@@ -58,8 +58,8 @@ future fib(int idx) {
 size_t fib() {
     config cfg;
     cfg.print_stats = true;
-    auto ctx = launch_local(1, cfg);
-    std::cout << "Fib: " << int(fib(33).get()) << std::endl;
+    auto ctx = launch_local(6, cfg);
+    std::cout << "Fib: " << int(fib(30).get()) << std::endl;
     return 0;
 }
 
