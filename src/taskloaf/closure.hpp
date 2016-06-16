@@ -19,18 +19,24 @@ struct closure {
     closure() = default;
 
     template <typename F, typename T>
-    closure(F fnc, T val) {
-        static_assert(std::is_trivially_copyable<F>::value,
+    closure(F&& fnc, T&& val) {
+
+        static_assert(std::is_trivially_copyable<std::decay_t<F>>::value,
             "Function type must be trivially copyable");
-        f = data(std::move(fnc));
-        d = data(std::move(val));
-        caller = closure::template caller_fnc<F>;
-        serializer = closure::template serializer_fnc<F>;
+
+        f = data(std::forward<F>(fnc));
+        d = data(std::forward<T>(val));
+
+        caller = closure::template caller_fnc<std::decay_t<F>>;
+        serializer = closure::template serializer_fnc<std::decay_t<F>>;
+
     }
 
     template <typename F, 
         std::enable_if_t<!std::is_same<std::decay_t<F>,closure>::value>* = nullptr>
-    closure(F fnc): closure(std::move(fnc), ignore{}) {}
+    closure(F&& fnc):
+        closure(std::forward<F>(fnc), ignore{}) 
+    {}
 
     template <typename F>
     static void serializer_fnc(cereal::BinaryOutputArchive& ar) {

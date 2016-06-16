@@ -8,8 +8,6 @@
 
 #include <boost/pool/pool.hpp>
 
-#include <atomic>
-
 namespace taskloaf {
 
 struct ignore {};

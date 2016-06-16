@@ -112,7 +112,7 @@ size_t boost_pool() {
 
 size_t raw_alloc() {
     auto* ptr = new uint8_t[32];
-    delete ptr;
+    delete[] ptr;
     return (intptr_t)ptr;
 }
 

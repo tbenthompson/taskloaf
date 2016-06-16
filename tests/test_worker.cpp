@@ -29,25 +29,19 @@ TEST_CASE("Run here") {
     }
 }
 
-struct core {
-    ivar_db db;
-    default_worker w;
-
-    core(std::unique_ptr<comm> c): w(std::move(c)) {}
-};
-
 TEST_CASE("Steal real") {
     local_comm_queues lcq(2);
-    std::vector<std::unique_ptr<core>> g;
+    std::vector<std::unique_ptr<default_worker>> g;
     for (size_t i = 0; i < 2; i++) {
-        g.emplace_back(std::make_unique<core>(std::make_unique<local_comm>(lcq, i)));
+        g.emplace_back(std::make_unique<default_worker>(
+            std::make_unique<local_comm>(lcq, i)
+        ));
     }
-    auto& w0 = g[0]->w;
-    auto& w1 = g[1]->w;
+    auto& w0 = *g[0];
+    auto& w1 = *g[1];
 
     auto run_on = [&] (size_t i, auto f) {
-        cur_ivar_db = &g[i]->db;
-        set_cur_worker(&g[i]->w);
+        set_cur_worker(g[i].get());
         f();
     };
 
