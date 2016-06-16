@@ -11,9 +11,22 @@ struct ivar_data {
     size_t refs = 1;
 };
 
+struct ivar_db;
+extern __thread ivar_db* cur_ivar_db;
+
 struct ivar_db {
     std::vector<ivar_data> ivar_list;
-    address here_addr = cur_addr;
+    bool destroying = false;
+
+    ivar_db() {
+        cur_ivar_db = this;
+    }
+
+    ~ivar_db() {
+        destroying = true;
+        ivar_list.clear();
+        cur_ivar_db = nullptr;
+    }
 
     size_t new_ivar() {
         ivar_list.emplace_back();
@@ -29,6 +42,9 @@ struct ivar_db {
     }
 
     void dec_ref(size_t handle) {
+        if (destroying) {
+            return;
+        }
         TLASSERT(refs(handle) > 0);
         refs(handle)--;
         if (handle == ivar_list.size() - 1) {
@@ -41,6 +57,7 @@ struct ivar_db {
     }
 
     size_t& refs(size_t handle) {
+        TLASSERT(handle < ivar_list.size());
         return ivar_list[handle].refs;
     }
 
@@ -50,17 +67,15 @@ struct ivar_db {
     }
 };
 
-extern thread_local ivar_db cur_ivar_db;
-
 constexpr static size_t null_handle = std::numeric_limits<size_t>::max();
 
 struct handle {
     size_t h;
 
-    bool is_null() { return h == null_handle; }
-    void inc_ref() const { cur_ivar_db.inc_ref(h); }
-    void dec_ref() const { cur_ivar_db.dec_ref(h); }
-    ivar_data& get() const { return cur_ivar_db.get(h); }
+    bool is_null() const { return h == null_handle; }
+    void inc_ref() const { cur_ivar_db->inc_ref(h); }
+    void dec_ref() const { cur_ivar_db->dec_ref(h); }
+    ivar_data& get() const { return cur_ivar_db->get(h); }
 };
 
 struct remote_ref {
@@ -71,8 +86,12 @@ struct remote_ref {
         return owner == cur_addr;
     }
 
+    bool is_null() const {
+        return hdl.is_null();
+    }
+
     remote_ref():
-        hdl({cur_ivar_db.new_ivar()}),
+        hdl({cur_ivar_db->new_ivar()}),
         owner(cur_addr)
     {}
 
@@ -109,12 +128,12 @@ struct remote_ref {
         return hdl.get();
     }
 
-    remote_ref(remote_ref&& other):
-        hdl(other.hdl),
-        owner(other.owner)
-    {
-        other.hdl = {null_handle};
-    }
+    remote_ref(remote_ref&& other) = delete;
+    //     hdl(other.hdl),
+    //     owner(other.owner)
+    // {
+    //     other.hdl = {null_handle};
+    // }
 
     remote_ref& operator=(remote_ref&& other) = delete;
     remote_ref& operator=(const remote_ref& other) = delete;

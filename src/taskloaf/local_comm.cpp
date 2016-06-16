@@ -44,8 +44,9 @@ closure local_comm::recv() {
     }
     return closure(
         [] (msg* m, data& val) {
+            auto out = m->c(val);
             m->done = true;
-            return m->c(val);
+            return out;
         },
         cur_msg
     );

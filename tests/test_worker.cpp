@@ -4,6 +4,9 @@
 #include "taskloaf/launcher.hpp"
 #include "taskloaf/default_worker.hpp"
 #include "taskloaf/comm.hpp"
+#include "taskloaf/local_comm.hpp"
+
+#include <cereal/types/vector.hpp>
 
 #include <thread>
 #include <chrono>
@@ -23,6 +26,62 @@ TEST_CASE("Run here") {
             return ignore{};
         })).get();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
+struct core {
+    ivar_db db;
+    default_worker w;
+
+    core(std::unique_ptr<comm> c): w(std::move(c)) {}
+};
+
+TEST_CASE("Steal real") {
+    local_comm_queues lcq(2);
+    std::vector<std::unique_ptr<core>> g;
+    for (size_t i = 0; i < 2; i++) {
+        g.emplace_back(std::make_unique<core>(std::make_unique<local_comm>(lcq, i)));
+    }
+    auto& w0 = g[0]->w;
+    auto& w1 = g[1]->w;
+
+    auto run_on = [&] (size_t i, auto f) {
+        cur_ivar_db = &g[i]->db;
+        set_cur_worker(&g[i]->w);
+        f();
+    };
+
+    data d(std::vector<double>{});
+
+    run_on(0, [&] {
+        w0.add_task(closure([] (_,_) {
+            REQUIRE(cur_addr == address{1}); return _{}; 
+        }, d));
+    });
+
+    run_on(1, [&] { w1.one_step(); });
+
+    run_on(0, [&] { 
+        w0.one_step(); 
+        w0.add_task([] (_,_) {
+            REQUIRE(cur_addr == address{0}); return _{}; 
+        });
+        w0.one_step(); 
+    });
+
+    run_on(1, [&] { 
+        w1.one_step(); 
+        w1.one_step(); 
+    });
+
+    run_on(0, [&] { 
+        w0.one_step(); 
+        w0.one_step(); 
+    });
+
+    for (size_t i = 0; i < 10; i++) {
+        run_on(0, [&] { w0.one_step(); });
+        run_on(1, [&] { w1.one_step(); });
     }
 }
 
@@ -115,3 +174,4 @@ TEST_CASE("Send remotely assigned task") {
     tc.run_next();
     REQUIRE(x == 1);
 }
+

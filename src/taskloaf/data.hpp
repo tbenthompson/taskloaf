@@ -8,34 +8,16 @@
 
 #include <boost/pool/pool.hpp>
 
+#include <atomic>
+
 namespace taskloaf {
 
 struct ignore {};
 using _ = ignore;
 
-struct data_allocator {
-    size_t n_bytes;
-
-    data_allocator(size_t n_bytes): n_bytes(n_bytes) {}
-
-    void* malloc() {
-        return new uint8_t[n_bytes];
-    }
-
-    void free(void* ptr) {
-        delete[] reinterpret_cast<uint8_t*>(ptr);
-    }
-};
-
-// template <size_t AllocSize>
-// static boost::pool<>& get_pool() {
-//     thread_local boost::pool<> pool(AllocSize);
-//     return pool;
-// }
-
 template <size_t AllocSize>
-static data_allocator& get_pool() {
-    static data_allocator pool(AllocSize);
+inline boost::pool<>& get_pool() {
+    static thread_local boost::pool<> pool(AllocSize);
     return pool;
 }
 
@@ -45,12 +27,26 @@ enum class action {
     destroy
 };
 
+namespace detail {
+
+inline std::atomic<size_t>& get_references(void* ptr) {
+    return *reinterpret_cast<std::atomic<size_t>*>(ptr);
+}
+
+inline address& get_owner(void* ptr) {
+    return *reinterpret_cast<address*>(
+        reinterpret_cast<uint8_t*>(ptr) + sizeof(std::atomic<size_t>)
+    );
+}
+
 template <typename T>
-struct data_internal {
-    size_t ref_count;
-    address owner;
-    T val;
-};
+inline T& get_val(void* ptr) {
+    return *reinterpret_cast<T*>(
+        reinterpret_cast<uint8_t*>(ptr) + sizeof(std::atomic<size_t>) + sizeof(address)
+    );
+}
+
+}
 
 struct data {
     using deserializer_type = data(*)(cereal::BinaryInputArchive&);
@@ -75,15 +71,19 @@ struct data {
             !store_directly_v<std::decay_t<T>>
         >* = nullptr>
     data(T&& v) {
-        using stored_type = data_internal<std::decay_t<T>>;
-        constexpr size_t alloc_size = sizeof(stored_type);
+        using stored_type = std::decay_t<T>;
+        constexpr size_t alloc_size = 
+            sizeof(stored_type) + sizeof(std::atomic<size_t>) + sizeof(address);
 
         is_ptr = true;
         ptr = get_pool<alloc_size>().malloc();
-        new (ptr) stored_type{1, cur_addr, std::forward<T>(v)};
+
+        detail::get_references(ptr) = 1;
+        detail::get_owner(ptr) = cur_addr;
+        new (&detail::get_val<stored_type>(ptr)) stored_type(std::forward<T>(v));
         policy = policy_fnc<std::decay_t<T>>;
 
-        TLASSERT(get_references() == 1); 
+        TLASSERT(detail::get_references(ptr) == 1); 
     }
 
     template <typename T,
@@ -125,8 +125,9 @@ struct data {
     
     void destroy() {
         if (!empty() && is_ptr) {
-            get_references()--;
-            if (get_references() == 0) {
+            std::atomic<size_t>& ref = detail::get_references(ptr);
+            ref--;
+            if (ref == 0) {
                 policy(action::destroy, this, nullptr);
             }
         }
@@ -150,7 +151,7 @@ struct data {
         if (!empty()) {
             memcpy_internal(other);
             if (is_ptr) {
-                get_references()++;
+                detail::get_references(ptr)++;
             }
         }
     }
@@ -181,13 +182,13 @@ struct data {
     }
 
     template <typename T, std::enable_if_t<!store_directly_v<T>>* = nullptr>
-    T* unchecked_get_ptr() {
-        return &reinterpret_cast<data_internal<T>*>(ptr)->val;
+    T& unchecked_get() {
+        return detail::get_val<T>(ptr);
     }
 
     template <typename T, std::enable_if_t<store_directly_v<T>>* = nullptr>
-    T* unchecked_get_ptr() {
-        return reinterpret_cast<T*>(&storage);
+    T& unchecked_get() {
+        return *reinterpret_cast<T*>(&storage);
     }
 
     template <typename T>
@@ -202,7 +203,7 @@ struct data {
         }
         ,)
         TLASSERT(type_check);
-        return *unchecked_get_ptr<T>();
+        return unchecked_get<T>();
     }
 
     template <typename T>
@@ -210,14 +211,6 @@ struct data {
 
     template <typename T>
     operator T&() { return get<T>(); }
-
-    size_t& get_references() {
-        return reinterpret_cast<data_internal<ignore>*>(ptr)->ref_count;
-    }
-
-    address& get_owner() {
-        return reinterpret_cast<data_internal<ignore>*>(ptr)->owner;
-    }
 
     template <typename T, 
         std::enable_if_t<!std::is_trivially_copyable<T>::value>* = nullptr>
@@ -273,20 +266,33 @@ struct data {
         case action::get_type: { get_type<T>(ptr2); break; }
         case action::serialize: { serialize<T>(any_ptr, ptr2); break; }
         case action::destroy: {
-            constexpr static size_t obj_size = sizeof(data_internal<T>);
-
-            any_ptr->template unchecked_get_ptr<T>()->~T();
-
-            if (any_ptr->get_owner() == cur_addr) {
-                get_pool<obj_size>().free(any_ptr->ptr);
+            const std::type_info* type;
+            get_type<T>(&type);
+            std::cout << type->name() << std::endl;
+            TLASSERT(any_ptr->ptr != nullptr);
+            // constexpr static size_t obj_size = sizeof(data_internal<T>);
+            if (detail::get_owner(any_ptr->ptr) == cur_addr) {
+            //     auto& ref_count = any_ptr->get_references();
+            //     ref_count--; 
+            //     if (ref_count == 0) {
+            //         any_ptr->template unchecked_get<T>().~T();
+            //         get_pool<obj_size>().free(any_ptr->ptr);
+            //     }
             } else {
-                cur_worker->add_task(any_ptr->get_owner(), closure(
-                    [] (void* ptr,_) {
-                        get_pool<obj_size>().free(ptr); 
-                        return _{};
-                    },
-                    any_ptr->ptr
-                ));
+                // std::cout << "REMOTE DELETE" << std::endl;
+            //     cur_worker->add_task(any_ptr->get_owner(), closure(
+            //         [] (void* void_ptr,_) {
+            //             auto* ptr = reinterpret_cast<data_internal<T>*>(void_ptr);
+            //             auto& ref_count = ptr->ref_count;
+            //             ref_count--; 
+            //             if (ref_count == 0) {
+            //                 ptr->val.~T();
+            //                 get_pool<obj_size>().free(ptr);
+            //             }
+            //             return _{};
+            //         },
+            //         any_ptr->ptr
+            //     ));
             }
             break;
         }

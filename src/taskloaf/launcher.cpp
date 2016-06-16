@@ -2,6 +2,7 @@
 #include "default_worker.hpp"
 #include "local_comm.hpp"
 #include "mpi_comm.hpp"
+#include "ivar.hpp"
 
 #include <thread>
 #include <atomic>
@@ -13,6 +14,7 @@ struct local_context_internals: public context_internals {
     std::vector<std::unique_ptr<default_worker>> workers;
     local_comm_queues lcq;
     default_worker main_worker;
+    ivar_db main_db;
     config cfg;
 
     local_context_internals(size_t n_workers, config cfg):
@@ -32,9 +34,12 @@ struct local_context_internals: public context_internals {
             threads.emplace_back(
                 [i, this] () mutable {
                     auto& w = workers[i - 1];
+                    ivar_db iv_db;
                     set_cur_worker(w.get());
+
                     w->set_core_affinity(i);
                     w->run();
+
                     clear_cur_worker();
                 }
             );

@@ -6,7 +6,7 @@
 
 namespace taskloaf {
 
-thread_local ivar_db cur_ivar_db;
+__thread ivar_db* cur_ivar_db;
 
 bool ivar::fulfilled_here() const {
     if (rr.local()) {
@@ -38,7 +38,7 @@ void add_trigger_helper(ivar_data& iv, closure& trigger) {
     }
 }
 
-auto add_trigger_sendable(std::tuple<remote_ref,closure>& p, ignore) {
+auto add_trigger_sendable(std::pair<remote_ref,closure>& p, ignore) {
     add_trigger_helper(std::get<0>(p).get(), std::get<1>(p));
     return ignore{};
 }
@@ -48,7 +48,7 @@ void ivar::add_trigger(closure trigger) {
         add_trigger_helper(rr.get(), trigger); 
     } else {
         cur_worker->add_task(rr.owner, closure(
-            add_trigger_sendable, std::make_tuple(rr, std::move(trigger))
+            add_trigger_sendable, std::make_pair(rr, std::move(trigger))
         ));
     }
 }
@@ -61,7 +61,7 @@ void fulfill_helper(ivar_data& iv, data val) {
     }
 }
 
-auto fulfill_sendable(std::tuple<remote_ref,data>& p, ignore&) {
+auto fulfill_sendable(std::pair<remote_ref,data>& p, ignore&) {
     fulfill_helper(std::get<0>(p).get(), std::move(std::get<1>(p)));
     return ignore{};
 };
@@ -71,7 +71,7 @@ void ivar::fulfill(data val) {
         fulfill_helper(rr.get(), std::move(val)); 
     } else {
         cur_worker->add_task(rr.owner, closure(
-            fulfill_sendable, std::make_tuple(rr, std::move(val))
+            fulfill_sendable, std::make_pair(rr, std::move(val))
         ));
     }
 }

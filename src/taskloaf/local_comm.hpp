@@ -28,8 +28,6 @@ struct local_comm: public comm {
     std::queue<msg> outbox;
     std::vector<address> remotes;
     address my_addr;
-    bool ready_msg = false;
-    closure cur_msg;
 
     local_comm(local_comm_queues& qs, uint16_t my_index);
 

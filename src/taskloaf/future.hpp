@@ -17,12 +17,12 @@ struct future {
         (void)ar;
     }
 
-    future then(closure f) {
-        return then(location::anywhere, std::move(f));
+    future then(closure fnc) {
+        return then(location::anywhere, std::move(fnc));
     }
 
-    future then(location loc, closure f) {
-        return then(static_cast<int>(loc), std::move(f));
+    future then(location loc, closure fnc) {
+        return then(static_cast<int>(loc), std::move(fnc));
     }
 
     future then(int loc, closure fnc) {
@@ -48,21 +48,21 @@ struct future {
     }
 
     future unwrap() {
-        future ofuture;
+        future out_future;
         internal.add_trigger(closure(
-            [] (future& ofuture, future& f) {
+            [] (future& out_future, future& f) {
                 f.internal.add_trigger(closure(
-                    [] (future& ofuture, data& d) {
-                        ofuture.internal.fulfill(std::move(d));
+                    [] (future& out_future, data& d) {
+                        out_future.internal.fulfill(std::move(d));
                         return ignore{};
                     },
-                    std::move(ofuture)
+                    std::move(out_future)
                 ));
                 return ignore{};
             },
-            ofuture
+            out_future
         ));
-        return ofuture;
+        return out_future;
     }
 
     data get() {
