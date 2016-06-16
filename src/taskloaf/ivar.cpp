@@ -36,17 +36,17 @@ void add_trigger_helper(ivar_data& iv, closure& trigger) {
     }
 }
 
-auto add_trigger_sendable(std::pair<ivar_data_ref,closure>& p, ignore) {
-    add_trigger_helper(std::get<0>(p).get(), std::get<1>(p));
-    return ignore{};
-}
 
 void ivar::add_trigger(closure trigger) {
     if (rr.local()) {
         add_trigger_helper(rr.get(), trigger); 
     } else {
         cur_worker->add_task(rr.owner, closure(
-            add_trigger_sendable, std::make_pair(rr, std::move(trigger))
+            [] (std::pair<ivar_data_ref,closure>& p, ignore) {
+                add_trigger_helper(std::get<0>(p).get(), std::get<1>(p));
+                return ignore{};
+            },
+            std::make_pair(rr, std::move(trigger))
         ));
     }
 }
@@ -59,17 +59,17 @@ void fulfill_helper(ivar_data& iv, data val) {
     }
 }
 
-auto fulfill_sendable(std::pair<ivar_data_ref,data>& p, ignore&) {
-    fulfill_helper(std::get<0>(p).get(), std::move(std::get<1>(p)));
-    return ignore{};
-};
 
 void ivar::fulfill(data val) {
     if (rr.local()) {
         fulfill_helper(rr.get(), std::move(val)); 
     } else {
         cur_worker->add_task(rr.owner, closure(
-            fulfill_sendable, std::make_pair(rr, std::move(val))
+            [] (std::pair<ivar_data_ref,data>& p, ignore&) {
+                fulfill_helper(std::get<0>(p).get(), std::move(std::get<1>(p)));
+                return ignore{};
+            },
+            std::make_pair(rr, std::move(val))
         ));
     }
 }

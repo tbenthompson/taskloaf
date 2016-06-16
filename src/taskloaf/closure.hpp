@@ -19,12 +19,13 @@ struct closure {
     closure() = default;
 
     template <typename F, typename T>
-    closure(F&& fnc, T&& val) {
-
+    closure(F fnc, T&& val) {
+        static_assert(!std::is_function<std::remove_pointer_t<F>>::value,
+            "Closure function must be a lambda or serializable functor object.");
         static_assert(std::is_trivially_copyable<std::decay_t<F>>::value,
-            "Function type must be trivially copyable");
+            "Closure function must be trivially copyable.");
 
-        f = data(std::forward<F>(fnc));
+        f = data(std::move(fnc));
         d = data(std::forward<T>(val));
 
         caller = closure::template caller_fnc<std::decay_t<F>>;
@@ -34,8 +35,8 @@ struct closure {
 
     template <typename F, 
         std::enable_if_t<!std::is_same<std::decay_t<F>,closure>::value>* = nullptr>
-    closure(F&& fnc):
-        closure(std::forward<F>(fnc), ignore{}) 
+    closure(F fnc):
+        closure(std::move(fnc), ignore{}) 
     {}
 
     template <typename F>

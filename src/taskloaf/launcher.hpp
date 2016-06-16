@@ -21,7 +21,7 @@ struct config {
 context launch_local(size_t n_workers, config cfg = config());
 
 #ifdef MPI_FOUND
-context launch_mpi();
+context launch_mpi(config cfg = config());
 #endif
 
 } //end namespace taskloaf

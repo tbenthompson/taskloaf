@@ -21,6 +21,14 @@ struct ivar {
     void add_trigger(closure trigger);
     void fulfill(data vals);
     data get();
+
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar(rr);
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        ar(rr);
+    }
 };
 
 } //end namespace taskloaf

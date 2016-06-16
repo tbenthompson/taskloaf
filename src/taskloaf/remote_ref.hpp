@@ -45,74 +45,17 @@ struct intrusive_ref_count {
 };
 
 template <typename T>
-struct remote_ref {
+struct ref_internal {
     T* hdl;
     unsigned generation;
     unsigned children;
-    address owner;
 
-    static T* allocate() {
-        auto& pool = get_pool<sizeof(T)>();
-        auto* ptr = pool.malloc();
-
-        TL_IF_DEBUG(get_delete_tracker().deleted[ptr] = false;,)
-
-        new (ptr) T();
-        auto* out = reinterpret_cast<T*>(ptr);
-        out->ref_count.gen_counts.push_back(1);
-        return out;
+    ref_internal<T> copy() {
+        children++;
+        return {hdl, generation + 1, 0};
     }
 
-    bool local() const {
-        return owner == cur_addr;
-    }
-
-    remote_ref():
-        hdl(allocate()),
-        generation(0),
-        children(0),
-        owner(cur_addr)
-    {}
-
-    remote_ref(const remote_ref& other):
-        hdl(other.hdl),
-        generation(other.generation + 1),
-        children(0),
-        owner(other.owner)
-    {
-        const_cast<remote_ref*>(&other)->children += 1;
-    }
-
-    remote_ref(remote_ref&& other):
-        hdl(other.hdl),
-        generation(other.generation),
-        children(other.children),
-        owner(other.owner)
-    {
-        other.hdl = nullptr;
-    }
-
-    ~remote_ref() { 
-        if (hdl == nullptr) {
-            return;
-        }
-        if (local()) {
-            dec_ref(hdl, generation, children);
-        } else {
-            if (cur_worker == nullptr) {
-                return;
-            }
-            cur_worker->add_task(owner, 
-                [hdl = this->hdl, gen = this->generation, children = this->children]
-                (_,_) { 
-                    dec_ref(hdl, gen, children);
-                    return _{};
-                }
-            );
-        }
-    }
-
-    static void dec_ref(T* hdl, unsigned generation, unsigned children) {
+    void dec_ref() {
         hdl->ref_count.dec_ref(generation, children);
         if (!hdl->ref_count.alive()) {
             TLASSERT(get_delete_tracker().deleted.count(hdl) > 0);
@@ -125,21 +68,95 @@ struct remote_ref {
         }
     }
 
+    void save(cereal::BinaryOutputArchive& ar) const {
+        ar(reinterpret_cast<intptr_t>(hdl));
+        ar(generation);
+        ar(children);
+    }
+
+    void load(cereal::BinaryInputArchive& ar) {
+        intptr_t hdl_in;
+        ar(hdl_in);
+        hdl = reinterpret_cast<T*>(hdl_in);
+        ar(generation);
+        ar(children);
+    }
+
+    static ref_internal allocate() {
+        auto& pool = get_pool<sizeof(T)>();
+        auto* ptr = pool.malloc();
+
+        TL_IF_DEBUG(get_delete_tracker().deleted[ptr] = false;,)
+
+        new (ptr) T();
+        auto* out = reinterpret_cast<T*>(ptr);
+        out->ref_count.gen_counts.push_back(1);
+        return {out, 0, 0};
+    }
+};
+
+template <typename T>
+struct remote_ref {
+    ref_internal<T> internal;
+    address owner;
+
+
+    bool local() const {
+        return owner == cur_addr;
+    }
+
+    remote_ref():
+        internal(ref_internal<T>::allocate()),
+        owner(cur_addr)
+    {}
+
+    remote_ref(const remote_ref& other):
+        internal(const_cast<remote_ref*>(&other)->internal.copy()),
+        owner(other.owner)
+    {}
+
+    remote_ref(remote_ref&& other):
+        internal(std::move(other.internal)),
+        owner(other.owner)
+    {
+        other.internal.hdl = nullptr;
+    }
+
+    ~remote_ref() { 
+        if (internal.hdl == nullptr) {
+            return;
+        }
+        if (local()) {
+            internal.dec_ref();
+        } else {
+            if (cur_worker == nullptr) {
+                return;
+            }
+            cur_worker->add_task(owner, [internal = this->internal] (_,_) mutable {
+                internal.dec_ref();
+                return _{}; 
+            });
+        }
+    }
+
     T& get() const {
         TLASSERT(local());
-        return *hdl;
+        return *internal.hdl;
     }
 
     remote_ref& operator=(remote_ref&& other) = delete;
     remote_ref& operator=(const remote_ref& other) = delete;
 
     void save(cereal::BinaryOutputArchive& ar) const {
-        (void)ar;
+        ar(const_cast<ref_internal<T>*>(&internal)->copy());
+        ar(owner);
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        (void)ar;
+        ar(internal);
+        ar(owner);
     }
+
 };
 
 } //end namespace taskloaf

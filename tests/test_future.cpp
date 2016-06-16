@@ -60,7 +60,7 @@ TEST_CASE("Then elsewhere") {
 
 TEST_CASE("Unwrap from elsewhere") {
     auto ctx = launch_local(2);
-    int x = async(0, [] (_,_) {
+    int x = async(1, [] (_,_) {
         return ready(1); 
     }).unwrap().get();
     REQUIRE(x == 1);

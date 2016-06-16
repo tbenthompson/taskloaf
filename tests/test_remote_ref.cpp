@@ -49,15 +49,15 @@ TEST_CASE("Copy ref") {
     cur_addr = address{0};
     tracker_ref rr;
     auto rr2 = rr;
-    REQUIRE(rr.children == 1);
-    REQUIRE(rr2.hdl == rr.hdl);
+    REQUIRE(rr.internal.children == 1);
+    REQUIRE(rr2.internal.hdl == rr.internal.hdl);
 }
 
 TEST_CASE("Move ref") {
     cur_addr = address{0};
     tracker_ref rr;
     auto rr2 = std::move(rr);
-    REQUIRE(rr.hdl == nullptr);
+    REQUIRE(rr.internal.hdl == nullptr);
 }
 
 TEST_CASE("Copy empty") {

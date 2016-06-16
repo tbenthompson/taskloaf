@@ -10,11 +10,11 @@ struct future {
     ivar internal;
 
     void save(cereal::BinaryOutputArchive& ar) const {
-        (void)ar;
+        ar(internal);
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        (void)ar;
+        ar(internal);
     }
 
     future then(closure fnc) {

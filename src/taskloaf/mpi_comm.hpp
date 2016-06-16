@@ -7,7 +7,7 @@
 
 namespace taskloaf {
 
-int mpi_rank(const comm& c);
+int mpi_rank();
 
 struct sent_mpi_msg {
     std::string msg;

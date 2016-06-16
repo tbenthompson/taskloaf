@@ -1,7 +1,7 @@
 #include "catch.hpp"
 
 #include "taskloaf/mpi_comm.hpp"
-#include "taskloaf/closure.hpp"
+#include "taskloaf.hpp"
 
 #include "serializable_functor.hpp"
 
@@ -12,7 +12,7 @@ using namespace taskloaf;
 
 void test_send(closure f) {
     mpi_comm c;
-    if (mpi_rank(c) == 0) {
+    if (mpi_rank() == 0) {
         c.send({1}, f);
     } else {
         bool stop = false;
@@ -67,14 +67,48 @@ void test_send_closure_functor() {
 }
 
 TEST_CASE("MPI") {
-    MPI_Init(nullptr, nullptr);
-
     test_send_simple();
     test_send_data();
     test_send_closure_lambda();
     test_send_closure_functor();
+}
 
-    std::cout << "MPI Tests passed" << std::endl;
+TEST_CASE("MPI Remote task") {
+    auto ctx = launch_mpi();
+    
+    std::string s("HI");
+    if (cur_addr == address{0}) {
 
-    MPI_Finalize();
+        cur_worker->add_task({1}, closure([&] (std::string s,_) {
+
+            REQUIRE(cur_addr == address{1});
+            REQUIRE(s == "HI");
+
+            cur_worker->add_task({0}, closure([&] (std::string s,_) {
+
+                REQUIRE(cur_addr == address{0});
+                REQUIRE(s == "HI");
+
+                cur_worker->shutdown();
+                return _{};
+
+            }, s));
+            return _{};
+
+        }, s));
+        cur_worker->run();
+    }
+}
+
+TEST_CASE("MPI Remote async") {
+    auto ctx = launch_mpi();
+
+    if (cur_addr.id == 0) {
+        REQUIRE(cur_addr == address{0});
+        int x = async(1, [] (_,_) {
+            REQUIRE(cur_addr == address{1});
+            return 13; 
+        }).get();
+        REQUIRE(x == 13);
+    }
 }

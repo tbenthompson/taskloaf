@@ -76,21 +76,31 @@ context launch_local(size_t n_workers, config cfg) {
 
 struct mpi_context_internals: public context_internals {
     default_worker w; 
+    config cfg;
 
-    mpi_context_internals():
-        w(std::make_unique<mpi_comm>())
+    mpi_context_internals(config cfg):
+        w(std::make_unique<mpi_comm>()),
+        cfg(cfg)
     {
         set_cur_worker(&w);
+        if (mpi_rank() != 0) {
+            w.run();
+        }
     }
 
     ~mpi_context_internals() {
-        w.shutdown();
+        if (mpi_rank() == 0) {
+            w.shutdown();
+        }
+        if (cfg.print_stats) {
+            w.log.write_stats(std::cout);
+        }
         clear_cur_worker();
     }
 };
 
-context launch_mpi() {
-    return context(std::make_unique<mpi_context_internals>());
+context launch_mpi(config cfg) {
+    return context(std::make_unique<mpi_context_internals>(cfg));
 }
 
 #endif

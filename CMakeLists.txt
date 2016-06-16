@@ -136,8 +136,10 @@ if(BUILD_TESTS)
     taskloaf_tests(remote_ref True)
 
     if (MPI_CXX_FOUND)
-        taskloaf_tests(mpi False)
+        add_executable(mpi "tests/test_mpi_main.cpp;tests/test_mpi.cpp")
+        test_link_include(mpi)
         add_test(mpi mpirun -n 2 mpi)
+        add_dependencies(tests benchmark)
     endif()
 
     add_executable(benchmark "tests/benchmark.cpp")

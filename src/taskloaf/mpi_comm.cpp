@@ -5,8 +5,10 @@
 
 namespace taskloaf {
 
-int mpi_rank(const comm& c) {
-    return c.get_addr().id;
+int mpi_rank() {
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    return rank;
 }
 
 mpi_comm::mpi_comm() {
