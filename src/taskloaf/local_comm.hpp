@@ -28,6 +28,7 @@ struct local_comm: public comm {
     std::queue<msg> outbox;
     std::vector<address> remotes;
     address my_addr;
+    bool in_cleanup;
 
     local_comm(local_comm_queues& qs, uint16_t my_index);
 

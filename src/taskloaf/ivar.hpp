@@ -116,6 +116,9 @@ struct remote_ref {
         if (local()) {
             hdl.dec_ref();
         } else {
+            if (cur_worker == nullptr) {
+                return;
+            }
             cur_worker->add_task(owner, [hdl = this->hdl] (_,_) { 
                 hdl.dec_ref(); 
                 return _{};

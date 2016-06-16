@@ -22,46 +22,27 @@ inline boost::pool<>& get_pool() {
 }
 
 enum class action {
+    copy,
     get_type,
     serialize,
     destroy
 };
 
-namespace detail {
-
-inline std::atomic<size_t>& get_references(void* ptr) {
-    return *reinterpret_cast<std::atomic<size_t>*>(ptr);
-}
-
-inline address& get_owner(void* ptr) {
-    return *reinterpret_cast<address*>(
-        reinterpret_cast<uint8_t*>(ptr) + sizeof(std::atomic<size_t>)
-    );
-}
-
-template <typename T>
-inline T& get_val(void* ptr) {
-    return *reinterpret_cast<T*>(
-        reinterpret_cast<uint8_t*>(ptr) + sizeof(std::atomic<size_t>) + sizeof(address)
-    );
-}
-
-}
-
 struct data {
     using deserializer_type = data(*)(cereal::BinaryInputArchive&);
     using policy_type = void(*)(action,data*,void*);
 
-    static constexpr size_t InternalStorage = sizeof(void*);
+    static constexpr size_t internal_storage_size = sizeof(void*);
 
     template <typename T>
     static constexpr bool store_directly_v = 
-        std::is_trivially_copyable<T>::value && (sizeof(T) < InternalStorage);
+        std::is_trivially_copyable<T>::value && (sizeof(T) < internal_storage_size);
     
     union {
         void* ptr;
-        std::aligned_storage_t<InternalStorage> storage;
+        std::aligned_storage_t<internal_storage_size> storage;
     };
+    TL_IF_DEBUG(boost::pool<>* create_pool;,)
     policy_type policy = nullptr;
     bool is_ptr;
 
@@ -71,19 +52,9 @@ struct data {
             !store_directly_v<std::decay_t<T>>
         >* = nullptr>
     data(T&& v) {
-        using stored_type = std::decay_t<T>;
-        constexpr size_t alloc_size = 
-            sizeof(stored_type) + sizeof(std::atomic<size_t>) + sizeof(address);
-
         is_ptr = true;
-        ptr = get_pool<alloc_size>().malloc();
-
-        detail::get_references(ptr) = 1;
-        detail::get_owner(ptr) = cur_addr;
-        new (&detail::get_val<stored_type>(ptr)) stored_type(std::forward<T>(v));
         policy = policy_fnc<std::decay_t<T>>;
-
-        TLASSERT(detail::get_references(ptr) == 1); 
+        setup(std::forward<T>(v));
     }
 
     template <typename T,
@@ -93,8 +64,8 @@ struct data {
         >* = nullptr>
     data(T&& v) {
         is_ptr = false;
-        std::memcpy(&storage, &v, sizeof(void*));
         policy = policy_fnc<std::decay_t<T>>;
+        std::memcpy(&storage, &v, sizeof(void*));
     }
 
     data() = default;
@@ -125,11 +96,7 @@ struct data {
     
     void destroy() {
         if (!empty() && is_ptr) {
-            std::atomic<size_t>& ref = detail::get_references(ptr);
-            ref--;
-            if (ref == 0) {
-                policy(action::destroy, this, nullptr);
-            }
+            policy(action::destroy, this, nullptr);
         }
     }
 
@@ -138,20 +105,13 @@ struct data {
         is_ptr = other.is_ptr;
     }
 
-    void memcpy_internal(const data& other) {
-        if (other.is_ptr) {
-            std::memcpy(&ptr, &other.ptr, sizeof(void*));
-        } else {
-            std::memcpy(&storage, &other.storage, sizeof(InternalStorage));
-        }
-    }
-
     void copy_from(const data& other) {
         set_policy(other);
         if (!empty()) {
-            memcpy_internal(other);
-            if (is_ptr) {
-                detail::get_references(ptr)++;
+            if (other.is_ptr) {
+                policy(action::copy, this, const_cast<data*>(&other));
+            } else {
+                std::memcpy(&storage, &other.storage, sizeof(internal_storage_size));
             }
         }
     }
@@ -159,7 +119,8 @@ struct data {
     void move_from(data&& other) {
         set_policy(other);
         if (!empty()) {
-            memcpy_internal(other);
+            TL_IF_DEBUG(create_pool = other.create_pool;,)
+            std::memcpy(&storage, &other.storage, sizeof(internal_storage_size));
             other.policy = nullptr;
         }
     }
@@ -183,7 +144,7 @@ struct data {
 
     template <typename T, std::enable_if_t<!store_directly_v<T>>* = nullptr>
     T& unchecked_get() {
-        return detail::get_val<T>(ptr);
+        return *reinterpret_cast<T*>(ptr);
     }
 
     template <typename T, std::enable_if_t<store_directly_v<T>>* = nullptr>
@@ -211,6 +172,15 @@ struct data {
 
     template <typename T>
     operator T&() { return get<T>(); }
+
+    template <typename T>
+    void setup(T&& v) {
+        using stored_type = std::decay_t<T>;
+        auto& pool = get_pool<sizeof(stored_type)>();
+        ptr = pool.malloc();
+        TL_IF_DEBUG(create_pool = &pool;,)
+        new (ptr) stored_type(std::forward<T>(v));
+    }
 
     template <typename T, 
         std::enable_if_t<!std::is_trivially_copyable<T>::value>* = nullptr>
@@ -261,50 +231,36 @@ struct data {
     }
 
     template <typename T, std::enable_if_t<!store_directly_v<T>>* = nullptr>
-    static void policy_fnc(action a, data* any_ptr, void* ptr2) {
+    static void policy_fnc(action a, data* d_ptr, void* ptr2) {
         switch(a) {
-        case action::get_type: { get_type<T>(ptr2); break; }
-        case action::serialize: { serialize<T>(any_ptr, ptr2); break; }
-        case action::destroy: {
-            const std::type_info* type;
-            get_type<T>(&type);
-            std::cout << type->name() << std::endl;
-            TLASSERT(any_ptr->ptr != nullptr);
-            // constexpr static size_t obj_size = sizeof(data_internal<T>);
-            if (detail::get_owner(any_ptr->ptr) == cur_addr) {
-            //     auto& ref_count = any_ptr->get_references();
-            //     ref_count--; 
-            //     if (ref_count == 0) {
-            //         any_ptr->template unchecked_get<T>().~T();
-            //         get_pool<obj_size>().free(any_ptr->ptr);
-            //     }
-            } else {
-                // std::cout << "REMOTE DELETE" << std::endl;
-            //     cur_worker->add_task(any_ptr->get_owner(), closure(
-            //         [] (void* void_ptr,_) {
-            //             auto* ptr = reinterpret_cast<data_internal<T>*>(void_ptr);
-            //             auto& ref_count = ptr->ref_count;
-            //             ref_count--; 
-            //             if (ref_count == 0) {
-            //                 ptr->val.~T();
-            //                 get_pool<obj_size>().free(ptr);
-            //             }
-            //             return _{};
-            //         },
-            //         any_ptr->ptr
-            //     ));
-            }
+        case action::copy: { 
+            auto& other_val = reinterpret_cast<data*>(ptr2)->get<T>();
+            d_ptr->setup(other_val);
             break;
         }
+        case action::destroy: {
+            d_ptr->get<T>().~T();
+            auto& pool = get_pool<sizeof(T)>();
+            // Check that the pointer is being deleted with the same
+            // memory pool that allocated it.
+            TLASSERT(d_ptr->create_pool == &pool);
+            pool.free(d_ptr->ptr);
+            break;
+        }
+        case action::get_type: { get_type<T>(ptr2); break; }
+        case action::serialize: { serialize<T>(d_ptr, ptr2); break; }
         }
     }
 
     template <typename T, std::enable_if_t<store_directly_v<T>>* = nullptr>
-    static void policy_fnc(action a, data* any_ptr, void* ptr2) {
+    static void policy_fnc(action a, data* d_ptr, void* ptr2) {
         switch(a) {
         case action::get_type: { get_type<T>(ptr2); break; }
-        case action::serialize: { serialize<T>(any_ptr, ptr2); break; }
-        case action::destroy: { break; }
+        case action::serialize: { serialize<T>(d_ptr, ptr2); break; }
+        // These shouldn't be called for a trivially copyable type
+        // since memcpy can be used and the destructor is trivial.
+        case action::copy: { TLASSERT(false); break; }
+        case action::destroy: { TLASSERT(false); break; }
         }
     }
 };

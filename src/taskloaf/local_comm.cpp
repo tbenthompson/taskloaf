@@ -30,6 +30,7 @@ const std::vector<address>& local_comm::remote_endpoints() {
 }
 
 void local_comm::send(const address& dest, closure msg) {
+    TLASSERT(dest != my_addr);
     cleanup();
     outbox.push({std::move(msg), false});
     queues.qs[dest.id].enqueue(&outbox.back());
@@ -42,20 +43,20 @@ closure local_comm::recv() {
     if (cur_msg == nullptr) {
         return closure();
     }
-    return closure(
-        [] (msg* m, data& val) {
-            auto out = m->c(val);
-            m->done = true;
-            return out;
-        },
-        cur_msg
-    );
+    closure out(cur_msg->c);
+    cur_msg->done = true;
+    return out;
 }
 
 void local_comm::cleanup() {
+    if (in_cleanup) {
+        return;
+    }
     if (outbox.size() > 0 && outbox.front().done) {
+        in_cleanup = true;
         outbox.pop();
         cleanup();
+        in_cleanup = false;
     }
 }
 

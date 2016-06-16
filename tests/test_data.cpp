@@ -45,10 +45,18 @@ TEST_CASE("Assignment operator") {
     auto d2 = data(OwnershipTracker());
     OwnershipTracker::reset();
 
-    d = std::move(d2);
-    // Just moves the pointer!
-    REQUIRE(OwnershipTracker::moves() == 0);
-    REQUIRE(OwnershipTracker::copies() == 0);
+    SECTION("Move") {
+        d = std::move(d2);
+        // Just moves the pointer!
+        REQUIRE(OwnershipTracker::moves() == 0);
+        REQUIRE(OwnershipTracker::copies() == 0);
+    }
+
+    SECTION("Copy") {
+        d = d2;
+        REQUIRE(OwnershipTracker::moves() == 0);
+        REQUIRE(OwnershipTracker::copies() == 1);
+    }
 }
 
 TEST_CASE("Destructors called") {

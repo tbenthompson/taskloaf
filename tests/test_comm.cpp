@@ -35,16 +35,6 @@ void test_comm(comm& a, comm& b) {
         b.recv()();
         REQUIRE(x == 0.0);
     }
-
-    SECTION("Msg deleted") {
-        auto d = data(std::vector<double>());
-        REQUIRE(detail::get_references(d.ptr) == 1);
-        a.send({1}, closure([&] (_,_) { return _{}; }, d));
-        REQUIRE(detail::get_references(d.ptr) == 2);
-        b.recv()();
-        REQUIRE(a.recv().empty());
-        REQUIRE(detail::get_references(d.ptr) == 1);
-    }
 }
 
 TEST_CASE("Local comm", "[comm]") {
