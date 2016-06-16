@@ -122,7 +122,26 @@ struct remote_ref {
         other.internal.hdl = nullptr;
     }
 
+    remote_ref& operator=(remote_ref&& other) {
+        destroy();
+        internal = std::move(other.internal);
+        owner = other.owner;
+        other.internal.hdl = nullptr;
+        return *this;
+    }
+        
+    remote_ref& operator=(const remote_ref& other) {
+        destroy();
+        internal = const_cast<remote_ref*>(&other)->internal.copy();
+        owner = other.owner;
+        return *this;
+    }
+
     ~remote_ref() { 
+        destroy();
+    }
+
+    void destroy() {
         if (internal.hdl == nullptr) {
             return;
         }
@@ -143,9 +162,6 @@ struct remote_ref {
         TLASSERT(local());
         return *internal.hdl;
     }
-
-    remote_ref& operator=(remote_ref&& other) = delete;
-    remote_ref& operator=(const remote_ref& other) = delete;
 
     void save(cereal::BinaryOutputArchive& ar) const {
         ar(const_cast<ref_internal<T>*>(&internal)->copy());

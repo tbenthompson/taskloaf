@@ -133,6 +133,7 @@ if(BUILD_TESTS)
     taskloaf_tests(worker True)
     taskloaf_tests(comm True)
     taskloaf_tests(future True)
+    taskloaf_tests(typed_future True)
     taskloaf_tests(remote_ref True)
 
     if (MPI_CXX_FOUND)

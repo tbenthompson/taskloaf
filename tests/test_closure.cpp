@@ -14,16 +14,6 @@ TEST_CASE("lambda") {
     REQUIRE(x == 6);
 }
 
-int test_fnc(ignore, int x) {
-    return x * 2;
-}
-
-TEST_CASE("free fnc") {
-    auto f = closure(test_fnc);
-    int x = f(data(3));
-    REQUIRE(x == 6);
-}
-
 TEST_CASE("capture") {
     int y = 10;
     auto f = closure([y] (ignore, int x) { return y * x; });
@@ -43,14 +33,6 @@ TEST_CASE("param") {
     int x = c(data(3));
     REQUIRE(x == 36);
 }
-
-TEST_CASE("Serialize/deserialize fnc") {
-    auto c = closure(test_fnc);
-    auto c2 = deserialize<decltype(c)>(serialize(c));
-    int x = c2(data(3));
-    REQUIRE(x == 6);
-}
-
 
 TEST_CASE("Serialize/deserialize lambda") {
     int mult = 256;
