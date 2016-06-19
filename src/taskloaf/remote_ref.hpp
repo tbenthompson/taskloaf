@@ -100,7 +100,6 @@ struct remote_ref {
     ref_internal<T> internal;
     address owner;
 
-
     bool local() const {
         return owner == cur_addr;
     }

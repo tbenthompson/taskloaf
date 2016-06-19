@@ -18,6 +18,8 @@ struct default_worker: public worker {
 
     int core_id = -1;
     bool stealing = false;
+    bool running_task = false;
+    std::vector<closure> temp_tasks;
     std::atomic<bool> should_stop;
     int immediate_computes = 0;
     static const int immediates_allowed = 5000;

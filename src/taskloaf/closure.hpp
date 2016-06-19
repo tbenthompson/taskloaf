@@ -62,6 +62,10 @@ struct closure {
         return f.empty();
     }
 
+    operator bool() {
+        return !empty();
+    }
+
     data operator()(data& arg) {
         return caller(*this, arg);
     }

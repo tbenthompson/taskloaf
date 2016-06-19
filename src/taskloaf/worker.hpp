@@ -3,6 +3,9 @@
 
 #include <memory>
 
+#include <x86intrin.h>
+
+
 namespace taskloaf { 
 
 struct closure;
@@ -18,6 +21,20 @@ struct worker {
 
     virtual void add_task(closure t) = 0;
     virtual void add_task(const address& where, closure t) = 0;
+
+    uint64_t now() {
+        return 0;
+    }
+    uint64_t last_poll = now();
+
+    constexpr static uint64_t us = 1000;
+    constexpr static uint64_t ms = us * 1000;
+    constexpr static uint64_t polling_interval = 50000 * ms;
+    bool should_run_now() volatile {
+        return true;
+        // return now() - last_poll < polling_interval;
+    }
+
 };
 
 extern __thread worker* cur_worker;

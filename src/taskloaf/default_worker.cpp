@@ -33,7 +33,11 @@ void default_worker::set_stopped(bool val) {
 }
 
 void default_worker::add_task(closure t) {
-    tasks.add_task(std::move(t));
+    if (false) {
+        temp_tasks.push_back(std::move(t)); 
+    } else {
+        tasks.add_task(std::move(t));
+    }
 }
 
 void default_worker::add_task(const address& where, closure t) {
@@ -57,15 +61,21 @@ comm& default_worker::get_comm() {
 }
 
 void default_worker::one_step() {
-    auto t = my_comm->recv();
-    if (!t.empty()) {
+    while (auto t = my_comm->recv()) {
         tasks.add_local_task(std::move(t));
     }
+    last_poll = now();
 
     if (tasks.size() == 0) {
         tasks.steal();
     } else {
+        running_task = true;
         tasks.run_next();
+        while (temp_tasks.size() > 0) {
+            tasks.add_task(std::move(temp_tasks.back()));
+            temp_tasks.pop_back();
+        }
+        running_task = false;
     }
 }
 

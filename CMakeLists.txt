@@ -36,8 +36,8 @@ endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     # Turn on O3 and lto for Clang and gcc.
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -flto -g")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -g")
     # Clang 3.5 can't handle generating debug symbols for auto return type
     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.6) 
         set(CMAKE_CXX_FLAGS_DEBUG "-O0")
@@ -46,6 +46,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-mismatched-tags")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -flto")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -g")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-literal-suffix")
 endif()
 

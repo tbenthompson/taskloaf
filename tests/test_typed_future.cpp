@@ -14,85 +14,97 @@ auto apply_args(F&& func, TupleT& args, std::index_sequence<I...>) {
     return func(std::move(std::get<I>(args))...);
 }
 
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
+
 template <typename T>
 struct tfuture {
-    union {
-        T val;
-        future fut;
-    };
-    bool immediate;
+    std::unique_ptr<future> fut;
+    T val;
 
-    tfuture(): val(), immediate(true) {}
-    tfuture(T val): val(std::move(val)), immediate(true) {}
-    tfuture(future fut): fut(fut), immediate(false) {}
+    tfuture(): fut(nullptr), val() {}
+    tfuture(T val): fut(nullptr), val(std::move(val)) {}
+    tfuture(future fut): fut(new future(std::move(fut))), val() {}
 
     tfuture(const tfuture& other) {
-        copy_from(other);
+        val = other.val;
+        if (unlikely(other.fut != nullptr)) {
+            fut = std::make_unique<future>(*other.fut);
+        }
     }
 
     tfuture& operator=(const tfuture& other) {
-        destroy();
-        copy_from(other);
+        val = other.val;
+        if (unlikely(other.fut != nullptr)) {
+            fut = std::make_unique<future>(*other.fut);
+        }
         return *this;
     }
 
-    tfuture(tfuture&& other) {
-        move_from(other);
-    }
-
-    tfuture& operator=(tfuture&& other) {
-        destroy();
-        move_from(other);
-        return *this;
-    }
-
-    ~tfuture() {
-        destroy();
-    }
-
-    void copy_from(const tfuture& other) {
-        immediate = other.immediate;
-        if (immediate) {
-            val = other.val; 
-        } else {
-            fut = other.fut;
-        }
-    }
-
-    void move_from(const tfuture& other) {
-        immediate = other.immediate;
-        if (immediate) {
-            val = std::move(other.val); 
-        } else {
-            fut = std::move(other.fut);
-        }
-    }
-
-    void destroy() {
-        if (immediate) {
-            val.~T();
-        } else {
-            fut.~future();
-        }
-    }
 
     template <typename F, typename... TEnclosed>
     auto then(F f, TEnclosed&&... enclosed_vals) {
 
-        using result_type = std::result_of_t<F(TEnclosed&...,T)>; 
-        bool run_now = true;
+        using result_type = std::result_of_t<F(TEnclosed...,T)>; 
+        bool run_now = cur_worker->should_run_now();
 
-        if (run_now && immediate) {
+        if (likely(!fut && run_now)) {
             return tfuture<result_type>(
                 f(std::forward<TEnclosed>(enclosed_vals)..., val)
             );
-        } else if (run_now && fut.fulfilled_here()) {
-            return tfuture<result_type>(
-                f(std::forward<TEnclosed>(enclosed_vals)..., fut.get())
-            );
+        } else if (!fut) {
+            return tfuture<result_type>(async(closure(
+                [] (std::tuple<data,std::tuple<TEnclosed...,T>>& p,_) {
+                    return apply_args(
+                        std::get<0>(p).template get<F>(),
+                        std::get<1>(p), std::index_sequence_for<TEnclosed...,T>{}
+                    );
+                },
+                std::make_tuple(
+                    data(std::move(f)),
+                    std::make_tuple(std::forward<TEnclosed>(enclosed_vals)...,val)
+                )
+            )));
         }
+        // if (likely(run_now && fut == nullptr)) {
+        //     return tfuture<result_type>(
+        //         f(std::forward<TEnclosed>(enclosed_vals)..., val)
+        //     );
 
-        return tfuture<result_type>(fut.then(closure(
+        // } else if (run_now && fut->fulfilled_here()) {
+        //     return tfuture<result_type>(
+        //         f(std::forward<TEnclosed>(enclosed_vals)..., fut->get())
+        //     );
+
+        // } else if (fut == nullptr) {
+        //     return tfuture<result_type>(async(closure(
+        //         [] (std::tuple<data,std::tuple<TEnclosed...,T>>& p,_) {
+        //             return apply_args(
+        //                 std::get<0>(p).template get<F>(),
+        //                 std::get<1>(p), std::index_sequence_for<TEnclosed...,T>{}
+        //             );
+        //         },
+        //         std::make_tuple(
+        //             data(std::move(f)),
+        //             std::make_tuple(std::forward<TEnclosed>(enclosed_vals)...,val)
+        //         )
+        //     )));
+        // }
+        // } else if (fut->fulfilled_here()) {
+        //     return tfuture<result_type>(async(closure(
+        //         [] (std::tuple<data,std::tuple<TEnclosed...,T>>& p,_) {
+        //             return apply_args(
+        //                 std::get<0>(p).template get<F>(),
+        //                 std::get<1>(p), std::index_sequence_for<TEnclosed...,T>{}
+        //             );
+        //         },
+        //         std::make_tuple(
+        //             data(std::move(f)),
+        //             std::make_tuple(std::forward<TEnclosed>(enclosed_vals)...,fut->get())
+        //         )
+        //     )));
+
+        return tfuture<result_type>(fut->then(closure(
             [] (std::tuple<data,std::tuple<TEnclosed...>>& p, data& d) {
                 return apply_args(
                     std::get<0>(p).template get<F>(),
@@ -106,15 +118,50 @@ struct tfuture {
         )));
     }
 
-    T& unwrap() {
-        return val;
+    T unwrap_delayed() {
+        return T(fut->then([] (_,T& inner_fut) { 
+            if (inner_fut.fut == nullptr) {
+                return ready(inner_fut.val);     
+            } else {
+                return *inner_fut.fut; 
+            }
+        }).unwrap());
     }
 
-    T& get() {
-        if (immediate) {
+    T unwrap() & {
+        // static_assert(std
+        if (likely(!fut)) {
+            return val;
+        // } else if (fut->fulfilled_here()) {
+        //     return fut->get(); 
+        } else {
+            return unwrap_delayed();
+        }
+    }
+
+    T unwrap() && {
+        if (likely(!fut)) {
+            return std::move(val);
+        // } else if (fut->fulfilled_here()) {
+        //     return fut->get(); 
+        } else {
+            return unwrap_delayed();
+        }
+    }
+
+    T& get() & {
+        if (!fut) {
             return val;
         } else {
-            return fut.get();
+            return fut->get();
+        }
+    }
+
+    T get() && {
+        if (!fut) {
+            return std::move(val);
+        } else {
+            return fut->get();
         }
     }
 
@@ -136,8 +183,8 @@ template <typename F, typename... TEnclosed>
 auto tasync(F f, TEnclosed&&... enclosed_vals) {
     using result_type = std::result_of_t<F(TEnclosed&...)>;
 
-    bool run_now = true;
-    if (run_now) {
+    bool run_now = cur_worker->should_run_now();
+    if (likely(run_now)) {
         return tfuture<result_type>(f());
     }
     return tfuture<result_type>(async(closure(
@@ -155,18 +202,22 @@ auto tasync(F f, TEnclosed&&... enclosed_vals) {
 }
 
 TEST_CASE("Ready immediate") {
+    auto ctx = launch_local(1);
     REQUIRE(tready(10).get() == 10);
 }
 
 TEST_CASE("Async immediate") {
+    auto ctx = launch_local(1);
     REQUIRE(tasync([] { return 10; }).get() == 10);
 }
 
 TEST_CASE("Then immediate") {
+    auto ctx = launch_local(1);
     REQUIRE(tready(10).then([] (int x) { return x * 2; }).get() == 20);
 }
 
 TEST_CASE("Then immediate with enclosed") {
+    auto ctx = launch_local(1);
     int result = tready(10).then(
         [] (int a, int x) { return a + x * 2; },
         2
@@ -178,17 +229,29 @@ tfuture<int> fib(int idx) {
     if (idx < 3) {
         return tready(1);
     } else {
-        return tasync([idx] {
-            return fib(idx - 1).then(
-                [] (tfuture<int> a, int x) {
-                    return a.then([x] (int y) { return x + y; });
-                },
-                fib(idx - 2)
-            ).unwrap();
-        }).unwrap();
+        // return tasync([idx] () {
+        //     return fib(idx - 1).then([] (tfuture<int> a, int x) {
+        //         return a.then([x] (int y) { return x + y; });
+        //     }, fib(idx - 2)).unwrap();
+        // }).unwrap();
+        // return tasync([=] { return fib(idx - 1); }).unwrap().then(
+        //     [] (tfuture<int> a, int x) {
+        //         return a.then([x] (int y) { return x + y; });
+        //     },
+        //     fib(idx - 2)
+        // ).unwrap();
+        return fib(idx - 1).then(
+            [] (tfuture<int> a, int x) {
+                return a.then([x] (int y) { return x + y; });
+            },
+            fib(idx - 2)
+        ).unwrap();
     }
 }
+
 TEST_CASE("Fib") {
-    auto ctx = launch_local(1);
+    config cfg;
+    cfg.print_stats = true;
+    auto ctx = launch_local(1,cfg);
     std::cout << int(fib(44).get()) << std::endl; 
 }
