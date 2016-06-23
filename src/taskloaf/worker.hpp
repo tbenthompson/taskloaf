@@ -1,10 +1,7 @@
 #pragma once
 #include "address.hpp"
 
-#include <memory>
-
-#include <x86intrin.h>
-
+#include <atomic>
 
 namespace taskloaf { 
 
@@ -22,9 +19,13 @@ struct worker {
     virtual void add_task(closure t) = 0;
     virtual void add_task(const address& where, closure t) = 0;
 
-
-    bool needs_interrupt = false;
-    bool should_run_now() volatile { return true; }
+    std::atomic<bool> needs_interrupt;
+    bool get_needs_interrupt() {
+        return needs_interrupt.load(std::memory_order_relaxed); 
+    }
+    void set_needs_interrupt(bool val) {
+        needs_interrupt.store(val, std::memory_order_relaxed); 
+    }
 };
 
 extern __thread worker* cur_worker;

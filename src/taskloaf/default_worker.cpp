@@ -59,6 +59,7 @@ void default_worker::one_step() {
     while (auto t = my_comm->recv()) {
         tasks.add_local_task(std::move(t));
     }
+    set_needs_interrupt(false);
 
     if (tasks.size() == 0) {
         tasks.steal();

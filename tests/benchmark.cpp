@@ -68,18 +68,7 @@ future<int> typed_fib(int idx) {
     if (idx < 3) {
         return ready(1);
     } else {
-        // return async([idx] () {
-        //     return fib(idx - 1).then([] (future<int> a, int x) {
-        //         return a.then([x] (int y) { return x + y; });
-        //     }, fib(idx - 2)).unwrap();
-        // }).unwrap();
-        // return async([=] { return fib(idx - 1); }).unwrap().then(
-        //     [] (future<int> a, int x) {
-        //         return a.then([x] (int y) { return x + y; });
-        //     },
-        //     fib(idx - 2)
-        // ).unwrap();
-        return typed_fib(idx - 1).then(
+        return async([=] { return typed_fib(idx - 1); }).unwrap().then(
             [] (future<int> a, int x) {
                 return a.then([x] (int y) { return x + y; });
             },
@@ -91,8 +80,8 @@ future<int> typed_fib(int idx) {
 size_t typed_fib() {
     config cfg;
     cfg.print_stats = true;
-    auto ctx = launch_local(6,cfg);
-    std::cout << int(fib(44).get()) << std::endl; 
+    auto ctx = launch_local(1,cfg);
+    std::cout << int(typed_fib(44).get()) << std::endl; 
     return 0;
 }
 

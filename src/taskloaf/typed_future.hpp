@@ -58,7 +58,7 @@ struct future {
     auto then(F f, TEnclosed&&... enclosed_vals) {
 
         using result_type = std::result_of_t<F(TEnclosed...,T&)>; 
-        bool run_now = cur_worker->should_run_now();
+        bool run_now = !cur_worker->needs_interrupt;
 
         if (tl_likely(!fut && run_now)) {
             return future<result_type>(
@@ -126,7 +126,7 @@ template <typename F, typename... TEnclosed>
 auto async(F f, TEnclosed&&... enclosed_vals) {
     using result_type = std::result_of_t<F(TEnclosed&...)>;
 
-    bool run_now = cur_worker->should_run_now();
+    bool run_now = !cur_worker->needs_interrupt;
     if (tl_likely(run_now)) {
         return future<result_type>(f());
     }
