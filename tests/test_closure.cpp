@@ -1,4 +1,4 @@
-#include "catch.hpp"
+#include "doctest.h"
 
 #include "taskloaf/closure.hpp"
 

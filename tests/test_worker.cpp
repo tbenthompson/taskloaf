@@ -1,4 +1,4 @@
-#include "catch.hpp"
+#include "doctest.h"
 
 #include "taskloaf/future.hpp"
 #include "taskloaf/launcher.hpp"
@@ -13,7 +13,7 @@
 
 using namespace taskloaf;
 
-TEST_CASE("Launch and immediately destroy", "[launch]") {
+TEST_CASE("Launch and immediately destroy") {
     launch_local(4);
 }
 
@@ -102,7 +102,7 @@ TEST_CASE("Add task") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
     tc.add_task(closure([&] (_, _) { x = 1; return _{}; }));
-    REQUIRE(tc.size() == 1);
+    REQUIRE(int(tc.size()) == 1);
     tc.run_next();
     REQUIRE(x == 1);
 }
@@ -110,10 +110,10 @@ TEST_CASE("Add task") {
 TEST_CASE("Victimized") {
     MAKE_TASK_COLLECTION(tc); 
     tc.add_task(closure([&] (_, _) { return _{}; }));
-    REQUIRE(tc.size() == 1);
+    REQUIRE(int(tc.size()) == 1);
     auto tasks = tc.victimized();
-    REQUIRE(tc.size() == 0);
-    REQUIRE(tasks.size() == 1);
+    REQUIRE(int(tc.size()) == 0);
+    REQUIRE(int(tasks.size()) == 1);
 }
 
 TEST_CASE("Receive tasks") {
@@ -121,15 +121,15 @@ TEST_CASE("Receive tasks") {
     tc.add_task(closure([&] (_, _) { return _{}; }));
     auto tasks = tc.victimized();
     tc.receive_tasks(std::move(tasks));
-    REQUIRE(tc.size() == 1);
+    REQUIRE(int(tc.size()) == 1);
 }
 
 TEST_CASE("Steal request") {
     MAKE_TASK_COLLECTION(tc);
     tc.steal();
-    REQUIRE(comm.sent.size() == 1);
+    REQUIRE(int(comm.sent.size()) == 1);
     tc.steal();
-    REQUIRE(comm.sent.size() == 1);
+    REQUIRE(int(comm.sent.size()) == 1);
 }
 
 TEST_CASE("Stealable tasks are LIFO") {
@@ -145,8 +145,8 @@ TEST_CASE("Stealable tasks are LIFO") {
 TEST_CASE("Local tasks can't be stolen") {
     MAKE_TASK_COLLECTION(tc);
     tc.add_local_task(closure([&] (_, _) { return _{}; }));
-    REQUIRE(tc.size() == 1);
-    REQUIRE(tc.victimized().size() == 0);
+    REQUIRE(int(tc.size()) == 1);
+    REQUIRE(int(tc.victimized().size()) == 0);
 }
 
 TEST_CASE("Mixed tasks run LIFO") {
@@ -163,7 +163,7 @@ TEST_CASE("Send remotely assigned task") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
     tc.add_task({1}, closure([&] (_&,_&) { x = 1; return _{}; }));
-    REQUIRE(comm.sent.size() == 1);
+    REQUIRE(int(comm.sent.size()) == 1);
     tc.add_local_task(std::move(comm.sent[0]));
     tc.run_next();
     REQUIRE(x == 1);

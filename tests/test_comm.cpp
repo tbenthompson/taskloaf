@@ -1,4 +1,4 @@
-#include "catch.hpp"
+#include "doctest.h"
 
 #include "taskloaf/local_comm.hpp"
 
@@ -9,7 +9,7 @@
 
 using namespace taskloaf;
 
-TEST_CASE("MPMC Queue", "[comm]") {
+TEST_CASE("MPMC Queue") {
     moodycamel::ConcurrentQueue<int> q;
     q.enqueue(25);
     int item;
@@ -19,7 +19,7 @@ TEST_CASE("MPMC Queue", "[comm]") {
 }
 
 void test_comm(comm& a, comm& b) {
-    SECTION("Recv") {
+    SUBCASE("Recv") {
         REQUIRE(b.recv().empty());
         int x = 0;
         a.send({1}, closure([&] (_, _) { x = 13; return _{}; }));
@@ -27,7 +27,7 @@ void test_comm(comm& a, comm& b) {
         REQUIRE(x == 13); 
     }
 
-    SECTION("Msg ordering") {
+    SUBCASE("Msg ordering") {
         double x = 4.5;
         a.send({1}, closure([&] (_,_) { x /= 4.5; return _{}; }));
         a.send({1}, closure([&] (_,_) { x -= 1.0; return _{}; }));
@@ -36,7 +36,7 @@ void test_comm(comm& a, comm& b) {
         REQUIRE(x == 0.0);
     }
 
-    SECTION("Deep copy") {
+    SUBCASE("Deep copy") {
         cur_addr = {0};
         auto d = data(std::vector<double>{});
         a.send({1}, closure([] (_,_) { return _{}; }, d)); 
@@ -47,7 +47,7 @@ void test_comm(comm& a, comm& b) {
     }
 }
 
-TEST_CASE("Local comm", "[comm]") {
+TEST_CASE("Local comm") {
     local_comm_queues lcq(2);
     local_comm a(lcq, 0);
     local_comm b(lcq, 1);

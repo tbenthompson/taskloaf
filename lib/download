@@ -7,10 +7,6 @@ git clone --depth 1 git@github.com:USCiLab/cereal.git cereal_git
 mv cereal_git/include/cereal ./cereal
 rm -rf cereal_git
 
-git clone --depth 1 git@github.com:philsquared/Catch.git
-cp Catch/single_include/catch.hpp ./
-rm -rf Catch
-
 git clone --depth 1 git@github.com:onqtam/doctest.git
 cp doctest/doctest/doctest.h ./
 rm -rf doctest

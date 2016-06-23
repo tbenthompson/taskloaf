@@ -13,7 +13,7 @@ struct local_context_internals: public context_internals {
     std::atomic<bool> stopped;
     std::unique_ptr<std::thread> interrupter;
     std::vector<std::thread> threads;
-    std::vector<std::unique_ptr<default_worker>> workers;
+    std::vector<default_worker*> workers;
     local_comm_queues lcq;
     default_worker main_worker;
     config cfg;
@@ -37,23 +37,31 @@ struct local_context_internals: public context_internals {
         set_cur_worker(&main_worker);
         main_worker.set_core_affinity(0);
 
-        for (size_t i = 1; i < n_workers; i++) { 
-            workers.emplace_back(std::make_unique<default_worker>(
-                std::make_unique<local_comm>(lcq, i)
-            ));
-        }
-        for (size_t i = 1; i < n_workers; i++) { 
-            threads.emplace_back(
-                [i, this] () mutable {
-                    auto& w = workers[i - 1];
-                    set_cur_worker(w.get());
+        if (n_workers > 1) {
+            workers.resize(n_workers - 1);
 
-                    w->set_core_affinity(i);
-                    w->run();
+            std::atomic<size_t> started_workers(0);
+            for (size_t i = 1; i < n_workers; i++) { 
+                threads.emplace_back(
+                    [&started_workers, i, this] () mutable {
+                        default_worker w(std::make_unique<local_comm>(this->lcq, i));
+                        this->workers[i - 1] = &w;
+                        started_workers++;
+                        set_cur_worker(&w);
 
-                    clear_cur_worker();
-                }
-            );
+                        w.set_core_affinity(i);
+                        w.run();
+
+                        if (this->cfg.print_stats) {
+                            w.log.write_stats(std::cout);
+                        }
+
+                        clear_cur_worker();
+                    }
+                );
+            }
+            // Wait until workers all start running.
+            while (started_workers < n_workers - 1) {}
         }
 
         // Don't start the interrupter until after the workers have been 
@@ -73,9 +81,6 @@ struct local_context_internals: public context_internals {
         }
         if (cfg.print_stats) {
             main_worker.log.write_stats(std::cout);
-            for (auto& w: workers) {
-                w->log.write_stats(std::cout);
-            }
         }
         clear_cur_worker();
     }

@@ -1,4 +1,4 @@
-#include "catch.hpp"
+#include "doctest.h"
 
 #include "taskloaf/data.hpp"
 #include "taskloaf/closure.hpp"
@@ -19,20 +19,20 @@ TEST_CASE("Create vector") {
     auto a = data(std::vector<double>{1,2,3}); 
     REQUIRE(!a.empty());
     auto vec = a.get<std::vector<double>>();
-    REQUIRE(vec.size() == 3);
+    REQUIRE(int(vec.size()) == 3);
     REQUIRE(vec[2] == 3);
 }
 
 TEST_CASE("Constructors called") {
     OwnershipTracker::reset();
 
-    SECTION("Move construct") {
+    SUBCASE("Move construct") {
         auto d3 = data(OwnershipTracker());
         REQUIRE(OwnershipTracker::moves() == 1);
         REQUIRE(OwnershipTracker::copies() == 0);
     }
 
-    SECTION("Copy construct") {
+    SUBCASE("Copy construct") {
         OwnershipTracker ot;
         auto d3 = data(ot);
         REQUIRE(OwnershipTracker::moves() == 0);
@@ -45,14 +45,14 @@ TEST_CASE("Assignment operator") {
     auto d2 = data(OwnershipTracker());
     OwnershipTracker::reset();
 
-    SECTION("Move") {
+    SUBCASE("Move") {
         d = std::move(d2);
         // Just moves the pointer!
         REQUIRE(OwnershipTracker::moves() == 0);
         REQUIRE(OwnershipTracker::copies() == 0);
     }
 
-    SECTION("Copy") {
+    SUBCASE("Copy") {
         d = d2;
         REQUIRE(OwnershipTracker::moves() == 0);
         REQUIRE(OwnershipTracker::copies() == 1);
@@ -60,7 +60,7 @@ TEST_CASE("Assignment operator") {
 }
 
 TEST_CASE("Destructors called") {
-    SECTION("Destructor") {
+    SUBCASE("Destructor") {
         {
             auto d = data(OwnershipTracker());
             OwnershipTracker::reset();
@@ -68,7 +68,7 @@ TEST_CASE("Destructors called") {
         REQUIRE(OwnershipTracker::deletes() == 1);
     }
 
-    SECTION("Move assign destructs") {
+    SUBCASE("Move assign destructs") {
         auto d = data(OwnershipTracker());
         OwnershipTracker::reset();
         d = data{};
@@ -76,22 +76,22 @@ TEST_CASE("Destructors called") {
     }
 }
 
-TEST_CASE("Serialize/deserialize", "[data]") {
+TEST_CASE("Serialize/deserialize") {
     auto d = data(10);
     auto s = serialize(d);
     auto d2 = deserialize<decltype(d)>(s);
     REQUIRE(d2.get<int>() == 10);
 }
 
-TEST_CASE("Measure serialized size", "[data]") {
-    SECTION("string") {
+TEST_CASE("Measure serialized size") {
+    SUBCASE("string") {
         std::string s("abcdef");
         auto d = data(s);
-        REQUIRE(serialize(d).size() == 30);
+        REQUIRE(int(serialize(d).size()) == 30);
     }
 
-    SECTION("double") {
+    SUBCASE("double") {
         auto d = data(0.015);
-        REQUIRE(serialize(d).size() == 24);
+        REQUIRE(int(serialize(d).size()) == 24);
     }
 }

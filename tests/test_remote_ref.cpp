@@ -1,8 +1,15 @@
-#include "catch.hpp"
+#include "doctest.h"
 
 #include "taskloaf/remote_ref.hpp"
 
 #include "ownership_tracker.hpp"
+
+namespace doctest {//TODO: Can be removed with doctest 1.1
+template <>
+struct StringMaker<std::nullptr_t> {
+    static String convert(std::nullptr_t) { return "nullptr"; }
+};
+}
 
 using namespace taskloaf;
 
@@ -25,7 +32,7 @@ TEST_CASE("Delete underlying") {
     OwnershipTracker::reset();
     cur_addr = address{0};
 
-    SECTION("Just one") {
+    SUBCASE("Just one") {
         tracker_ref rr;
         {
             tracker_ref rr;
@@ -34,7 +41,7 @@ TEST_CASE("Delete underlying") {
         REQUIRE(OwnershipTracker::deletes() == 1);
     }
 
-    SECTION("All") {
+    SUBCASE("All") {
         {
             tracker_ref rr;
             tracker_ref rr2;
@@ -49,7 +56,7 @@ TEST_CASE("Copy ref") {
     cur_addr = address{0};
     tracker_ref rr;
     auto rr2 = rr;
-    REQUIRE(rr.internal.children == 1);
+    REQUIRE(int(rr.internal.children) == 1);
     REQUIRE(rr2.internal.hdl == rr.internal.hdl);
 }
 
