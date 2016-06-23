@@ -21,7 +21,7 @@ TEST_CASE("Run here") {
     auto ctx = launch_local(4);
     auto* submit_worker = cur_worker;
     for (size_t i = 0; i < 5; i++) {
-        async(location::here, closure([=] (ignore, ignore) {
+        ut_async(location::here, closure([=] (ignore, ignore) {
             REQUIRE(cur_worker == submit_worker);
             return ignore{};
         })).get();

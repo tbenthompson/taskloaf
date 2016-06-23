@@ -6,7 +6,7 @@
 
 namespace taskloaf {
 
-struct future {
+struct untyped_future {
     ivar internal;
 
     void save(cereal::BinaryOutputArchive& ar) const {
@@ -17,21 +17,21 @@ struct future {
         ar(internal);
     }
 
-    future then(closure fnc) {
+    untyped_future then(closure fnc) {
         return then(location::anywhere, std::move(fnc));
     }
 
-    future then(location loc, closure fnc) {
+    untyped_future then(location loc, closure fnc) {
         return then(static_cast<int>(loc), std::move(fnc));
     }
 
-    future then(int loc, closure fnc) {
-        future out_future; 
+    untyped_future then(int loc, closure fnc) {
+        untyped_future out_untyped_future; 
         auto iloc = internal_loc(loc);
         internal.add_trigger(closure(
-            [] (std::tuple<future,closure,internal_location>& d, data& v) {
+            [] (std::tuple<untyped_future,closure,internal_location>& d, data& v) {
                 auto t = closure(
-                    [] (std::tuple<future,closure,data>& d, ignore) {
+                    [] (std::tuple<untyped_future,closure,data>& d, ignore) {
                         std::get<0>(d).internal.fulfill(std::get<1>(d)(std::get<2>(d)));
                         return ignore{};
                     },
@@ -42,27 +42,27 @@ struct future {
                 schedule(std::get<2>(d), std::move(t));
                 return ignore{};
             },
-            std::make_tuple(out_future, std::move(fnc), std::move(iloc))
+            std::make_tuple(out_untyped_future, std::move(fnc), std::move(iloc))
         ));
-        return out_future;
+        return out_untyped_future;
     }
 
-    future unwrap() {
-        future out_future;
+    untyped_future unwrap() {
+        untyped_future out_untyped_future;
         internal.add_trigger(closure(
-            [] (future& out_future, future& f) {
+            [] (untyped_future& out_untyped_future, untyped_future& f) {
                 f.internal.add_trigger(closure(
-                    [] (future& out_future, data& d) {
-                        out_future.internal.fulfill(std::move(d));
+                    [] (untyped_future& out_untyped_future, data& d) {
+                        out_untyped_future.internal.fulfill(std::move(d));
                         return ignore{};
                     },
-                    std::move(out_future)
+                    std::move(out_untyped_future)
                 ));
                 return ignore{};
             },
-            out_future
+            out_untyped_future
         ));
-        return out_future;
+        return out_untyped_future;
     }
 
     data get() {
@@ -88,35 +88,35 @@ struct future {
     }
 };
 
-future ready(data d) {
-    future out;
+untyped_future ut_ready(data d) {
+    untyped_future out;
     out.internal.fulfill(std::move(d));
     return out;
 }
 
 template <typename T>
-future ready(T&& v) { return ready(data(std::forward<T>(v))); }
+untyped_future ut_ready(T&& v) { return ut_ready(data(std::forward<T>(v))); }
 
-future async(int loc, closure fnc) {
-    future ofuture;
+untyped_future ut_async(int loc, closure fnc) {
+    untyped_future ountyped_future;
     auto iloc = internal_loc(loc);
     auto t = closure(
-        [] (std::tuple<future,closure>& d, ignore) {
+        [] (std::tuple<untyped_future,closure>& d, ignore) {
             std::get<0>(d).internal.fulfill(std::get<1>(d)());
             return ignore{};
         },
-        std::make_tuple(ofuture, std::move(fnc))
+        std::make_tuple(ountyped_future, std::move(fnc))
     );
     schedule(iloc, std::move(t));
-    return ofuture;
+    return ountyped_future;
 }
 
-future async(location loc, closure fnc) {
-    return async(static_cast<int>(loc), std::move(fnc));
+untyped_future ut_async(location loc, closure fnc) {
+    return ut_async(static_cast<int>(loc), std::move(fnc));
 }
 
-future async(closure fnc) {
-    return async(location::anywhere, std::move(fnc));
+untyped_future ut_async(closure fnc) {
+    return ut_async(location::anywhere, std::move(fnc));
 }
 
 } //end namespace taskloaf

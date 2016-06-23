@@ -105,7 +105,7 @@ TEST_CASE("MPI Remote async") {
 
     if (cur_addr.id == 0) {
         REQUIRE(cur_addr == address{0});
-        int x = async(1, [] (_,_) {
+        int x = ut_async(1, [] (_,_) {
             REQUIRE(cur_addr == address{1});
             return 13; 
         }).get();

@@ -1,6 +1,7 @@
 #include "taskloaf/timing.hpp"
 #include "taskloaf/data.hpp"
 #include "taskloaf/future.hpp"
+#include "taskloaf/typed_future.hpp"
 #include "taskloaf.hpp"
 
 #include <locale>
@@ -40,13 +41,13 @@ int run_many_times(int n_cores, int n, size_t(*fnc)(), int baseline = 0) {
         }\
     }
 
-future fib(int idx) {
+untyped_future fib(int idx) {
     if (idx < 3) {
-        return ready(1);
+        return ut_ready(1);
     } else {
-        return async([idx] (_, _) {
+        return ut_async([idx] (_, _) {
             return fib(idx - 1).then(closure(
-                [] (future& a, int x) {
+                [] (untyped_future& a, int x) {
                     return a.then([x] (_, int y) { return x + y; });
                 },
                 fib(idx - 2)
@@ -63,6 +64,38 @@ size_t fib() {
     return 0;
 }
 
+future<int> typed_fib(int idx) {
+    if (idx < 3) {
+        return ready(1);
+    } else {
+        // return async([idx] () {
+        //     return fib(idx - 1).then([] (future<int> a, int x) {
+        //         return a.then([x] (int y) { return x + y; });
+        //     }, fib(idx - 2)).unwrap();
+        // }).unwrap();
+        // return async([=] { return fib(idx - 1); }).unwrap().then(
+        //     [] (future<int> a, int x) {
+        //         return a.then([x] (int y) { return x + y; });
+        //     },
+        //     fib(idx - 2)
+        // ).unwrap();
+        return typed_fib(idx - 1).then(
+            [] (future<int> a, int x) {
+                return a.then([x] (int y) { return x + y; });
+            },
+            typed_fib(idx - 2)
+        ).unwrap();
+    }
+}
+
+size_t typed_fib() {
+    config cfg;
+    cfg.print_stats = true;
+    auto ctx = launch_local(1,cfg);
+    std::cout << int(fib(44).get()) << std::endl; 
+    return 0;
+}
+
 template <int NCores>
 size_t taskloaf_startup() {
     auto ctx = launch_local(NCores);
@@ -70,7 +103,7 @@ size_t taskloaf_startup() {
 }
 
 size_t fut_construct() {
-    future fut;
+    untyped_future fut;
     return 0;
 }
 
@@ -125,6 +158,7 @@ int main(int argc, char** argv) {
     }
 
     BENCH(1, 1, fib);
+    BENCH(1, 1, typed_fib);
     BENCH(1, 2000, taskloaf_startup<1>);
     BENCH(1, 2000, taskloaf_startup<2>);
     BENCH(1, 2000, taskloaf_startup<4>);

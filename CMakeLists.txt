@@ -134,14 +134,13 @@ if(BUILD_TESTS)
     taskloaf_tests(worker True)
     taskloaf_tests(comm True)
     taskloaf_tests(future True)
-    taskloaf_tests(typed_future True)
     taskloaf_tests(remote_ref True)
 
     if (MPI_CXX_FOUND)
         add_executable(mpi "tests/test_mpi_main.cpp;tests/test_mpi.cpp")
         test_link_include(mpi)
         add_test(mpi mpirun -n 2 mpi)
-        add_dependencies(tests benchmark)
+        add_dependencies(tests mpi)
     endif()
 
     add_executable(benchmark "tests/benchmark.cpp")
@@ -193,26 +192,26 @@ macro(taskloaf_example name filename)
         ${CMAKE_THREAD_LIBS_INIT})
 endmacro()
 
-if (BUILD_EXAMPLES)
-    taskloaf_example(totient examples/totient.cpp)
-    taskloaf_example(dot_product examples/dot_product.cpp)
-    taskloaf_example(diffusion examples/diffusion.cpp)
-    taskloaf_example(readme examples/readme.cpp)
-    taskloaf_example(fib_local examples/fib_local.cpp)
-    taskloaf_example(streams examples/streams.cpp)
-    
-    find_package(BLAS)
-    find_package(LAPACK)
-    if (BLAS_FOUND AND LAPACK_FOUND)
-        taskloaf_example(cholesky examples/cholesky.cpp)
-        target_link_libraries(cholesky 
-            ${BLAS_LIBRARIES}
-            ${LAPACK_LIBRARIES}
-            ${CMAKE_THREAD_LIBS_INIT}
-            )
-    endif()
-
-    if (MPI_CXX_FOUND)
-        taskloaf_example(fibmpi examples/fibmpi.cpp)
-    endif()
-endif(BUILD_EXAMPLES)
+#if (BUILD_EXAMPLES)
+#    taskloaf_example(totient examples/totient.cpp)
+#    taskloaf_example(dot_product examples/dot_product.cpp)
+#    taskloaf_example(diffusion examples/diffusion.cpp)
+#    taskloaf_example(readme examples/readme.cpp)
+#    taskloaf_example(fib_local examples/fib_local.cpp)
+#    taskloaf_example(streams examples/streams.cpp)
+#    
+#    find_package(BLAS)
+#    find_package(LAPACK)
+#    if (BLAS_FOUND AND LAPACK_FOUND)
+#        taskloaf_example(cholesky examples/cholesky.cpp)
+#        target_link_libraries(cholesky 
+#            ${BLAS_LIBRARIES}
+#            ${LAPACK_LIBRARIES}
+#            ${CMAKE_THREAD_LIBS_INIT}
+#            )
+#    endif()
+#
+#    if (MPI_CXX_FOUND)
+#        taskloaf_example(fibmpi examples/fibmpi.cpp)
+#    endif()
+#endif(BUILD_EXAMPLES)
