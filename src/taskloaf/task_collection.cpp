@@ -13,9 +13,7 @@ namespace taskloaf {
 
 task_collection::task_collection(logger& log, comm& my_comm):
     log(log),
-    my_comm(my_comm),
-    // stealable_tasks(deque_arena),
-    stealing(false)
+    my_comm(my_comm)
 {}
 
 size_t task_collection::size() const {
@@ -23,7 +21,11 @@ size_t task_collection::size() const {
 }
 
 void task_collection::add_task(closure t) {
-    stealable_tasks.push_front(std::make_pair(next_token, std::move(t)));
+    if (running_task) {
+        temp_tasks.push_back(std::move(t));
+    } else {
+        stealable_tasks.push_front(std::make_pair(next_token, std::move(t)));
+    }
     next_token++;
 }
 
@@ -37,6 +39,17 @@ void task_collection::add_task(const address& where, closure t) {
         my_comm.send(where, std::move(t));
     } else {
         add_local_task(std::move(t));
+    }
+}
+
+void task_collection::run(closure t) {
+    running_task = true;
+    TLASSERT(temp_tasks.size() == 0);
+    t();
+    running_task = false;
+    while (temp_tasks.size() > 0) {
+        add_task(std::move(temp_tasks.back()));
+        temp_tasks.pop_back();
     }
 }
 
@@ -62,7 +75,7 @@ void task_collection::run_next() {
         grab_local_task();
     }
 
-    t();
+    run(std::move(t));
     log.n_tasks_run++;
 }
 
@@ -84,19 +97,19 @@ void task_collection::steal() {
     auto idx = dis(gen);
 
     add_task(remotes[idx], closure(
-        [] (const address& sender, ignore) {
+        [] (const address& sender, _) {
             auto& tc = ((default_worker*)(cur_worker))->tasks;
             auto response = tc.victimized();
 
             tc.add_task(sender, closure(
-                [] (std::vector<closure>& tasks, ignore) {
+                [] (std::vector<closure>& tasks, _) {
                     auto& tc = ((default_worker*)(cur_worker))->tasks;
                     tc.receive_tasks(std::move(tasks));
-                    return ignore{};
+                    return _{};
                 },
                 std::move(response)
             ));
-            return ignore{};
+            return _{};
         },
         my_comm.get_addr()
     ));

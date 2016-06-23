@@ -15,6 +15,14 @@ struct sent_mpi_msg {
 };
 
 struct mpi_comm: public comm {
+    // One tag is used per instantiation, so that messages from an old
+    // taskloaf launch do not conflict with messages from the current
+    // launch.
+    // tag values used start at 2^30 and are incremented from there to
+    // avoid conflicting with commonly used tags in other programs.
+    thread_local static int next_tag;
+
+    int tag;
     address addr;
     std::vector<address> endpoints;
     std::vector<sent_mpi_msg> outbox;

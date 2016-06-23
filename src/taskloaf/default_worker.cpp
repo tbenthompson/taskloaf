@@ -10,8 +10,7 @@ namespace taskloaf {
 default_worker::default_worker(std::unique_ptr<comm> p_comm):
     my_comm(std::move(p_comm)),
     log(my_comm->get_addr()),
-    tasks(log, *my_comm),
-    should_stop(false)
+    tasks(log, *my_comm)
 {}
 
 default_worker::~default_worker() {
@@ -33,11 +32,7 @@ void default_worker::set_stopped(bool val) {
 }
 
 void default_worker::add_task(closure t) {
-    if (false) {
-        temp_tasks.push_back(std::move(t)); 
-    } else {
-        tasks.add_task(std::move(t));
-    }
+    tasks.add_task(std::move(t));
 }
 
 void default_worker::add_task(const address& where, closure t) {
@@ -64,18 +59,11 @@ void default_worker::one_step() {
     while (auto t = my_comm->recv()) {
         tasks.add_local_task(std::move(t));
     }
-    last_poll = now();
 
     if (tasks.size() == 0) {
         tasks.steal();
     } else {
-        running_task = true;
         tasks.run_next();
-        while (temp_tasks.size() > 0) {
-            tasks.add_task(std::move(temp_tasks.back()));
-            temp_tasks.pop_back();
-        }
-        running_task = false;
     }
 }
 

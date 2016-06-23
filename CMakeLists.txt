@@ -94,7 +94,7 @@ if (BUILD_LIBRARY)
         target_link_libraries(taskloaf ${MPI_LIBRARIES})
     endif()
     install(TARGETS taskloaf DESTINATION lib)
-    install(FILES ${TASKLOAF_HDR} DESTINATION include)
+    install(DIRECTORY src/taskloaf/ DESTINATION include/taskloaf)
 endif(BUILD_LIBRARY)
 
 ################################################################################

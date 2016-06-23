@@ -21,9 +21,9 @@ TEST_CASE("Run here") {
     auto ctx = launch_local(4);
     auto* submit_worker = cur_worker;
     for (size_t i = 0; i < 5; i++) {
-        ut_async(location::here, closure([=] (ignore, ignore) {
+        ut_async(location::here, closure([=] (_, _) {
             REQUIRE(cur_worker == submit_worker);
-            return ignore{};
+            return _{};
         })).get();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -101,7 +101,7 @@ struct testing_comm: public comm {
 TEST_CASE("Add task") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task(closure([&] (ignore, ignore) { x = 1; return ignore{}; }));
+    tc.add_task(closure([&] (_, _) { x = 1; return _{}; }));
     REQUIRE(tc.size() == 1);
     tc.run_next();
     REQUIRE(x == 1);
@@ -109,7 +109,7 @@ TEST_CASE("Add task") {
 
 TEST_CASE("Victimized") {
     MAKE_TASK_COLLECTION(tc); 
-    tc.add_task(closure([&] (ignore, ignore) { return ignore{}; }));
+    tc.add_task(closure([&] (_, _) { return _{}; }));
     REQUIRE(tc.size() == 1);
     auto tasks = tc.victimized();
     REQUIRE(tc.size() == 0);
@@ -118,7 +118,7 @@ TEST_CASE("Victimized") {
 
 TEST_CASE("Receive tasks") {
     MAKE_TASK_COLLECTION(tc); 
-    tc.add_task(closure([&] (ignore, ignore) { return ignore{}; }));
+    tc.add_task(closure([&] (_, _) { return _{}; }));
     auto tasks = tc.victimized();
     tc.receive_tasks(std::move(tasks));
     REQUIRE(tc.size() == 1);
@@ -135,8 +135,8 @@ TEST_CASE("Steal request") {
 TEST_CASE("Stealable tasks are LIFO") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task(closure([&] (ignore, ignore) { x = 1; return ignore{}; }));
-    tc.add_task(closure([&] (ignore, ignore) { x *= 2; return ignore{}; }));
+    tc.add_task(closure([&] (_, _) { x = 1; return _{}; }));
+    tc.add_task(closure([&] (_, _) { x *= 2; return _{}; }));
     tc.run_next();
     tc.run_next();
     REQUIRE(x == 1);
@@ -144,7 +144,7 @@ TEST_CASE("Stealable tasks are LIFO") {
 
 TEST_CASE("Local tasks can't be stolen") {
     MAKE_TASK_COLLECTION(tc);
-    tc.add_local_task(closure([&] (ignore, ignore) { return ignore{}; }));
+    tc.add_local_task(closure([&] (_, _) { return _{}; }));
     REQUIRE(tc.size() == 1);
     REQUIRE(tc.victimized().size() == 0);
 }
@@ -152,8 +152,8 @@ TEST_CASE("Local tasks can't be stolen") {
 TEST_CASE("Mixed tasks run LIFO") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task(closure([&] (ignore&,ignore&) { x = 1; return ignore{}; }));
-    tc.add_local_task(closure([&] (ignore&,ignore&) { x *= 2; return ignore{}; }));
+    tc.add_task(closure([&] (_&,_&) { x = 1; return _{}; }));
+    tc.add_local_task(closure([&] (_&,_&) { x *= 2; return _{}; }));
     tc.run_next();
     tc.run_next();
     REQUIRE(x == 1);
@@ -162,10 +162,24 @@ TEST_CASE("Mixed tasks run LIFO") {
 TEST_CASE("Send remotely assigned task") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task({1}, closure([&] (ignore&,ignore&) { x = 1; return ignore{}; }));
+    tc.add_task({1}, closure([&] (_&,_&) { x = 1; return _{}; }));
     REQUIRE(comm.sent.size() == 1);
     tc.add_local_task(std::move(comm.sent[0]));
     tc.run_next();
     REQUIRE(x == 1);
+}
+
+TEST_CASE("Within a task, new tasks are FILO") {
+    MAKE_TASK_COLLECTION(tc);
+    int x = 0;
+    tc.add_task([&] (_,_) { 
+        tc.add_task([&] (_,_) { x += 1; return _{}; });
+        tc.add_task([&] (_,_) { x *= 2; return _{}; });
+        return _{};
+    });
+    for (int i = 0; i < 3; i++) {
+        tc.run_next();
+    }
+    REQUIRE(x == 2);
 }
 

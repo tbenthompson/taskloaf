@@ -3,5 +3,6 @@ tmp
 build
 build_python
 taskloaf.egg-info
+*.pyc
 *.swp
 site

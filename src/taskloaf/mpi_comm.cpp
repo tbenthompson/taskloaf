@@ -5,6 +5,8 @@
 
 namespace taskloaf {
 
+thread_local int mpi_comm::next_tag = 1 << 30;
+
 int mpi_rank() {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -12,6 +14,9 @@ int mpi_rank() {
 }
 
 mpi_comm::mpi_comm() {
+    tag = next_tag;
+    next_tag++;
+
     int rank;
     int size;
 
@@ -42,7 +47,7 @@ void mpi_comm::send(const address& dest, closure msg) {
     auto& str_data = outbox.back().msg;
     MPI_Isend(
         &str_data.front(), str_data.size(), MPI_CHAR,
-        dest.id, 0, MPI_COMM_WORLD, &outbox.back().state
+        dest.id, tag, MPI_COMM_WORLD, &outbox.back().state
     );
 
     auto it = std::remove_if(outbox.begin(), outbox.end(), [] (const sent_mpi_msg& m) {
@@ -61,7 +66,7 @@ const std::vector<address>& mpi_comm::remote_endpoints() {
 closure mpi_comm::recv() {
     MPI_Status stat;
     int msg_exists;
-    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &msg_exists, &stat);
+    MPI_Iprobe(MPI_ANY_SOURCE, tag, MPI_COMM_WORLD, &msg_exists, &stat);
     if (!msg_exists) {
         return closure();
     }
@@ -73,7 +78,7 @@ closure mpi_comm::recv() {
     MPI_Recv(
         &s.front(),
         n_bytes, MPI_CHAR,
-        MPI_ANY_SOURCE, MPI_ANY_TAG,
+        MPI_ANY_SOURCE, tag,
         MPI_COMM_WORLD, MPI_STATUS_IGNORE
     );
 

@@ -91,7 +91,7 @@ future<int> typed_fib(int idx) {
 size_t typed_fib() {
     config cfg;
     cfg.print_stats = true;
-    auto ctx = launch_local(1,cfg);
+    auto ctx = launch_local(6,cfg);
     std::cout << int(fib(44).get()) << std::endl; 
     return 0;
 }

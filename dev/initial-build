@@ -1,6 +1,21 @@
-#!/bin/bash
-mkdir build
-cd build
-cmake .. "$@" || exit 1
-make -j8 || exit 1
-make test || exit 1
+#!/usr/bin/python
+import os
+import sys
+import subprocess
+
+from taskloaf_scripts import build_dir, get_n_cores
+
+dir = build_dir(sys.argv[1])
+
+if not os.path.exists(dir):
+    os.makedirs(dir)
+os.chdir(dir)
+
+p = subprocess.Popen(['cmake', '../..'] + sys.argv[2:])
+p.wait()
+
+p = subprocess.Popen(['make', '-j' + str(get_n_cores())])
+p.wait()
+
+p = subprocess.Popen(['make', 'test'])
+p.wait()

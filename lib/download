@@ -11,6 +11,10 @@ git clone --depth 1 git@github.com:philsquared/Catch.git
 cp Catch/single_include/catch.hpp ./
 rm -rf Catch
 
+git clone --depth 1 git@github.com:onqtam/doctest.git
+cp doctest/doctest/doctest.h ./
+rm -rf doctest
+
 git clone --depth 1 git@github.com:cameron314/concurrentqueue.git
 mv concurrentqueue/concurrentqueue.h ./
 rm -rf concurrentqueue
@@ -19,8 +23,3 @@ git clone --depth 1 git@github.com:pybind/pybind11.git pybind11_git
 [ -d pybind11 ] && rm -r pybind11
 mv pybind11_git/include/pybind11 ./pybind11
 rm -rf pybind11_git
-
-git clone --depth 1 git@github.com:mapbox/variant.git
-[ -d mapbox ] && rm -r mapbox
-mv variant/include/mapbox ./mapbox
-rm -rf variant

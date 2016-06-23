@@ -5,6 +5,7 @@
 #include "taskloaf/typed_future.hpp"
 
 #include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
 
 using namespace taskloaf;
 
@@ -89,4 +90,14 @@ TEST_CASE("Then immediate with enclosed") {
         2
     ).get();
     REQUIRE(result == 22);
+}
+
+TEST_CASE("Pass by reference then") {
+    auto ctx = launch_local(1);
+    double result = ready(std::vector<double>{2.0, 1.0}).then(
+        [] (std::vector<double>& x) {
+            return x[0];
+        }
+    ).get();
+    REQUIRE(result == 2.0);
 }

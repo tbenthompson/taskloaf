@@ -17,12 +17,7 @@ struct default_worker: public worker {
     task_collection tasks;
 
     int core_id = -1;
-    bool stealing = false;
-    bool running_task = false;
-    std::vector<closure> temp_tasks;
-    std::atomic<bool> should_stop;
-    int immediate_computes = 0;
-    static const int immediates_allowed = 5000;
+    bool should_stop = false;
 
     default_worker(std::unique_ptr<comm> comm);
     default_worker(const default_worker&) = delete;
