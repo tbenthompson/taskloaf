@@ -34,7 +34,7 @@ struct local_context_internals: public context_internals {
         main_worker(std::make_unique<local_comm>(lcq, 0)),
         cfg(cfg)
     {
-        set_cur_worker(&main_worker);
+        cur_worker = &main_worker;
         main_worker.set_core_affinity(0);
 
         if (n_workers > 1) {
@@ -47,7 +47,7 @@ struct local_context_internals: public context_internals {
                         default_worker w(std::make_unique<local_comm>(this->lcq, i));
                         this->workers[i - 1] = &w;
                         started_workers++;
-                        set_cur_worker(&w);
+                        cur_worker = &w;
 
                         w.set_core_affinity(i);
                         w.run();
@@ -56,7 +56,7 @@ struct local_context_internals: public context_internals {
                             w.log.write_stats(std::cout);
                         }
 
-                        clear_cur_worker();
+                        cur_worker = nullptr;
                     }
                 );
             }
@@ -82,7 +82,7 @@ struct local_context_internals: public context_internals {
         if (cfg.print_stats) {
             main_worker.log.write_stats(std::cout);
         }
-        clear_cur_worker();
+        cur_worker = nullptr;
     }
 
     local_context_internals(const context_internals&) = delete;
@@ -109,7 +109,7 @@ struct mpi_context_internals: public context_internals {
         w(std::make_unique<mpi_comm>()),
         cfg(cfg)
     {
-        set_cur_worker(&w);
+        cur_worker = &w;
         if (mpi_rank() != 0) {
             w.run();
         }
@@ -122,7 +122,7 @@ struct mpi_context_internals: public context_internals {
         if (cfg.print_stats) {
             w.log.write_stats(std::cout);
         }
-        clear_cur_worker();
+        cur_worker = nullptr;
     }
 };
 

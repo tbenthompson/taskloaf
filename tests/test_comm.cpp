@@ -3,6 +3,7 @@
 #include "taskloaf/local_comm.hpp"
 
 #include "ownership_tracker.hpp"
+#include "fake_worker.hpp"
 
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/vector.hpp>
@@ -37,10 +38,11 @@ void test_comm(comm& a, comm& b) {
     }
 
     SUBCASE("Deep copy") {
-        cur_addr = {0};
+        fake_worker w(0);
+        cur_worker = &w;
         auto d = data(std::vector<double>{});
         a.send({1}, closure([] (_,_) { return _{}; }, d)); 
-        cur_addr = {1};
+        w.addr = {1};
         auto cl = b.recv();
         // std::cout << cl.d.ptr << " " << d.ptr << std::endl;
         // std::cout <<  << std::endl;

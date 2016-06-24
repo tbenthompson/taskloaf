@@ -77,16 +77,16 @@ TEST_CASE("MPI Remote task") {
     auto ctx = launch_mpi();
     
     std::string s("HI");
-    if (cur_addr == address{0}) {
+    if (cur_worker->get_addr() == address{0}) {
 
         cur_worker->add_task({1}, closure([&] (std::string s,_) {
 
-            REQUIRE(cur_addr == address{1});
+            REQUIRE(cur_worker->get_addr() == address{1});
             REQUIRE(s == "HI");
 
             cur_worker->add_task({0}, closure([&] (std::string s,_) {
 
-                REQUIRE(cur_addr == address{0});
+                REQUIRE(cur_worker->get_addr() == address{0});
                 REQUIRE(s == "HI");
 
                 cur_worker->shutdown();
@@ -103,10 +103,10 @@ TEST_CASE("MPI Remote task") {
 TEST_CASE("MPI Remote task") {
     auto ctx = launch_mpi();
 
-    if (cur_addr.id == 0) {
-        REQUIRE(cur_addr == address{0});
+    if (cur_worker->get_addr().id == 0) {
+        REQUIRE(cur_worker->get_addr() == address{0});
         int x = ut_task(1, [] (_,_) {
-            REQUIRE(cur_addr == address{1});
+            REQUIRE(cur_worker->get_addr() == address{1});
             return 13; 
         }).get();
         REQUIRE(x == 13);

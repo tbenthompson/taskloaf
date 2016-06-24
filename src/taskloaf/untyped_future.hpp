@@ -13,7 +13,6 @@ struct untyped_future {
     void load(cereal::BinaryInputArchive& ar);
 
     untyped_future then(closure fnc);
-    untyped_future then(location loc, closure fnc);
     untyped_future then(int loc, closure fnc);
 
     untyped_future unwrap();
@@ -28,7 +27,6 @@ template <typename T>
 untyped_future ut_ready(T&& v) { return ut_ready(data(std::forward<T>(v))); }
 
 untyped_future ut_task(int loc, closure fnc);
-untyped_future ut_task(location loc, closure fnc);
 untyped_future ut_task(closure fnc);
 
 } //end namespace taskloaf

@@ -5,13 +5,15 @@
 #include <chrono>
 #include <iostream>
 
+#include <cereal/types/vector.hpp>
+
 #define MATIDX(r,c,n) (c) * (n) + (r)
 
-namespace tsk = taskloaf;
+namespace tl = taskloaf;
 
 typedef std::vector<double> Matrix;
 typedef std::vector<Matrix> Blocks;
-typedef std::vector<tsk::Future<Matrix>> FutureList;
+typedef std::vector<tl::future<Matrix>> FutureList;
 typedef std::vector<FutureList> FutureListList;
 
 Matrix random_spd_matrix(size_t n) 
@@ -152,7 +154,7 @@ FutureList submit_input_data(Blocks& blocks)
 {
     FutureList out;
     for (size_t i = 0; i < blocks.size(); i++) {
-        out.push_back(tsk::ready(std::move(blocks[i])));
+        out.push_back(tl::ready(std::move(blocks[i])));
     }
     return out;
 }
@@ -224,12 +226,12 @@ void run(int n, int n_blocks, int n_workers, bool run_blas) {
     auto block_correct = to_blocks(correct, n_blocks);
 
     TIC
-    auto ctx = tsk::launch_local(n_workers);
+    auto ctx = tl::launch_local(n_workers);
     auto input_futures = submit_input_data(block_A);
     auto result_futures = cholesky_plan(std::move(input_futures));
     if (run_blas) {
         auto correct_futures = submit_input_data(block_correct);
-        auto total_error = tsk::ready<double>(0.0);
+        auto total_error = tl::ready<double>(0.0);
         for (int i = 0; i < n_blocks; i++) {
             for (int j = 0; j < n_blocks; j++) {
                 if (j > i) {

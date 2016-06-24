@@ -17,7 +17,6 @@ inline delete_tracker& get_delete_tracker() {
     return dt;
 };
 
-
 struct intrusive_ref_count {
     using count_vector = std::vector<int,short_alloc<int,40,alignof(int)>>;
 
@@ -61,10 +60,7 @@ struct ref_internal {
             TLASSERT(get_delete_tracker().deleted.count(hdl) > 0);
             TLASSERT(get_delete_tracker().deleted[hdl] == false);
             TL_IF_DEBUG(get_delete_tracker().deleted[hdl] = true;,)
-
-            auto& pool = get_pool<sizeof(T)>();
-            hdl->~T();
-            pool.free(hdl);
+            delete hdl;
         }
     }
 
@@ -83,13 +79,8 @@ struct ref_internal {
     }
 
     static ref_internal allocate() {
-        auto& pool = get_pool<sizeof(T)>();
-        auto* ptr = pool.malloc();
-
-        TL_IF_DEBUG(get_delete_tracker().deleted[ptr] = false;,)
-
-        new (ptr) T();
-        auto* out = reinterpret_cast<T*>(ptr);
+        T* out = new T();
+        TL_IF_DEBUG(get_delete_tracker().deleted[(void*)out] = false;,)
         out->ref_count.gen_counts.push_back(1);
         return {out, 0, 0};
     }
@@ -101,12 +92,12 @@ struct remote_ref {
     address owner;
 
     bool local() const {
-        return owner == cur_addr;
+        return owner == cur_worker->get_addr();
     }
 
     remote_ref():
         internal(ref_internal<T>::allocate()),
-        owner(cur_addr)
+        owner(cur_worker->get_addr())
     {}
 
     remote_ref(const remote_ref& other):

@@ -41,7 +41,7 @@ TEST_CASE("Steal real") {
     auto& w1 = *g[1];
 
     auto run_on = [&] (size_t i, auto f) {
-        set_cur_worker(g[i].get());
+        cur_worker = g[i].get();
         f();
     };
 
@@ -49,7 +49,7 @@ TEST_CASE("Steal real") {
 
     run_on(0, [&] {
         w0.add_task(closure([] (_,_) {
-            REQUIRE(cur_addr == address{1}); return _{}; 
+            REQUIRE(cur_worker->get_addr() == address{1}); return _{}; 
         }, d));
     });
 
@@ -58,7 +58,7 @@ TEST_CASE("Steal real") {
     run_on(0, [&] { 
         w0.one_step(); 
         w0.add_task([] (_,_) {
-            REQUIRE(cur_addr == address{0}); return _{}; 
+            REQUIRE(cur_worker->get_addr() == address{0}); return _{}; 
         });
         w0.one_step(); 
     });

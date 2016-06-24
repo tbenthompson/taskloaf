@@ -16,10 +16,6 @@ untyped_future untyped_future::then(closure fnc) {
     return then(location::anywhere, std::move(fnc));
 }
 
-untyped_future untyped_future::then(location loc, closure fnc) {
-    return then(static_cast<int>(loc), std::move(fnc));
-}
-
 untyped_future untyped_future::then(int loc, closure fnc) {
     untyped_future out_untyped_future; 
     auto iloc = internal_loc(loc);
@@ -100,10 +96,6 @@ untyped_future ut_task(int loc, closure fnc) {
     );
     schedule(iloc, std::move(t));
     return ountyped_future;
-}
-
-untyped_future ut_task(location loc, closure fnc) {
-    return ut_task(static_cast<int>(loc), std::move(fnc));
 }
 
 untyped_future ut_task(closure fnc) {

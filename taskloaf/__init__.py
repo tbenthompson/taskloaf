@@ -1,5 +1,4 @@
 import cppimport
-print("HOWDY")
 cppimport.set_quiet(False)
 
 wrapper = cppimport.imp("taskloaf.wrapper").wrapper

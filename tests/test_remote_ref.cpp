@@ -3,6 +3,7 @@
 #include "taskloaf/remote_ref.hpp"
 
 #include "ownership_tracker.hpp"
+#include "fake_worker.hpp"
 
 namespace doctest {//TODO: Can be removed with doctest 1.1
 template <>
@@ -20,9 +21,15 @@ struct OwnershipTrackerWithRef {
 
 using tracker_ref = remote_ref<OwnershipTrackerWithRef>;
 
+#define SET_WORKER\
+    fake_worker w{0};\
+    do {\
+        cur_worker = &w;\
+    } while (0)
+
 TEST_CASE("Create remote ref") {
     OwnershipTracker::reset();
-    cur_addr = address{0};
+    SET_WORKER;
     tracker_ref rr;
     REQUIRE(rr.owner == address{0});
     REQUIRE(OwnershipTracker::constructs() == 1);
@@ -30,7 +37,7 @@ TEST_CASE("Create remote ref") {
 
 TEST_CASE("Delete underlying") {
     OwnershipTracker::reset();
-    cur_addr = address{0};
+    SET_WORKER;
 
     SUBCASE("Just one") {
         tracker_ref rr;
@@ -53,7 +60,7 @@ TEST_CASE("Delete underlying") {
 }
 
 TEST_CASE("Copy ref") {
-    cur_addr = address{0};
+    SET_WORKER;
     tracker_ref rr;
     auto rr2 = rr;
     REQUIRE(int(rr.internal.children) == 1);
@@ -61,13 +68,14 @@ TEST_CASE("Copy ref") {
 }
 
 TEST_CASE("Move ref") {
-    cur_addr = address{0};
+    SET_WORKER;
     tracker_ref rr;
     auto rr2 = std::move(rr);
     REQUIRE(rr.internal.hdl == nullptr);
 }
 
 TEST_CASE("Copy empty") {
+    SET_WORKER;
     tracker_ref rr;
     auto rr2 = std::move(rr);
     auto rr3 = rr;

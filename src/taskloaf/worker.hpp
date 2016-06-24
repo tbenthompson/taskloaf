@@ -29,9 +29,5 @@ struct worker {
 };
 
 extern __thread worker* cur_worker;
-extern __thread address cur_addr;
-
-void set_cur_worker(worker* w);
-void clear_cur_worker();
 
 } //end namespace taskloaf

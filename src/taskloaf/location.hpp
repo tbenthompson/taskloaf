@@ -5,7 +5,7 @@
 
 namespace taskloaf {
 
-enum class location: int {
+enum location {
     anywhere = -2,
     here = -1
 };

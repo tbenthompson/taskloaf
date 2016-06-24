@@ -110,14 +110,9 @@ py_future ready(py::object& val) {
     return {tl::ready(val)};
 }
 
+
 py_future task(const py::object& f) {
-    return {tl::ready(f).then([] (const py::object& f) {
-        auto out = handle_py_exception([&] () {
-            auto ret = f();
-            return ret;
-        });
-        return out;
-    })};
+    return {tl::task([] (const py::object& f) { return f(); }, f)};
 }
 
 PYBIND11_PLUGIN(wrapper) {

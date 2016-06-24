@@ -7,12 +7,12 @@ namespace taskloaf {
 
 template <typename F, typename ValT, typename TupleT, size_t... I>
 auto apply_args(F&& func, ValT& val, TupleT& args, std::index_sequence<I...>) {
-    return func(std::move(std::get<I>(args))..., val);
+    return func(std::get<I>(args)..., val);
 }
 
 template <typename F, typename TupleT, size_t... I>
 auto apply_args(F&& func, TupleT& args, std::index_sequence<I...>) {
-    return func(std::move(std::get<I>(args))...);
+    return func(std::get<I>(args)...);
 }
 
 #if defined __GNUC__ || defined __llvm__
@@ -53,17 +53,16 @@ struct future {
     future(future&&) = default;
     future& operator=(future&&) = default;
 
-
     template <typename F, typename... TEnclosed>
-    auto then(F f, TEnclosed&&... enclosed_vals) {
+    auto then(int loc, F f, TEnclosed&&... enclosed_vals) {
 
         using result_type = std::result_of_t<F(TEnclosed...,T&)>; 
-        std::cout << (intptr_t)cur_worker << std::endl;
         bool run_now = !cur_worker->needs_interrupt;
-
-        if (tl_likely(!fut && run_now)) {
+        bool can_run_here = loc == location::anywhere || loc == location::here;
+        bool immediately = !fut && run_now && can_run_here;
+        if (tl_likely(immediately)) {
             return future<result_type>(
-                f(std::forward<TEnclosed>(enclosed_vals)..., val)
+                f(enclosed_vals..., val)
             );
         } else if (!fut) {
             return future<result_type>(ut_task(closure(
@@ -95,6 +94,15 @@ struct future {
         )));
     }
 
+    template <typename F, typename... TEnclosed,
+        std::enable_if_t<!std::is_convertible<F,int>::value>* = nullptr>
+    auto then(F f, TEnclosed&&... enclosed_vals) {
+        return then(
+            location::anywhere, std::move(f),
+            std::forward<TEnclosed>(enclosed_vals)...
+        );
+    }
+
     T unwrap_delayed() {
         return T(fut->then([] (_,T& inner_fut) { 
             return (inner_fut.fut == nullptr) ? 
@@ -124,14 +132,14 @@ auto ready(T&& val) {
 }
 
 template <typename F, typename... TEnclosed>
-auto task(F f, TEnclosed&&... enclosed_vals) {
+auto task(int loc, F f, TEnclosed&&... enclosed_vals) {
     using result_type = std::result_of_t<F(TEnclosed&...)>;
 
     bool run_now = !cur_worker->needs_interrupt;
-    if (tl_likely(run_now)) {
-        return future<result_type>(f());
+    if (tl_likely(run_now && (loc == location::anywhere || loc == location::here))) {
+        return future<result_type>(f(enclosed_vals...));
     }
-    return future<result_type>(ut_task(closure(
+    return future<result_type>(ut_task(loc, closure(
         [] (std::tuple<data,std::tuple<TEnclosed...>>& p,_) {
             return apply_args(
                 std::get<0>(p).template get<F>(),
@@ -143,6 +151,15 @@ auto task(F f, TEnclosed&&... enclosed_vals) {
             std::make_tuple(std::forward<TEnclosed>(enclosed_vals)...)
         )
     )));
+}
+
+template <typename F, typename... TEnclosed,
+    std::enable_if_t<!std::is_convertible<F,int>::value>* = nullptr>
+auto task(F f, TEnclosed&&... enclosed_vals) {
+    return task(
+        location::anywhere, std::move(f),
+        std::forward<TEnclosed>(enclosed_vals)...
+    );
 }
 
 } //end namespace taskloaf

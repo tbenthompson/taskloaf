@@ -38,11 +38,21 @@ TEST_CASE("Unwrap") {
     REQUIRE(x == "HI");
 }
 
-TEST_CASE("ut_task elsewhere") {
+TEST_CASE("Task elsewhere") {
     auto ctx = launch_local(2);
-    REQUIRE(cur_addr == address{0});
-    int result = ut_task(1, [] (_,_) {
-        REQUIRE(cur_addr == address{1});
+    REQUIRE(cur_worker->get_addr() == address{0});
+    int result = task(1, [] {
+        REQUIRE(cur_worker->get_addr() == address{1});
+        return 30;
+    }).get();
+    REQUIRE(result == 30);
+}
+
+TEST_CASE("Task here") {
+    auto ctx = launch_local(2);
+    REQUIRE(cur_worker->get_addr() == address{0});
+    int result = task(location::here, [] {
+        REQUIRE(cur_worker->get_addr() == address{0});
         return 30;
     }).get();
     REQUIRE(result == 30);
@@ -50,10 +60,9 @@ TEST_CASE("ut_task elsewhere") {
 
 TEST_CASE("Then elsewhere") {
     auto ctx = launch_local(2);
-    REQUIRE(cur_addr == address{0});
-    int result = ut_ready(2).then(1, [] (_,int x) {
-        bool not_0 = cur_addr == address{1};
-        REQUIRE(not_0);
+    REQUIRE(cur_worker->get_addr() == address{0});
+    int result = ready(2).then(1, [] (int x) {
+        REQUIRE(cur_worker->get_addr() == address{1});
         return x + 7; 
     }).get();
     REQUIRE(result == 9);
@@ -61,8 +70,8 @@ TEST_CASE("Then elsewhere") {
 
 TEST_CASE("Unwrap from elsewhere") {
     auto ctx = launch_local(2);
-    int x = ut_task(1, [] (_,_) {
-        return ut_ready(1); 
+    int x = task(1, [] {
+        return ready(1); 
     }).unwrap().get();
     REQUIRE(x == 1);
 }

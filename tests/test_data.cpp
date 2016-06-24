@@ -55,7 +55,7 @@ TEST_CASE("Assignment operator") {
     SUBCASE("Copy") {
         d = d2;
         REQUIRE(OwnershipTracker::moves() == 0);
-        REQUIRE(OwnershipTracker::copies() == 1);
+        REQUIRE(OwnershipTracker::copies() == 0);
     }
 }
 
