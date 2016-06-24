@@ -5,7 +5,7 @@
 namespace taskloaf {
 
 #define WRITE_STAT(name) \
-    os << "    " << #name << ": " << name << std::endl;
+    ss << "    " << #name << ": " << name << std::endl;
 
 struct logger {
     address worker_addr;
@@ -18,14 +18,18 @@ struct logger {
     logger(address addr): worker_addr(addr) {}
 
     void write_stats(std::ostream& os) {
-        os << std::string(80, '=') << std::endl;
-        os << "Stats for worker(" << worker_addr << "): " << std::endl;
+        std::stringstream ss;
+        ss << std::string(80, '=') << std::endl;
+        ss << "Stats for worker(" << worker_addr << "): " << std::endl;
         WRITE_STAT(n_victimized);
         WRITE_STAT(n_attempted_steals);
         WRITE_STAT(n_successful_steals);
         WRITE_STAT(n_tasks_run);
         WRITE_STAT(n_global_fulfills);
+        os << ss.str();
     }
 };
+
+#undef WRITE_STAT
 
 }//end namespace taskloaf

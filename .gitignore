@@ -6,3 +6,5 @@ taskloaf.egg-info
 *.pyc
 *.swp
 site
+.rendered.*
+*.cppimporthash

@@ -10,8 +10,6 @@ option(CMAKE_BUILD_TYPE "Build type" "Debug")
 option(BUILD_LIBRARY "Build taskloaf library" ON)
 option(BUILD_TESTS "Build test programs" ON)
 option(BUILD_EXAMPLES "Build examples" ON)
-option(BUILD_PYTHON "Build python wrappers" OFF)
-option(PYTHON_INCLUDE "Python include directories" "")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" FORCE)
@@ -76,7 +74,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/location.cpp;src/taskloaf/ivar.cpp;src/taskloaf/future.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/location.cpp;src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
@@ -143,36 +141,10 @@ if(BUILD_TESTS)
         add_dependencies(tests mpi)
     endif()
 
-    add_executable(benchmark "tests/benchmark.cpp")
-    test_link_include(benchmark)
-    target_link_libraries(benchmark boost_system)
-    add_dependencies(tests benchmark)
-
     add_executable(playground "tests/playground.cpp")
     test_link_include(playground)
     add_dependencies(tests playground)
 endif(BUILD_TESTS)
-
-################################################################################
-#                              taskloaf python bindings
-################################################################################
-
-if (BUILD_PYTHON)
-    set(WRAPPER_SRC "${TASKLOAF_SRC};taskloaf/taskloaf_wrapper.cpp")
-    add_library(taskloaf_wrapper SHARED ${WRAPPER_SRC})
-    SET_TARGET_PROPERTIES(taskloaf_wrapper PROPERTIES PREFIX "")
-
-    target_include_directories(taskloaf_wrapper PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib)
-    target_include_directories(taskloaf_wrapper SYSTEM PRIVATE
-        ${PYTHON_INCLUDE}
-        ${MPI_INCLUDE_PATH})
-
-    target_link_libraries(taskloaf_wrapper
-        ${MPI_LIBRARIES}
-        ${CMAKE_THREAD_LIBS_INIT})
-endif(BUILD_PYTHON)
 
 ################################################################################
 #                              taskloaf examples
@@ -192,26 +164,26 @@ macro(taskloaf_example name filename)
         ${CMAKE_THREAD_LIBS_INIT})
 endmacro()
 
-#if (BUILD_EXAMPLES)
-#    taskloaf_example(totient examples/totient.cpp)
-#    taskloaf_example(dot_product examples/dot_product.cpp)
-#    taskloaf_example(diffusion examples/diffusion.cpp)
-#    taskloaf_example(readme examples/readme.cpp)
-#    taskloaf_example(fib_local examples/fib_local.cpp)
-#    taskloaf_example(streams examples/streams.cpp)
-#    
-#    find_package(BLAS)
-#    find_package(LAPACK)
-#    if (BLAS_FOUND AND LAPACK_FOUND)
-#        taskloaf_example(cholesky examples/cholesky.cpp)
-#        target_link_libraries(cholesky 
-#            ${BLAS_LIBRARIES}
-#            ${LAPACK_LIBRARIES}
-#            ${CMAKE_THREAD_LIBS_INIT}
-#            )
-#    endif()
-#
-#    if (MPI_CXX_FOUND)
-#        taskloaf_example(fibmpi examples/fibmpi.cpp)
-#    endif()
-#endif(BUILD_EXAMPLES)
+if (BUILD_EXAMPLES)
+    taskloaf_example(totient examples/totient.cpp)
+    taskloaf_example(dot_product examples/dot_product.cpp)
+    taskloaf_example(diffusion examples/diffusion.cpp)
+    taskloaf_example(readme examples/readme.cpp)
+    taskloaf_example(fib_local examples/fib_local.cpp)
+    taskloaf_example(streams examples/streams.cpp)
+    
+    find_package(BLAS)
+    find_package(LAPACK)
+    if (BLAS_FOUND AND LAPACK_FOUND)
+        taskloaf_example(cholesky examples/cholesky.cpp)
+        target_link_libraries(cholesky 
+            ${BLAS_LIBRARIES}
+            ${LAPACK_LIBRARIES}
+            ${CMAKE_THREAD_LIBS_INIT}
+            )
+    endif()
+
+    if (MPI_CXX_FOUND)
+        taskloaf_example(fibmpi examples/fibmpi.cpp)
+    endif()
+endif(BUILD_EXAMPLES)

@@ -100,12 +100,12 @@ TEST_CASE("MPI Remote task") {
     }
 }
 
-TEST_CASE("MPI Remote async") {
+TEST_CASE("MPI Remote task") {
     auto ctx = launch_mpi();
 
     if (cur_addr.id == 0) {
         REQUIRE(cur_addr == address{0});
-        int x = ut_async(1, [] (_,_) {
+        int x = ut_task(1, [] (_,_) {
             REQUIRE(cur_addr == address{1});
             return 13; 
         }).get();

@@ -6,12 +6,12 @@ auto fib(int index) {
     if (index < 3) {
         return tl::ready(1);
     } else {
-        return tl::async([=] () {
-            return tl::when_all(
-                fib(index - 1),
-                fib(index - 2)
-            ).then(std::plus<int>());
-        }).unwrap();
+        return tl::task([=] { return fib(index - 1); }).unwrap().then(
+            [] (tl::future<int> a, int x) {
+                return a.then(std::plus<int>{}, x);
+            },
+            fib(index - 2)
+        ).unwrap();
     }
 }
 

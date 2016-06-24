@@ -1,4 +1,4 @@
-#include "future.hpp"
+#include "untyped_future.hpp"
 #include "worker.hpp"
 
 
@@ -88,7 +88,7 @@ untyped_future ut_ready(data d) {
     return out;
 }
 
-untyped_future ut_async(int loc, closure fnc) {
+untyped_future ut_task(int loc, closure fnc) {
     untyped_future ountyped_future;
     auto iloc = internal_loc(loc);
     auto t = closure(
@@ -102,12 +102,12 @@ untyped_future ut_async(int loc, closure fnc) {
     return ountyped_future;
 }
 
-untyped_future ut_async(location loc, closure fnc) {
-    return ut_async(static_cast<int>(loc), std::move(fnc));
+untyped_future ut_task(location loc, closure fnc) {
+    return ut_task(static_cast<int>(loc), std::move(fnc));
 }
 
-untyped_future ut_async(closure fnc) {
-    return ut_async(location::anywhere, std::move(fnc));
+untyped_future ut_task(closure fnc) {
+    return ut_task(location::anywhere, std::move(fnc));
 }
 
 }
