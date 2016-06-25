@@ -4,6 +4,8 @@
 #include "data.hpp"
 #include "fnc_registry.hpp"
 
+#include <pybind11/pybind11.h>
+
 namespace taskloaf {
 
 struct closure {
@@ -30,7 +32,6 @@ struct closure {
 
         caller = closure::template caller_fnc<std::decay_t<F>>;
         serializer = closure::template serializer_fnc<std::decay_t<F>>;
-
     }
 
     template <typename F, 

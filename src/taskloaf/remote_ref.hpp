@@ -132,15 +132,12 @@ struct remote_ref {
     }
 
     void destroy() {
-        if (internal.hdl == nullptr) {
+        if (cur_worker == nullptr || internal.hdl == nullptr) {
             return;
         }
         if (local()) {
             internal.dec_ref();
         } else {
-            if (cur_worker == nullptr) {
-                return;
-            }
             cur_worker->add_task(owner, [internal = this->internal] (_,_) mutable {
                 internal.dec_ref();
                 return _{}; 

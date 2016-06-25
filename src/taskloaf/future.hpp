@@ -66,7 +66,7 @@ struct future {
             );
         } else if (!fut) {
             return future<result_type>(ut_task(closure(
-                [] (std::tuple<data,std::tuple<TEnclosed...,T>>& p,_) {
+                [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...,T>>& p,_) {
                     return apply_args(
                         std::get<0>(p).template get<F>(),
                         std::get<sizeof...(TEnclosed)>(std::get<1>(p)),
@@ -81,7 +81,7 @@ struct future {
         }
         // TODO: Is it worth checking for fut->is_fulfilled_here()?
         return future<result_type>(fut->then(closure(
-            [] (std::tuple<data,std::tuple<TEnclosed...>>& p, data& d) {
+            [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...>>& p, data& d) {
                 return apply_args(
                     std::get<0>(p).template get<F>(),
                     d, std::get<1>(p), std::index_sequence_for<TEnclosed...>{}
@@ -140,7 +140,7 @@ auto task(int loc, F f, TEnclosed&&... enclosed_vals) {
         return future<result_type>(f(enclosed_vals...));
     }
     return future<result_type>(ut_task(loc, closure(
-        [] (std::tuple<data,std::tuple<TEnclosed...>>& p,_) {
+        [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...>>& p,_) {
             return apply_args(
                 std::get<0>(p).template get<F>(),
                 std::get<1>(p), std::index_sequence_for<TEnclosed...>{}

@@ -22,10 +22,6 @@ struct untyped_future {
 };
 
 untyped_future ut_ready(data d);
-
-template <typename T>
-untyped_future ut_ready(T&& v) { return ut_ready(data(std::forward<T>(v))); }
-
 untyped_future ut_task(int loc, closure fnc);
 untyped_future ut_task(closure fnc);
 

@@ -5,7 +5,7 @@ cfg['include_dirs'] = [
     pybind11.get_include(True),
     'taskloaf/lib', 'taskloaf/src'
 ]
-cfg['parallel'] = False
+cfg['parallel'] = True
 
 import os
 def files_in_dir(directory, ext):
@@ -21,7 +21,7 @@ cfg['dependencies'] = (
     files_in_dir('taskloaf/src/taskloaf', 'hpp') +
     files_in_dir('taskloaf/src', 'hpp')
 )
-cfg['compiler_args'] = ['-std=c++14']
+cfg['compiler_args'] = ['-std=c++14', '-DTASKLOAF_DEBUG']
 cfg['libraries'] = ['boost_system']
 %>
 #include <cereal/types/string.hpp>
@@ -37,20 +37,20 @@ namespace pybind11 {
 template<class Archive>
 void save(Archive& ar, const py::object& o) { 
     // TODO: Figure out a way to load these once.
-    // auto pickle_module = py::module::import("dill"); 
-    // py::object dumps = pickle_module.attr("dumps");
-    // py::object loads = pickle_module.attr("loads");
-    // ar(dumps(o).cast<const std::string>());
+    auto pickle_module = py::module::import("dill"); 
+    py::object dumps = pickle_module.attr("dumps");
+    py::object loads = pickle_module.attr("loads");
+    ar(dumps(o).cast<const std::string>());
 }
 
 template<class Archive>
 void load(Archive& ar, py::object& o) {
-//     // auto pickle_module = py::module::import("dill"); 
-//     // py::object dumps = pickle_module.attr("dumps");
-//     // py::object loads = pickle_module.attr("loads");
-//     // std::string dump;
-//     // // ar(dump);
-//     // o = loads(py::bytes(dump));
+    auto pickle_module = py::module::import("dill"); 
+    py::object dumps = pickle_module.attr("dumps");
+    py::object loads = pickle_module.attr("loads");
+    std::string dump;
+    // ar(dump);
+    o = loads(py::bytes(dump));
 }
 }
 
@@ -106,13 +106,13 @@ struct py_future {
     }
 };
 
-py_future ready(py::object& val) {
-    return {tl::ready(val)};
+py_future ready(py::object val) {
+    return {tl::ready(std::move(val))};
 }
 
 
 py_future task(const py::object& f) {
-    return {tl::task([] (const py::object& f) { return f(); }, f)};
+    return py_future{tl::task([] (const py::object& f) { return f(); }, f)};
 }
 
 PYBIND11_PLUGIN(wrapper) {
