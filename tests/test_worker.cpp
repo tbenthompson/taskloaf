@@ -17,6 +17,15 @@ TEST_CASE("Launch and immediately destroy") {
     launch_local(4);
 }
 
+TEST_CASE("Shutdown with remaining tasks and messages") {
+    auto ctx = launch_local(4);
+    for (int i = 0; i < 10; i++) {
+        for (int w = 0; w < 4; w++) {
+            ut_task(w, [] (_,_) { return _{}; });
+        }
+    }
+}
+
 TEST_CASE("Run here") {
     auto ctx = launch_local(4);
     auto* submit_worker = cur_worker;

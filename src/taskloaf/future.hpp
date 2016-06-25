@@ -23,6 +23,12 @@ auto apply_args(F&& func, TupleT& args, std::index_sequence<I...>) {
 #define tl_unlikely(x) (x)
 #endif
 
+bool can_run_here(const address& addr) {
+    return addr == location::anywhere 
+        || addr == location::here 
+        || addr == cur_worker->get_addr();
+}
+
 template <typename T>
 struct future {
     std::unique_ptr<untyped_future> fut;
@@ -58,14 +64,12 @@ struct future {
 
         using result_type = std::result_of_t<F(TEnclosed...,T&)>; 
         bool run_now = !cur_worker->needs_interrupt;
-        bool can_run_here = where == location::anywhere 
-            || where == location::here 
-            || where == cur_worker->get_addr();
-        bool immediately = !fut && run_now && can_run_here;
+        bool immediately = !fut && run_now && can_run_here(where);
         if (tl_likely(immediately)) {
             return future<result_type>(
                 f(enclosed_vals..., val)
             );
+
         } else if (!fut) {
             return future<result_type>(ut_task(where, closure(
                 [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...,T>>& p,_) {
@@ -81,6 +85,7 @@ struct future {
                 )
             )));
         }
+
         // TODO: Is it worth checking for fut->is_fulfilled_here()?
         return future<result_type>(fut->then(where, closure(
             [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...>>& p, data& d) {
@@ -138,10 +143,7 @@ auto task(address where, F f, TEnclosed&&... enclosed_vals) {
     using result_type = std::result_of_t<F(TEnclosed&...)>;
 
     bool run_now = !cur_worker->needs_interrupt;
-    bool can_run_here = where == location::anywhere 
-        || where == location::here 
-        || where == cur_worker->get_addr();
-    if (tl_likely(run_now && can_run_here)) {
+    if (tl_likely(run_now && can_run_here(where))) {
         return future<result_type>(f(enclosed_vals...));
     }
     return future<result_type>(ut_task(where, closure(

@@ -25,8 +25,6 @@ struct address {
     bool operator!=(const address& b) const { return !(*this == b); }
 };
 
-std::ostream& operator<<(std::ostream& os, const address& a);
-
 inline std::ostream& operator<<(std::ostream& os, const address& a) {
     os << a.id;
     return os;

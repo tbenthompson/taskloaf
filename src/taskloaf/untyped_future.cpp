@@ -1,7 +1,6 @@
 #include "untyped_future.hpp"
 #include "worker.hpp"
 
-
 namespace taskloaf {
 
 void untyped_future::save(cereal::BinaryOutputArchive& ar) const {
