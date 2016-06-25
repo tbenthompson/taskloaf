@@ -75,5 +75,3 @@ int main() {
 }
 
 ```
-
-* master: [![Build Status](https://travis-ci.org/tbenthompson/taskloaf.svg?branch=master)](https://travis-ci.org/tbenthompson/taskloaf)
