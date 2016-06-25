@@ -16,8 +16,8 @@ auto apply_args(F&& func, TupleT& args, std::index_sequence<I...>) {
 }
 
 #if defined __GNUC__ || defined __llvm__
-#define tl_likely(x) __builtin_expect(!!(x), 1)
-#define tl_unlikely(x) __builtin_expect(!!(x), 0)
+#define tl_likely(x) __builtin_expect((x), 1)
+#define tl_unlikely(x) __builtin_expect((x), 0)
 #else
 #define tl_likely(x) (x)
 #define tl_unlikely(x) (x)
@@ -65,7 +65,7 @@ struct future {
                 f(enclosed_vals..., val)
             );
         } else if (!fut) {
-            return future<result_type>(ut_task(closure(
+            return future<result_type>(ut_task(loc, closure(
                 [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...,T>>& p,_) {
                     return apply_args(
                         std::get<0>(p).template get<F>(),
@@ -80,7 +80,7 @@ struct future {
             )));
         }
         // TODO: Is it worth checking for fut->is_fulfilled_here()?
-        return future<result_type>(fut->then(closure(
+        return future<result_type>(fut->then(loc, closure(
             [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...>>& p, data& d) {
                 return apply_args(
                     std::get<0>(p).template get<F>(),

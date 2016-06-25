@@ -1,13 +1,14 @@
 <% 
+import os
 import pybind11
+
 cfg['include_dirs'] = [
     pybind11.get_include(),
     pybind11.get_include(True),
-    'taskloaf/lib', 'taskloaf/src'
+    'lib', 'src'
 ]
 cfg['parallel'] = True
 
-import os
 def files_in_dir(directory, ext):
     ret = []
     for file in os.listdir(directory):
@@ -16,13 +17,12 @@ def files_in_dir(directory, ext):
             ret.append(os.path.join(directory, file))
     return ret
 
-cfg['sources'] = files_in_dir('taskloaf/src/taskloaf', 'cpp')
+cfg['sources'] = files_in_dir(os.path.join(filedirname, 'src', 'taskloaf'), 'cpp')
 cfg['dependencies'] = (
-    files_in_dir('taskloaf/src/taskloaf', 'hpp') +
-    files_in_dir('taskloaf/src', 'hpp')
+    files_in_dir(os.path.join(filedirname, 'src', 'taskloaf'), 'hpp') +
+    files_in_dir(os.path.join(filedirname, 'src'), 'hpp')
 )
-cfg['compiler_args'] = ['-std=c++14', '-DTASKLOAF_DEBUG']
-cfg['libraries'] = ['boost_system']
+cfg['compiler_args'] = ['-std=c++14', '-O3', '-g', '-DTASKLOAF_DEBUG']
 %>
 #include <cereal/types/string.hpp>
 

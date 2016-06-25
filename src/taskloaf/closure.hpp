@@ -4,8 +4,6 @@
 #include "data.hpp"
 #include "fnc_registry.hpp"
 
-#include <pybind11/pybind11.h>
-
 namespace taskloaf {
 
 struct closure {

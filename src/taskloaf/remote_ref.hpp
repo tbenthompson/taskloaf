@@ -5,17 +5,11 @@
 #include "worker.hpp"
 
 #include <short_alloc.h>
+#include <thread>
 
 namespace taskloaf {
 
-struct delete_tracker {
-    std::unordered_map<void*,bool> deleted;
-};
-
-inline delete_tracker& get_delete_tracker() {
-    static thread_local delete_tracker dt; 
-    return dt;
-};
+extern thread_local std::unordered_map<void*,bool> delete_tracker; 
 
 struct intrusive_ref_count {
     using count_vector = std::vector<int,short_alloc<int,40,alignof(int)>>;
@@ -25,8 +19,8 @@ struct intrusive_ref_count {
 
     intrusive_ref_count(): gen_counts(arena) {}
 
-    void dec_ref(unsigned gen, unsigned children) {
-        if (gen_counts.size() < gen + 2) {
+    void dec_ref(int gen, int children) {
+        if (int(gen_counts.size()) < gen + 2) {
             gen_counts.resize(gen + 2);
         }
         gen_counts[gen]--;
@@ -46,8 +40,8 @@ struct intrusive_ref_count {
 template <typename T>
 struct ref_internal {
     T* hdl;
-    unsigned generation;
-    unsigned children;
+    int generation;
+    int children;
 
     ref_internal<T> copy() {
         children++;
@@ -57,9 +51,9 @@ struct ref_internal {
     void dec_ref() {
         hdl->ref_count.dec_ref(generation, children);
         if (!hdl->ref_count.alive()) {
-            TLASSERT(get_delete_tracker().deleted.count(hdl) > 0);
-            TLASSERT(get_delete_tracker().deleted[hdl] == false);
-            TL_IF_DEBUG(get_delete_tracker().deleted[hdl] = true;,)
+            TLASSERT(delete_tracker.count(hdl) > 0);
+            TLASSERT(delete_tracker[hdl] == false);
+            TL_IF_DEBUG(delete_tracker[hdl] = true;,)
             delete hdl;
         }
     }
@@ -80,7 +74,7 @@ struct ref_internal {
 
     static ref_internal allocate() {
         T* out = new T();
-        TL_IF_DEBUG(get_delete_tracker().deleted[(void*)out] = false;,)
+        TL_IF_DEBUG(delete_tracker[(void*)out] = false;,)
         out->ref_count.gen_counts.push_back(1);
         return {out, 0, 0};
     }
@@ -115,7 +109,7 @@ struct remote_ref {
     remote_ref& operator=(remote_ref&& other) {
         destroy();
         internal = std::move(other.internal);
-        owner = other.owner;
+        owner = std::move(other.owner);
         other.internal.hdl = nullptr;
         return *this;
     }

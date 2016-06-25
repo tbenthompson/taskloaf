@@ -74,7 +74,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/location.cpp;src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_SRC "src/taskloaf/remote_ref.cpp;src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/location.cpp;src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
@@ -167,7 +167,6 @@ endmacro()
 if (BUILD_EXAMPLES)
     taskloaf_example(totient examples/totient.cpp)
     taskloaf_example(dot_product examples/dot_product.cpp)
-    taskloaf_example(diffusion examples/diffusion.cpp)
     taskloaf_example(readme examples/readme.cpp)
     taskloaf_example(fib_local examples/fib_local.cpp)
     taskloaf_example(streams examples/streams.cpp)
