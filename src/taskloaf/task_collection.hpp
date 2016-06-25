@@ -28,13 +28,15 @@ struct task_collection {
     task_collection(logger& log, comm& comm);
 
     size_t size() const;
-    void add_task(closure t);
+
+    void add_stealable_task(closure t);
+    void add_local_task(closure t);
     void add_task(const address& where, closure t);
+
     void run(closure t);
     void run_next();
     void steal();
 
-    void add_local_task(closure t);
     std::vector<closure> victimized();
     void receive_tasks(std::vector<closure> stolen_tasks);
 };

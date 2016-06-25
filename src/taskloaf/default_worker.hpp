@@ -29,7 +29,6 @@ struct default_worker: public worker {
 
     const address& get_addr() const override;
     size_t n_workers() const override;
-    void add_task(closure t) override;
     void add_task(const address& where, closure t) override;
 
     bool is_stopped() const;

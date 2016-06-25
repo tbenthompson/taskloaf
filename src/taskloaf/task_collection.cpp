@@ -20,7 +20,7 @@ size_t task_collection::size() const {
     return stealable_tasks.size() + local_tasks.size();
 }
 
-void task_collection::add_task(closure t) {
+void task_collection::add_stealable_task(closure t) {
     if (running_task) {
         temp_tasks.push_back(std::move(t));
     } else {
@@ -35,10 +35,12 @@ void task_collection::add_local_task(closure t) {
 }
 
 void task_collection::add_task(const address& where, closure t) {
-    if (where != my_comm.get_addr()) {
-        my_comm.send(where, std::move(t));
-    } else {
+    if (where == location::anywhere) {
+        add_stealable_task(std::move(t));
+    } else if (where == location::here || where == my_comm.get_addr()) {
         add_local_task(std::move(t));
+    } else {
+        my_comm.send(where, std::move(t));
     }
 }
 
@@ -48,7 +50,7 @@ void task_collection::run(closure t) {
     t();
     running_task = false;
     while (temp_tasks.size() > 0) {
-        add_task(std::move(temp_tasks.back()));
+        add_stealable_task(std::move(temp_tasks.back()));
         temp_tasks.pop_back();
     }
 }

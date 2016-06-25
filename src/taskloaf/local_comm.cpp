@@ -31,6 +31,7 @@ const std::vector<address>& local_comm::remote_endpoints() {
 
 void local_comm::send(const address& dest, closure msg) {
     TLASSERT(dest != my_addr);
+    TLASSERT(dest.id >= 0);
     cleanup();
     outbox.push({std::move(msg), false});
     queues.qs[dest.id].enqueue(&outbox.back());

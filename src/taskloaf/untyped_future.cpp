@@ -16,11 +16,10 @@ untyped_future untyped_future::then(closure fnc) {
     return then(location::anywhere, std::move(fnc));
 }
 
-untyped_future untyped_future::then(int loc, closure fnc) {
+untyped_future untyped_future::then(address where, closure fnc) {
     untyped_future out_untyped_future; 
-    auto iloc = internal_loc(loc);
     internal.add_trigger(closure(
-        [] (std::tuple<untyped_future,closure,internal_location>& d, data& v) {
+        [] (std::tuple<untyped_future,closure,address>& d, data& v) {
             auto t = closure(
                 [] (std::tuple<untyped_future,closure,data>& d, ignore) {
                     std::get<0>(d).internal.fulfill(std::get<1>(d)(std::get<2>(d)));
@@ -30,10 +29,10 @@ untyped_future untyped_future::then(int loc, closure fnc) {
                     std::move(std::get<0>(d)), std::move(std::get<1>(d)), v
                 )
             );
-            schedule(std::get<2>(d), std::move(t));
+            cur_worker->add_task(std::get<2>(d), std::move(t));
             return ignore{};
         },
-        std::make_tuple(out_untyped_future, std::move(fnc), std::move(iloc))
+        std::make_tuple(out_untyped_future, std::move(fnc), std::move(where))
     ));
     return out_untyped_future;
 }
@@ -84,9 +83,8 @@ untyped_future ut_ready(data d) {
     return out;
 }
 
-untyped_future ut_task(int loc, closure fnc) {
+untyped_future ut_task(address addr, closure fnc) {
     untyped_future ountyped_future;
-    auto iloc = internal_loc(loc);
     auto t = closure(
         [] (std::tuple<untyped_future,closure>& d, ignore) {
             std::get<0>(d).internal.fulfill(std::get<1>(d)());
@@ -94,7 +92,7 @@ untyped_future ut_task(int loc, closure fnc) {
         },
         std::make_tuple(ountyped_future, std::move(fnc))
     );
-    schedule(iloc, std::move(t));
+    cur_worker->add_task(addr, std::move(t));
     return ountyped_future;
 }
 

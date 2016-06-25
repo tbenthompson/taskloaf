@@ -22,7 +22,7 @@ TEST_CASE("Then") {
     REQUIRE(x == 20);
 }
 
-TEST_CASE("task") {
+TEST_CASE("Task") {
     auto ctx = launch_local(1);
     int result = ut_task([] (ignore&, ignore&) { return 30; }).get();
     REQUIRE(result == 30);

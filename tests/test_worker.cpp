@@ -48,7 +48,7 @@ TEST_CASE("Steal real") {
     data d(std::vector<double>{});
 
     run_on(0, [&] {
-        w0.add_task(closure([] (_,_) {
+        w0.add_task(location::anywhere, closure([] (_,_) {
             REQUIRE(cur_worker->get_addr() == address{1}); return _{}; 
         }, d));
     });
@@ -57,7 +57,7 @@ TEST_CASE("Steal real") {
 
     run_on(0, [&] { 
         w0.one_step(); 
-        w0.add_task([] (_,_) {
+        w0.add_task(location::anywhere, [] (_,_) {
             REQUIRE(cur_worker->get_addr() == address{0}); return _{}; 
         });
         w0.one_step(); 
@@ -94,14 +94,14 @@ struct testing_comm: public comm {
 };
 
 #define MAKE_TASK_COLLECTION(name)\
-    logger my_log({0});\
+    logger my_log(0);\
     testing_comm comm;\
     task_collection name(my_log, comm);\
 
 TEST_CASE("Add task") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task(closure([&] (_, _) { x = 1; return _{}; }));
+    tc.add_task(location::anywhere, closure([&] (_, _) { x = 1; return _{}; }));
     REQUIRE(int(tc.size()) == 1);
     tc.run_next();
     REQUIRE(x == 1);
@@ -109,7 +109,7 @@ TEST_CASE("Add task") {
 
 TEST_CASE("Victimized") {
     MAKE_TASK_COLLECTION(tc); 
-    tc.add_task(closure([&] (_, _) { return _{}; }));
+    tc.add_task(location::anywhere, closure([&] (_, _) { return _{}; }));
     REQUIRE(int(tc.size()) == 1);
     auto tasks = tc.victimized();
     REQUIRE(int(tc.size()) == 0);
@@ -118,7 +118,7 @@ TEST_CASE("Victimized") {
 
 TEST_CASE("Receive tasks") {
     MAKE_TASK_COLLECTION(tc); 
-    tc.add_task(closure([&] (_, _) { return _{}; }));
+    tc.add_task(location::anywhere, closure([&] (_, _) { return _{}; }));
     auto tasks = tc.victimized();
     tc.receive_tasks(std::move(tasks));
     REQUIRE(int(tc.size()) == 1);
@@ -135,8 +135,8 @@ TEST_CASE("Steal request") {
 TEST_CASE("Stealable tasks are LIFO") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task(closure([&] (_, _) { x = 1; return _{}; }));
-    tc.add_task(closure([&] (_, _) { x *= 2; return _{}; }));
+    tc.add_task(location::anywhere, closure([&] (_, _) { x = 1; return _{}; }));
+    tc.add_task(location::anywhere, closure([&] (_, _) { x *= 2; return _{}; }));
     tc.run_next();
     tc.run_next();
     REQUIRE(x == 1);
@@ -152,7 +152,7 @@ TEST_CASE("Local tasks can't be stolen") {
 TEST_CASE("Mixed tasks run LIFO") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task(closure([&] (_&,_&) { x = 1; return _{}; }));
+    tc.add_task(location::anywhere, closure([&] (_&,_&) { x = 1; return _{}; }));
     tc.add_local_task(closure([&] (_&,_&) { x *= 2; return _{}; }));
     tc.run_next();
     tc.run_next();
@@ -172,9 +172,9 @@ TEST_CASE("Send remotely assigned task") {
 TEST_CASE("Within a task, new tasks are FILO") {
     MAKE_TASK_COLLECTION(tc);
     int x = 0;
-    tc.add_task([&] (_,_) { 
-        tc.add_task([&] (_,_) { x += 1; return _{}; });
-        tc.add_task([&] (_,_) { x *= 2; return _{}; });
+    tc.add_task(location::anywhere, [&] (_,_) { 
+        tc.add_task(location::anywhere, [&] (_,_) { x += 1; return _{}; });
+        tc.add_task(location::anywhere, [&] (_,_) { x *= 2; return _{}; });
         return _{};
     });
     for (int i = 0; i < 3; i++) {

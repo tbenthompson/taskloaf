@@ -1,5 +1,5 @@
 #pragma once
-#include "location.hpp"
+#include "address.hpp"
 #include "ivar.hpp"
 
 #include <cereal/types/tuple.hpp>
@@ -13,7 +13,7 @@ struct untyped_future {
     void load(cereal::BinaryInputArchive& ar);
 
     untyped_future then(closure fnc);
-    untyped_future then(int loc, closure fnc);
+    untyped_future then(address where, closure fnc);
 
     untyped_future unwrap();
 
@@ -22,7 +22,7 @@ struct untyped_future {
 };
 
 untyped_future ut_ready(data d);
-untyped_future ut_task(int loc, closure fnc);
+untyped_future ut_task(address where, closure fnc);
 untyped_future ut_task(closure fnc);
 
 } //end namespace taskloaf

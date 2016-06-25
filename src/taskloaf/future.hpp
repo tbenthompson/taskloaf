@@ -54,18 +54,20 @@ struct future {
     future& operator=(future&&) = default;
 
     template <typename F, typename... TEnclosed>
-    auto then(int loc, F f, TEnclosed&&... enclosed_vals) {
+    auto then(address where, F f, TEnclosed&&... enclosed_vals) {
 
         using result_type = std::result_of_t<F(TEnclosed...,T&)>; 
         bool run_now = !cur_worker->needs_interrupt;
-        bool can_run_here = loc == location::anywhere || loc == location::here;
+        bool can_run_here = where == location::anywhere 
+            || where == location::here 
+            || where == cur_worker->get_addr();
         bool immediately = !fut && run_now && can_run_here;
         if (tl_likely(immediately)) {
             return future<result_type>(
                 f(enclosed_vals..., val)
             );
         } else if (!fut) {
-            return future<result_type>(ut_task(loc, closure(
+            return future<result_type>(ut_task(where, closure(
                 [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...,T>>& p,_) {
                     return apply_args(
                         std::get<0>(p).template get<F>(),
@@ -80,7 +82,7 @@ struct future {
             )));
         }
         // TODO: Is it worth checking for fut->is_fulfilled_here()?
-        return future<result_type>(fut->then(loc, closure(
+        return future<result_type>(fut->then(where, closure(
             [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...>>& p, data& d) {
                 return apply_args(
                     std::get<0>(p).template get<F>(),
@@ -132,14 +134,17 @@ auto ready(T&& val) {
 }
 
 template <typename F, typename... TEnclosed>
-auto task(int loc, F f, TEnclosed&&... enclosed_vals) {
+auto task(address where, F f, TEnclosed&&... enclosed_vals) {
     using result_type = std::result_of_t<F(TEnclosed&...)>;
 
     bool run_now = !cur_worker->needs_interrupt;
-    if (tl_likely(run_now && (loc == location::anywhere || loc == location::here))) {
+    bool can_run_here = where == location::anywhere 
+        || where == location::here 
+        || where == cur_worker->get_addr();
+    if (tl_likely(run_now && can_run_here)) {
         return future<result_type>(f(enclosed_vals...));
     }
-    return future<result_type>(ut_task(loc, closure(
+    return future<result_type>(ut_task(where, closure(
         [] (std::tuple<data,std::tuple<std::decay_t<TEnclosed>...>>& p,_) {
             return apply_args(
                 std::get<0>(p).template get<F>(),

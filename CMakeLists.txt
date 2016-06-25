@@ -74,7 +74,7 @@ endif()
 #                              taskloaf library
 ################################################################################
 
-set(TASKLOAF_SRC "src/taskloaf/remote_ref.cpp;src/taskloaf/address.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/location.cpp;src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp;src/taskloaf/data.cpp")
+set(TASKLOAF_SRC "src/taskloaf/remote_ref.cpp;src/taskloaf/debug.cpp;src/taskloaf/fnc_registry.cpp;src/taskloaf/local_comm.cpp;src/taskloaf/launcher.cpp;src/taskloaf/default_worker.cpp;src/taskloaf/task_collection.cpp;src/taskloaf/worker.cpp;src/taskloaf/mpi_comm.cpp;src/taskloaf/ivar.cpp;src/taskloaf/untyped_future.cpp;src/taskloaf/data.cpp")
 file(GLOB TASKLOAF_HDR "src/taskloaf/*")
 
 if (BUILD_LIBRARY)
