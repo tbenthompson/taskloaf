@@ -22,7 +22,7 @@ cfg['dependencies'] = (
     files_in_dir(os.path.join(filedirname, 'src', 'taskloaf'), 'hpp') +
     files_in_dir(os.path.join(filedirname, 'src'), 'hpp')
 )
-cfg['compiler_args'] = ['-std=c++14', '-O3', '-g', '-DTASKLOAF_DEBUG']
+cfg['compiler_args'] = ['-std=c++14', '-O3', '-g']
 %>
 #include <cereal/types/string.hpp>
 

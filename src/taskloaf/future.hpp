@@ -62,7 +62,7 @@ struct future {
     template <typename F, typename... TEnclosed>
     auto then(address where, F f, TEnclosed&&... enclosed_vals) {
 
-        using result_type = std::result_of_t<F(TEnclosed...,T&)>; 
+        using result_type = std::result_of_t<F(TEnclosed&...,T&)>; 
         bool run_now = !cur_worker->needs_interrupt;
         bool immediately = !fut && run_now && can_run_here(where);
         if (tl_likely(immediately)) {

@@ -27,6 +27,6 @@ struct worker {
     }
 };
 
-extern __thread worker* cur_worker;
+extern thread_local worker* cur_worker;
 
 } //end namespace taskloaf

@@ -3,6 +3,6 @@
 
 namespace taskloaf {
 
-__thread worker* cur_worker;
+thread_local worker* cur_worker;
 
 } //end namespace taskloaf
