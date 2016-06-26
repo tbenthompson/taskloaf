@@ -23,18 +23,19 @@ int totient(int index) {
     return result;
 }
 
-//TODO: Needs reduce skeleton
 future<int> sum_totient(int lower, int upper) {
     if (lower == upper) {
         return ready(lower).then(totient);
     } else {
         auto middle = (lower + upper) / 2;
-        return task([=] () {
-            return when_all(
-                sum_totient(lower, middle),
-                sum_totient(middle + 1, upper)
-            ).then([] (int a, int b) { return a + b; });
-        }).unwrap();
+
+        auto b_fut = task([=] { return sum_totient(middle + 1, upper); }).unwrap();
+
+        return sum_totient(lower, middle)
+            .then([=] (future<int> b_fut, int a) {
+                return b_fut.then([=] (int b) { return a + b; });
+            }, b_fut)
+            .unwrap();
     }
 }
 

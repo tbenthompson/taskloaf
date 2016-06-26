@@ -8,28 +8,44 @@
 
 namespace taskloaf {
 
-struct local_context_internals: public context_internals {
-    const int sleep_ms = 5;
+struct worker_interrupter {
     std::atomic<bool> stopped;
-    std::unique_ptr<std::thread> interrupter;
+    int interrupt_rate;
+    std::unique_ptr<std::thread> thread;
+
+    worker_interrupter(int interrupt_rate):
+        stopped(false), 
+        interrupt_rate(interrupt_rate) 
+    {}
+
+    void run(const std::vector<worker*>& ws) {
+        std::chrono::milliseconds rate_ms(interrupt_rate);
+        thread = std::make_unique<std::thread>([=] {
+            while (!stopped) {
+                std::this_thread::sleep_for(rate_ms);
+                for (auto w_ptr: ws) {
+                    w_ptr->set_needs_interrupt(true);
+                }
+            }
+        });
+    }
+
+    void stop() {
+        stopped = true;
+        thread->join();
+    }
+};
+
+struct local_context_internals: public context_internals {
+    worker_interrupter interrupter;
     std::vector<std::thread> threads;
     std::vector<default_worker*> workers;
     local_comm_queues lcq;
     default_worker main_worker;
     config cfg;
 
-    void interrupt_all_workers() {
-        while (!stopped) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
-            for (auto& w: workers) {
-                w->set_needs_interrupt(true);
-            }
-            main_worker.set_needs_interrupt(true);
-        }
-    }
-
     local_context_internals(size_t n_workers, config cfg):
-        stopped(false),
+        interrupter(cfg.interrupt_rate),
         lcq(n_workers),
         main_worker(std::make_unique<local_comm>(lcq, 0)),
         cfg(cfg)
@@ -66,15 +82,14 @@ struct local_context_internals: public context_internals {
 
         // Don't start the interrupter until after the workers have been 
         // started to avoid a data race.
-        interrupter = std::make_unique<std::thread>(
-            [this] () { this->interrupt_all_workers(); }
-        );
+        std::vector<worker*> ws{&main_worker};
+        ws.insert(ws.begin(), workers.begin(), workers.end());
+        interrupter.run(ws);
     }
 
     ~local_context_internals() {
-        stopped = true;
         main_worker.shutdown();
-        interrupter->join();
+        interrupter.stop();
 
         for (auto& t: threads) {
             t.join();
@@ -103,12 +118,15 @@ context launch_local(size_t n_workers, config cfg) {
 
 struct mpi_context_internals: public context_internals {
     default_worker w; 
+    worker_interrupter interrupter;
     config cfg;
 
     mpi_context_internals(config cfg):
         w(std::make_unique<mpi_comm>()),
+        interrupter(cfg.interrupt_rate),
         cfg(cfg)
     {
+        interrupter.run({&w});
         cur_worker = &w;
         if (mpi_rank() != 0) {
             w.run();
@@ -116,6 +134,7 @@ struct mpi_context_internals: public context_internals {
     }
 
     ~mpi_context_internals() {
+        interrupter.stop();
         if (mpi_rank() == 0) {
             w.shutdown();
         }

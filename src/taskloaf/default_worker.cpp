@@ -21,7 +21,8 @@ void default_worker::shutdown() {
     auto& remotes = my_comm->remote_endpoints();
     for (auto& r: remotes) {
         add_task(r, closure([] (ignore, ignore) {
-            cur_worker->set_stopped(true); return ignore{}; 
+            cur_worker->set_stopped(true);
+            return ignore{}; 
         }));
     }
     set_stopped(true);
@@ -51,10 +52,17 @@ comm& default_worker::get_comm() {
     return *my_comm;
 }
 
-void default_worker::one_step() {
+void default_worker::grab_all_incoming_msgs() {
     while (auto t = my_comm->recv()) {
         tasks.add_local_task(std::move(t));
     }
+}
+
+void default_worker::one_step() {
+    grab_all_incoming_msgs();
+    // The interrupt flag needs to be flipped here as opposed to after
+    // tasks are run. Otherwise, if the tasks generate new tasks, interrupts
+    // will be triggered and the system will slow down -- A LOT!
     set_needs_interrupt(false);
 
     if (tasks.size() == 0) {
@@ -71,6 +79,9 @@ void default_worker::run() {
 }
 
 void default_worker::set_core_affinity(int core_id) {
+    // Use pthread to set this worker's thread to be fixed on a specific core.
+    // Since this is not platform agnostic, it needs to be changed for platforms
+    // without pthreads.
     this->core_id = core_id;
     cpu_set_t cs;
     CPU_ZERO(&cs);

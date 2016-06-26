@@ -16,6 +16,7 @@ struct context {
 
 struct config {
     bool print_stats = false;
+    int interrupt_rate = 5;
 };
 
 context launch_local(size_t n_workers, config cfg = config());

@@ -125,11 +125,23 @@ struct future {
     T get() && { return (!fut) ? std::move(val) : fut->get().get<T>(); }
 
     void save(cereal::BinaryOutputArchive& ar) const {
-        (void)ar;
+        ar(fut == nullptr);
+        if (fut == nullptr) {
+            ar(val);
+        } else {
+            ar(*fut);
+        }
     }
 
     void load(cereal::BinaryInputArchive& ar) {
-        (void)ar;
+        bool is_ready;
+        ar(is_ready);
+        if (is_ready) {
+            ar(val);
+        } else {
+            fut = std::make_unique<untyped_future>();
+            ar(*fut);
+        }
     }
 };
 

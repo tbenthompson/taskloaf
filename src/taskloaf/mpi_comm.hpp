@@ -28,6 +28,9 @@ struct mpi_comm: public comm {
     std::vector<sent_mpi_msg> outbox;
 
     mpi_comm(); 
+    ~mpi_comm();
+
+    void cleanup();
 
     const address& get_addr() const override;
     const std::vector<address>& remote_endpoints() override;
