@@ -1,6 +1,7 @@
 <% 
 import os
 import pybind11
+import mpi4py
 
 cfg['include_dirs'] = [
     pybind11.get_include(),
@@ -22,7 +23,16 @@ cfg['dependencies'] = (
     files_in_dir(os.path.join(filedirname, 'src', 'taskloaf'), 'hpp') +
     files_in_dir(os.path.join(filedirname, 'src'), 'hpp')
 )
-cfg['compiler_args'] = ['-std=c++14', '-O3', '-g']
+# IT'S REALLY IMPORTANT THAT OTHER LIBRARIES USE THE SAME SET OF COMPILER 
+# ARGUMENTS WHEN LINKING! I just had a bug where -DTASKLOAF_DEBUG was being
+# used here, but not in tectosaur. This resulted in "data" structures being
+# spliced because they are different sizes depending on whether type info
+# is stored or not. Perhaps, there is a separate issue here of maintaining
+# ABI compatibility between debug and release versions.
+cfg['compiler_args'] = ['-std=c++14', '-O3', '-g', '-Wall', '-Werror']
+#cfg['compiler_args'].append('-DMPI_FOUND')
+#os.environ['CC'] = mpi4py.get_config()['mpicc']
+#os.environ['CXX'] = mpi4py.get_config()['mpicxx']
 %>
 #include <cereal/types/string.hpp>
 
@@ -116,16 +126,15 @@ py_future task(const py::object& f) {
 }
 
 PYBIND11_PLUGIN(wrapper) {
-    py::module m(
-        "wrapper",
-        "Python bindings for the taskloaf distributed parallel futures library"
-    );
+    py::module m("wrapper", "Python bindings for the taskloaf library");
 
     py::class_<tl::context>(m, "Context");
+    py::class_<tl::config>(m, "Config")
+        .def(py::init<>())
+        .def_readwrite("print_stats", &tl::config::print_stats)
+        .def_readwrite("interrupt_rate", &tl::config::interrupt_rate);
 
-    m.def("launch_local", [] (int n_workers) {
-        return tl::launch_local(n_workers);
-    });
+    m.def("launch_local", tl::launch_local);
     m.def("ready", ready);
     m.def("task", task);
 
@@ -137,8 +146,8 @@ PYBIND11_PLUGIN(wrapper) {
         .def("__setstate__", py_future::setstate);
 
 #ifdef MPI_FOUND
-    m.def("launch_mpi", [] (const py::object& f) {
-        tl::launch_mpi([&] () { f(); });
+    m.def("launch_mpi", [] () {
+        return tl::launch_mpi();
     });
 #endif
 

@@ -6,6 +6,7 @@ launch_local = wrapper.launch_local
 task = wrapper.task
 ready = wrapper.ready
 Future = wrapper.Future
+Config = wrapper.Config
 
 # def when_all(*args):
 #     def make_split_args(f):
@@ -42,4 +43,4 @@ def launch_mpi(*args, **kwargs):
     # load it properly here.
     import ctypes
     ctypes.CDLL('libmpi.so', mode = ctypes.RTLD_GLOBAL)
-    taskloaf_wrapper.launch_mpi(*args, **kwargs)
+    wrapper.launch_mpi()#*args, **kwargs)

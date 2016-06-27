@@ -23,7 +23,7 @@ auto apply_args(F&& func, TupleT& args, std::index_sequence<I...>) {
 #define tl_unlikely(x) (x)
 #endif
 
-bool can_run_here(const address& addr) {
+inline bool can_run_here(const address& addr) {
     return addr == location::anywhere 
         || addr == location::here 
         || addr == cur_worker->get_addr();
