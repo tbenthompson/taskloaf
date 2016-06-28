@@ -17,6 +17,9 @@ untyped_future untyped_future::then(closure fnc) {
 
 untyped_future untyped_future::then(address where, closure fnc) {
     untyped_future out_untyped_future; 
+    if (where == location::here) {
+        where = cur_worker->get_addr();
+    }
     internal.add_trigger(closure(
         [] (std::tuple<untyped_future,closure,address>& d, data& v) {
             auto t = closure(

@@ -58,6 +58,19 @@ TEST_CASE("Task here") {
     REQUIRE(result == 30);
 }
 
+TEST_CASE("Task here after task elsewhere") {
+    auto ctx = launch_local(2);
+    int result = ut_task(1, [] (_,_) { 
+            return ut_task(location::here, [] (_,_) { return 5; }); 
+        })
+        .get().get<untyped_future>()
+        .then(location::here, [] (_,int x) { 
+            REQUIRE(cur_worker->get_addr() == address{0});
+            return x + 1; 
+        }).get();
+    REQUIRE(result == 6);
+}
+
 TEST_CASE("Then elsewhere") {
     auto ctx = launch_local(2);
     REQUIRE(cur_worker->get_addr() == address{0});

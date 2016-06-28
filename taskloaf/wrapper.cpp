@@ -29,16 +29,17 @@ cfg['dependencies'] = (
 # spliced because they are different sizes depending on whether type info
 # is stored or not. Perhaps, there is a separate issue here of maintaining
 # ABI compatibility between debug and release versions.
-cfg['compiler_args'] = ['-std=c++14', '-O3', '-g', '-Wall', '-Werror']
-#cfg['compiler_args'].append('-DMPI_FOUND')
-#os.environ['CC'] = mpi4py.get_config()['mpicc']
-#os.environ['CXX'] = mpi4py.get_config()['mpicxx']
+cfg['compiler_args'] = ['-std=c++14', '-O3', '-g', '-Wall', '-Werror', '-DTASKLOAF_DEBUG']
+cfg['compiler_args'].append('-DMPI_FOUND')
+os.environ['CC'] = mpi4py.get_config()['mpicc']
+os.environ['CXX'] = mpi4py.get_config()['mpicxx']
 %>
 #include <cereal/types/string.hpp>
 
 #include <pybind11/pybind11.h>
 
 #include "taskloaf.hpp"
+#include <mpi.h>
 
 namespace py = pybind11;
 namespace tl = taskloaf;
@@ -147,6 +148,7 @@ PYBIND11_PLUGIN(wrapper) {
 
 #ifdef MPI_FOUND
     m.def("launch_mpi", [] () {
+        MPI_Init(nullptr, nullptr);
         return tl::launch_mpi();
     });
 #endif

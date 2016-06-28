@@ -2,11 +2,13 @@ import cppimport
 cppimport.set_quiet(False)
 
 wrapper = cppimport.imp("taskloaf.wrapper").wrapper
-launch_local = wrapper.launch_local
 task = wrapper.task
 ready = wrapper.ready
 Future = wrapper.Future
 Config = wrapper.Config
+
+def launch_local(n_cores, cfg = Config()):
+    return wrapper.launch_local(n_cores, cfg)
 
 # def when_all(*args):
 #     def make_split_args(f):
@@ -43,4 +45,4 @@ def launch_mpi(*args, **kwargs):
     # load it properly here.
     import ctypes
     ctypes.CDLL('libmpi.so', mode = ctypes.RTLD_GLOBAL)
-    wrapper.launch_mpi()#*args, **kwargs)
+    return wrapper.launch_mpi()#*args, **kwargs)

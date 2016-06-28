@@ -24,27 +24,15 @@ def test_unwrap():
         return taskloaf.task(lambda: 10)
     assert(taskloaf.task(func).unwrap().get() == 10)
 
-def test_unwrap_bad_type():
-    ctx = taskloaf.launch_local(1)
-    with pytest.raises(TypeError) as e_info:
-        taskloaf.task(lambda: 1).unwrap().get()
-    with pytest.raises(TypeError) as e_info:
-        taskloaf.task(lambda: None).unwrap().get()
-
-def test_fib():
-    def fib(i):
-        if i < 3:
-            return taskloaf.ready(1)
-        else:
-            return (fib(i - 1)
-                .then(lambda a: fib(i - 2).then(lambda b: a + b))
-                .unwrap())
-
-    ctx = taskloaf.launch_local(1)
-    assert(fib(20).get() == 6765)
+# def test_unwrap_bad_type():
+#     ctx = taskloaf.launch_local(1)
+#     with pytest.raises(TypeError) as e_info:
+#         taskloaf.task(lambda: 1).unwrap().get()
+#     with pytest.raises(TypeError) as e_info:
+#         taskloaf.task(lambda: None).unwrap().get()
 
 
-
+#
 def test_tree():
     ctx = taskloaf.launch_local(1)
 

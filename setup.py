@@ -3,7 +3,7 @@ from setuptools import setup
 def main():
     setup(
         packages = ['taskloaf'],
-        install_requires = ['dill', 'pybind11'],
+        install_requires = ['dill', 'pybind11', 'cppimport'],
         zip_safe = False,
 
         name = 'taskloaf',
