@@ -51,7 +51,7 @@ def test_data_send():
 
 @mpi_procs(2)
 def test_fnc_send():
-    c = MPIComm(3)
+    c = MPIComm(4)
     if c.addr == 0:
         x = 13
         c.send(1, lambda: x ** 2)

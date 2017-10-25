@@ -5,15 +5,15 @@ from taskloaf.local_comm import LocalComm
 
 def die():
     print("DYING")
-    taskloaf.worker.run = False
+    taskloaf.worker.shutdown()
 
 def run(c):
     if c.addr == 0:
         taskloaf.worker.launch(c)
     else:
-        c.send(0, lambda: print(c.addr))
+        c.send(0, lambda: print('hi from proc ' + str(c.addr)))
         if c.addr == 1:
-            time.sleep(1)
+            time.sleep(0.2)
             c.send(0, die)
 
 def start(i, qs):
