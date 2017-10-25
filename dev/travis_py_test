@@ -1,8 +1,0 @@
-#!/bin/bash
-set -e
-virtualenv ./nodeps
-./nodeps/bin/python setup.py install
-mkdir python_test
-cd python_test
-../nodeps/bin/python -c "import taskloaf"
-cd ..
