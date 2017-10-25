@@ -7,15 +7,18 @@ def die():
     print("DYING")
     taskloaf.worker.run = False
 
-def start(i, qs):
-    if i == 0:
-        taskloaf.worker.launch(LocalComm(qs, i))
+def run(c):
+    if c.addr == 0:
+        taskloaf.worker.launch(c)
     else:
-        c = LocalComm(qs, i)
-        c.send(0, lambda: print(i))
-        if i == 1:
+        c.send(0, lambda: print(c.addr))
+        if c.addr == 1:
             time.sleep(1)
             c.send(0, die)
+
+def start(i, qs):
+    c = LocalComm(qs, i)
+    run(c)
 
 if __name__ == "__main__":
     n = 2

@@ -1,7 +1,6 @@
 import cloudpickle
 from mpi4py import MPI
-MPI.pickle.dumps = cloudpickle.dumps
-MPI.pickle.loads = cloudpickle.loads
+MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
 
 class MPIComm:
     next_tag = 0
