@@ -1,19 +1,20 @@
-import taskloaf.worker
+from taskloaf.worker import get_service, submit_task
 
 def signal(x):
-    signals_registry = taskloaf.worker.services['signals_registry']
-    if x in signals_registry:
-        for t in signals_registry[x]:
+    reg = get_service('signals_registry')
+    if x in reg:
+        for t in reg[x]:
             print('signalled ' + str(x) + ' running ' + str(t))
-            taskloaf.worker.submit_task(t)
-    signals_registry[x] = 0
+            submit_task(t)
+    reg[x] = 0
 
 def set_trigger(x, t):
-    signals_registry = taskloaf.worker.services['signals_registry']
-    if x in signals_registry:
-        if signals_registry[x] == 0:
+    reg = get_service('signals_registry')
+    if x in reg:
+        if reg[x] == 0:
             print('already signalled ' + str(x) + ' running ' + str(t))
-            taskloaf.worker.submit_task(t)
+            submit_task(t)
         else:
-            signals_registry.append(t)
-    signals_registry[x] = [t]
+            reg.append(t)
+    else:
+        reg[x] = [t]

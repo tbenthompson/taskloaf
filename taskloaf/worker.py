@@ -4,6 +4,9 @@ run = None
 tasks = []
 services = dict()
 
+def get_service(name):
+    return services[name]
+
 def shutdown():
     global run
     run = False
