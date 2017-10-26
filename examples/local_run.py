@@ -9,7 +9,7 @@ def die():
 
 def run(c):
     if c.addr == 0:
-        taskloaf.worker.launch(c)
+        taskloaf.worker.task_loop(lambda: taskloaf.worker.comm_poll(c))
     else:
         c.send(0, lambda: print('hi from proc ' + str(c.addr)))
         if c.addr == 1:

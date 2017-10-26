@@ -30,11 +30,14 @@ def task_loop(t):
     # print('ran ' + str(n_tasks) + ' tasks in ' + str(run_time) + ' secs.')
 
 def comm_poll(c):
-    t = c.recv()
-    tasks.append(lambda: comm_poll(c))
-    if t is not None:
-        tasks.append(t)
-
-def start_comm(c):
     services['comm'] = c
-    comm_poll(c)
+    def loop():
+        t = c.recv()
+        tasks.append(lambda: loop())
+        if t is not None:
+            tasks.append(t)
+    loop()
+
+def launch(c):
+    services['signals_registry'] = dict()
+    task_loop(lambda: comm_poll(c))
