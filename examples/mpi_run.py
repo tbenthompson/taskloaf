@@ -1,6 +1,6 @@
 from taskloaf.mpi_comm import MPIComm
 
-from local_task import die, run
+from local_run import die, run
 
 from mpi4py.futures import MPIPoolExecutor
 

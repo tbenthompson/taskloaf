@@ -13,7 +13,6 @@ def run(c):
     else:
         c.send(0, lambda: print('hi from proc ' + str(c.addr)))
         if c.addr == 1:
-            time.sleep(0.2)
             c.send(0, die)
 
 def start(i, qs):
@@ -25,5 +24,5 @@ if __name__ == "__main__":
     p = multiprocessing.Pool(n)
     manager = multiprocessing.Manager()
     qs = [manager.Queue() for i in range(n)]
-
-    p.starmap(start, [(i, qs) for i in range(n)])
+    fut = p.starmap_async(start, [(i, qs) for i in range(n)])
+    fut.wait()

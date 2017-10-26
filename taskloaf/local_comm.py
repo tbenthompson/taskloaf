@@ -10,4 +10,6 @@ class LocalComm:
         self.local_queues[to_addr].put(cloudpickle.dumps(data))
 
     def recv(self):
+        if self.local_queues[self.addr].empty():
+            return None
         return cloudpickle.loads(self.local_queues[self.addr].get())

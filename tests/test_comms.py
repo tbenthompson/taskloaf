@@ -2,13 +2,7 @@ from multiprocessing import Process, Queue
 from mpi4py import MPI
 from taskloaf.local_comm import LocalComm
 from taskloaf.mpi_comm import MPIComm
-
-def mpi_procs(n):
-    n_procs_available = MPI.COMM_WORLD.Get_size()
-    def decorator(test_fnc):
-        test_fnc.n_procs = n
-        return test_fnc
-    return decorator
+from taskloaf.test_decorators import mpi_procs
 
 def queue_test_helper(q):
     q.put(123)
@@ -25,7 +19,12 @@ def test_local_comm():
     c0 = LocalComm(qs, 0)
     c1 = LocalComm(qs, 1)
     c0.send(1, 456)
-    assert(c1.recv() == 456)
+    go = True
+    while go:
+        val = c1.recv()
+        if val is not None:
+            assert(val == 456)
+            go = False
 
 def test_tag_increment():
     c1 = MPIComm(0)
