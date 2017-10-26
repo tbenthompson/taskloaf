@@ -1,6 +1,10 @@
 import time
+import asyncio
+import inspect
+import traceback
 
-run = None
+running = None
+ioloop = asyncio.get_event_loop()
 tasks = []
 services = dict()
 
@@ -8,39 +12,37 @@ def get_service(name):
     return services[name]
 
 def shutdown():
-    global run
-    run = False
+    global running
+    running = False
+    print("SHUTDOWN!")
 
 def submit_task(t):
     tasks.append(t)
 
-def task_loop(t):
-    global tasks, run
-
-    run = True
-    submit_task(t)
-
-    n_tasks = 0
-    start = time.time()
-
-    while run:
+async def task_loop():
+    while running:
         if len(tasks) == 0:
+            await asyncio.sleep(0)
             continue
         tasks.pop()()
-        n_tasks += 1
 
-    run_time = time.time() - start
-    # print('ran ' + str(n_tasks) + ' tasks in ' + str(run_time) + ' secs.')
+def _launch(s_launchers):
+    global running
+    running = True
+    ioloop.run_until_complete(asyncio.gather(task_loop(), *s_launchers))
+    ioloop.close()
 
-def comm_poll(c):
+async def comm_poll(c):
     services['comm'] = c
-    def loop():
+    while running:
         t = c.recv()
-        tasks.append(lambda: loop())
         if t is not None:
             tasks.append(t)
-    loop()
+        await asyncio.sleep(0)
+
+def start_signals_registry():
+    services['signals_registry'] = dict()
 
 def launch(c):
-    services['signals_registry'] = dict()
-    task_loop(lambda: comm_poll(c))
+    start_signals_registry()
+    _launch([comm_poll(c)])

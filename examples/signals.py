@@ -2,6 +2,8 @@ from taskloaf.mpi_comm import MPIComm
 from taskloaf.worker import submit_task, shutdown, launch, get_service
 from taskloaf.signals import signal, set_trigger
 
+x = 3
+
 def task1(i):
     print('task1: ' + str(i))
     if i == 0:
@@ -11,7 +13,7 @@ def task1(i):
 
 def task2(i):
     print('task2: ' + str(i))
-    if i == 10:
+    if i == x:
         signal(2)
     else:
         submit_task(lambda: task2(i + 1))
@@ -21,7 +23,7 @@ if __name__ == "__main__":
     if c.addr < 2:
         launch(c)
     else:
-        c.send(0, lambda: task1(10))
+        c.send(0, lambda: task1(x))
         c.send(1, lambda: task2(0))
 
         def shutter():

@@ -11,6 +11,6 @@ def task(i):
 if __name__ == "__main__":
     c = MPIComm(0)
     if c.addr == 0:
-        taskloaf.worker.task_loop(lambda: taskloaf.worker.comm_poll(c))
+        taskloaf.worker.launch(c)
     else:
         c.send(0, lambda: task(10))
