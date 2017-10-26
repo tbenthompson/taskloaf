@@ -1,6 +1,6 @@
-from taskloaf.mpi_comm import MPIComm
-from taskloaf.worker import submit_task, shutdown, launch, get_service
+from taskloaf.worker import submit_task, local_task, shutdown, launch_worker, launch_client, get_service
 from taskloaf.signals import signal, set_trigger
+from mpi_run import mpirun
 
 x = 3
 
@@ -9,38 +9,37 @@ def task1(i):
     if i == 0:
         signal(1)
     else:
-        submit_task(lambda: task1(i - 1))
+        local_task(lambda: task1(i - 1))
 
 def task2(i):
     print('task2: ' + str(i))
     if i == x:
         signal(2)
     else:
-        submit_task(lambda: task2(i + 1))
+        local_task(lambda: task2(i + 1))
 
-if __name__ == "__main__":
-    c = MPIComm(0)
+def run(c):
     if c.addr < 2:
-        launch(c)
+        launch_worker(c)
     else:
-        c.send(0, lambda: task1(x))
-        c.send(1, lambda: task2(0))
+        launch_client(c)
+        submit_task(0, lambda: task1(x))
+        submit_task(1, lambda: task2(0))
 
         def shutter():
-            c = get_service('comm')
-            print('shutter running on ' + str(c.addr))
-            c.send(0, shutdown)
+            print('shutter running on ' + str(get_service('comm').addr))
+            submit_task(0, shutdown)
             shutdown()
 
         def trigger2():
-            c = get_service('comm')
-            print('trigger2 running on ' + str(c.addr))
-            c.send(1,
-                lambda: set_trigger(2, shutter)
-            )
+            print('trigger2 running on ' + str(get_service('comm').addr))
+            submit_task(1, lambda: set_trigger(2, shutter))
 
         def trigger_setup():
             print("SET!")
             set_trigger(1, trigger2)
-        c.send(0, trigger_setup)
+        submit_task(0, trigger_setup)
 
+
+if __name__ == "__main__":
+    mpirun(3, run)

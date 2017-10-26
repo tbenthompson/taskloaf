@@ -1,12 +1,11 @@
-import time
 import asyncio
-import inspect
-import traceback
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 running = None
-ioloop = asyncio.get_event_loop()
 tasks = []
 services = dict()
+services['ioloop'] = asyncio.get_event_loop()
 
 def get_service(name):
     return services[name]
@@ -16,8 +15,15 @@ def shutdown():
     running = False
     print("SHUTDOWN!")
 
-def submit_task(t):
-    tasks.append(t)
+def local_task(f):
+    tasks.append(f)
+
+def submit_task(to, f):
+    c = get_service('comm')
+    if c.addr == to:
+        local_task(f)
+    else:
+        c.send(to, f)
 
 async def task_loop():
     while running:
@@ -25,12 +31,6 @@ async def task_loop():
             await asyncio.sleep(0)
             continue
         tasks.pop()()
-
-def _launch(s_launchers):
-    global running
-    running = True
-    ioloop.run_until_complete(asyncio.gather(task_loop(), *s_launchers))
-    ioloop.close()
 
 async def comm_poll(c):
     services['comm'] = c
@@ -43,6 +43,14 @@ async def comm_poll(c):
 def start_signals_registry():
     services['signals_registry'] = dict()
 
-def launch(c):
+def launch_worker(c):
+    global running
+    running = True
     start_signals_registry()
-    _launch([comm_poll(c)])
+    services['ioloop'] = asyncio.get_event_loop()
+    services['ioloop'].run_until_complete(asyncio.gather(task_loop(), comm_poll(c)))
+    services['ioloop'].close()
+
+def launch_client(c):
+    services['comm'] = c
+    start_signals_registry()

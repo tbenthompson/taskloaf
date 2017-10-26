@@ -1,16 +1,20 @@
-from taskloaf.mpi_comm import MPIComm
-import taskloaf.worker
+import taskloaf.worker as tsk
+from mpi_run import mpirun
+from local_run import localrun
 
 def task(i):
     print(str(i))
     if i == 0:
-        taskloaf.worker.shutdown()
+        tsk.shutdown()
     else:
-        taskloaf.worker.submit_task(lambda: task(i - 1))
+        tsk.submit_task(0, lambda: task(i - 1))
+
+def run(c):
+    if c.addr == 0:
+        tsk.launch_worker(c)
+    else:
+        tsk.launch_client(c)
+        tsk.submit_task(0, lambda: task(10))
 
 if __name__ == "__main__":
-    c = MPIComm(0)
-    if c.addr == 0:
-        taskloaf.worker.launch(c)
-    else:
-        c.send(0, lambda: task(10))
+    mpirun(2, run)

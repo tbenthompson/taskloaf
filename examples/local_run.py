@@ -7,28 +7,32 @@ def die():
     taskloaf.worker.shutdown()
 
 def run(c):
-    try:
-        if c.addr == 0:
-            taskloaf.worker.launch(c)
-        else:
-            c.send(0, lambda: print('hi from proc ' + str(c.addr)))
-            c.send(0, die)
-    except Exception as e:
-        print(traceback.print_exc())
-        raise e
+    if c.addr == 0:
+        taskloaf.worker.launch_worker(c)
+    else:
+        taskloaf.worker.launch_client(c)
+        taskloaf.worker.submit_task(0, lambda: print('hI from proc ' + str(c.addr)))
+        taskloaf.worker.submit_task(0, die)
 
-def start(i, qs):
-    c = LocalComm(qs, i)
-    run(c)
-
-if __name__ == "__main__":
-    n = 2
+def localrun(n, f):
     try:
         p = multiprocessing.Pool(n)
         manager = multiprocessing.Manager()
         qs = [manager.Queue() for i in range(n)]
-        fut = p.starmap_async(start, [(i, qs) for i in range(n)])
+        fut = p.starmap_async(localstart, [(f, i, qs) for i in range(n)])
         fut.wait()
     finally:
         p.close()
         p.join()
+
+def localstart(f, i, qs):
+    try:
+        c = LocalComm(qs, i)
+        f(c)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise e
+
+if __name__ == "__main__":
+    localrun(2, run)
