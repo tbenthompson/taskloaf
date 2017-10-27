@@ -84,7 +84,9 @@ def submit():
         for i in range(n):
             pr = pr.then(lambda x: x + 1)
         pr2 = task(lambda: X, to = 1)
-        pr = when_all([pr, pr2]).then(sum).then(print)
+        wa = when_all([pr, pr2])
+        tsk.get_service('ioloop').create_task(track_when_all(wa.signal))
+        pr = wa.then(sum).then(print)
         pr.next(shutter)
     tsk.submit_task(0, submit_locally)
 
