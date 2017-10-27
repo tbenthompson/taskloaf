@@ -32,7 +32,8 @@ def mpirun(n_workers, f, tag = 0):
     n_procs = n_workers + 1
     D = os.path.dirname(inspect.stack()[-1].filename)
     # this_dir = os.path.dirname(os.path.realpath(__file__))
-    with MPIPoolExecutor(max_workers = n_procs, path = [D]) as p:
+    mpi_args = dict(max_workers = n_procs, path = [D])
+    with MPIPoolExecutor(**mpi_args) as p:
         return p.starmap(mpistart, zip([f] * n_procs, range(n_procs), [tag] * n_procs))
 
 def mpistart(f, i, tag):

@@ -1,15 +1,14 @@
 from taskloaf.worker import submit_task, shutdown, get_service
-from taskloaf.signals import signal, set_trigger
+from taskloaf.signals import set_trigger, submit_signalled_task
 from taskloaf.launch import launch
-
-from uuid import uuid1 as uuid
 
 x = 3
 
-def submit_signalled_task(to, f):
-    S = uuid(to)
+def submit_signalled_task(to, f, S = None):
+    if S is None:
+        S = new_id(to)
     def work_wrapper():
-        f()
+        f(S)
         signal(S)
     submit_task(to, work_wrapper)
     return (to, S)
@@ -33,7 +32,7 @@ def shutter():
 
 def submit():
     n = 5
-    sigs = [submit_signalled_task(i < (n / 2), lambda: task(i)) for i in range(n)]
+    sigs = [submit_signalled_task(i < (n / 2), lambda S: task(i)) for i in range(n)]
     when_all(sigs, shutter)
 
 if __name__ == "__main__":
