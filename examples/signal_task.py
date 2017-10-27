@@ -1,7 +1,6 @@
-from taskloaf.worker import submit_task, shutdown, launch_worker, launch_client, get_service
+from taskloaf.worker import submit_task, shutdown, get_service
 from taskloaf.signals import signal, set_trigger
-
-from mpi_run import mpirun
+from taskloaf.launch import launch
 
 from uuid import uuid1 as uuid
 
@@ -32,14 +31,10 @@ def shutter():
     for i in range(2):
         submit_task(i, shutdown)
 
-def run(c):
-    if c.addr < 2:
-        launch_worker(c)
-    else:
-        launch_client(c)
-        n = 5
-        sigs = [submit_signalled_task(i < (n / 2), lambda: task(i)) for i in range(n)]
-        when_all(sigs, shutter)
+def submit():
+    n = 5
+    sigs = [submit_signalled_task(i < (n / 2), lambda: task(i)) for i in range(n)]
+    when_all(sigs, shutter)
 
 if __name__ == "__main__":
-    mpirun(3, run)
+    launch(2, submit)

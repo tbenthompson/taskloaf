@@ -1,6 +1,6 @@
 import taskloaf.worker as tsk
-from mpi_run import mpirun
-from local_run import localrun
+from taskloaf.launch import launch
+from taskloaf.mpi import mpirun
 
 def task(i):
     print(str(i))
@@ -9,12 +9,8 @@ def task(i):
     else:
         tsk.submit_task(0, lambda: task(i - 1))
 
-def run(c):
-    if c.addr == 0:
-        tsk.launch_worker(c)
-    else:
-        tsk.launch_client(c)
-        tsk.submit_task(0, lambda: task(10))
+def submit():
+    tsk.submit_task(0, lambda: task(10))
 
 if __name__ == "__main__":
-    mpirun(2, run)
+    launch(1, submit, runner = mpirun)

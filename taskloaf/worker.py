@@ -43,7 +43,7 @@ async def comm_poll(c):
 def start_signals_registry():
     services['signals_registry'] = dict()
 
-def launch_worker(c):
+def start_worker(c):
     global running
     running = True
     start_signals_registry()
@@ -51,6 +51,6 @@ def launch_worker(c):
     services['ioloop'].run_until_complete(asyncio.gather(task_loop(), comm_poll(c)))
     services['ioloop'].close()
 
-def launch_client(c):
+def start_client(c):
     services['comm'] = c
     start_signals_registry()

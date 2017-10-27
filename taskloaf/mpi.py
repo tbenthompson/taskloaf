@@ -1,5 +1,9 @@
+import os
+import inspect
 import cloudpickle
 from mpi4py import MPI
+from mpi4py.futures import MPIPoolExecutor
+
 MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
 
 class MPIComm:
@@ -23,3 +27,23 @@ class MPIComm:
         if not msg_exists:
             return None
         return self.comm.recv(source = s.source, tag = self.tag)
+
+def mpirun(n_workers, f, tag = 0):
+    n_procs = n_workers + 1
+    D = os.path.dirname(inspect.stack()[-1].filename)
+    # this_dir = os.path.dirname(os.path.realpath(__file__))
+    with MPIPoolExecutor(max_workers = n_procs, path = [D]) as p:
+        return p.starmap(mpistart, zip([f] * n_procs, range(n_procs), [tag] * n_procs))
+
+def mpistart(f, i, tag):
+    try:
+        c = MPIComm(tag)
+        f(c)
+    except Exception as e:
+        import traceback
+        # mpi4py MPIPoolExecutor supresses stderr until the pool is done...
+        # so send the exception info to stdout
+        import sys
+        traceback.print_exc(file = sys.stdout)
+        raise e
+
