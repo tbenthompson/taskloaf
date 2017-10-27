@@ -70,8 +70,6 @@ def when_all(ps, to = None):
         p.then(lambda x, i = i: add_to_result(x, i), to = to)
     return Promise(to, S)
 
-#async, then, unwrap, when_all
-
 def shutter():
     for i in range(2):
         tsk.submit_task(i, tsk.shutdown)
@@ -85,7 +83,6 @@ def submit():
             pr = pr.then(lambda x: x + 1)
         pr2 = task(lambda: X, to = 1)
         wa = when_all([pr, pr2])
-        tsk.get_service('ioloop').create_task(track_when_all(wa.signal))
         pr = wa.then(sum).then(print)
         pr.next(shutter)
     tsk.submit_task(0, submit_locally)

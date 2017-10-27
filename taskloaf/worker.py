@@ -1,11 +1,3 @@
-# from line_profiler import LineProfiler
-# lp = LineProfiler()
-# import builtins
-# builtins.__dict__['profile'] = lp
-#
-def profile(f):
-    return f
-
 import asyncio
 import uvloop
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -15,21 +7,16 @@ tasks = []
 services = dict()
 services['ioloop'] = asyncio.get_event_loop()
 
-@profile
 def get_service(name):
     return services[name]
 
-@profile
 def shutdown():
     global running
     running = False
-    print("SHUTDOWN!")
 
-@profile
 def local_task(f):
     tasks.append(f)
 
-@profile
 def submit_task(to, f):
     c = get_service('comm')
     if c.addr == to:
@@ -37,15 +24,18 @@ def submit_task(to, f):
     else:
         c.send(to, f)
 
-@profile
+def _run_task(f):
+    if asyncio.iscoroutinefunction(f):
+        asyncio.ensure_future(f())
+    else:
+        f()
+
 async def task_loop():
     while running:
         if len(tasks) > 0:
-            tasks.pop()()
-        # else:
+            _run_task(tasks.pop())
         await asyncio.sleep(0)
 
-@profile
 async def comm_poll(c):
     services['comm'] = c
     while running:
@@ -54,22 +44,37 @@ async def comm_poll(c):
             tasks.append(t)
         await asyncio.sleep(0)
 
-@profile
 def start_signals_registry():
     services['signals_registry'] = dict()
     services['data'] = dict()
 
-@profile
-def start_worker(c):
+def start_worker(c, start_coro = None):
     global running
     running = True
     start_signals_registry()
     services['ioloop'] = asyncio.get_event_loop()
-    services['ioloop'].run_until_complete(asyncio.gather(task_loop(), comm_poll(c)))
-    services['ioloop'].close()
-    # lp.print_stats()
 
-@profile
+    coros = [task_loop()]
+    if c is not None:
+        coros.append(comm_poll(c))
+    if start_coro is not None:
+        coros.append(start_coro)
+
+    results = services['ioloop'].run_until_complete(asyncio.gather(*coros))
+    if start_coro is not None:
+        return results[-1]
+
+def run(coro):
+    async def caller():
+        result = await coro
+        shutdown()
+        return result
+    return start_worker(None, caller())
+
+async def run_in_thread(sync_f):
+    result = await asyncio.get_event_loop().run_in_executor(None, sync_f)
+    return result
+
 def start_client(c):
     services['comm'] = c
     start_signals_registry()

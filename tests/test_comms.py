@@ -1,7 +1,7 @@
 from multiprocessing import Process, Queue
 from mpi4py import MPI
-from taskloaf.local_comm import LocalComm
-from taskloaf.mpi_comm import MPIComm
+from taskloaf.local import LocalComm
+from taskloaf.mpi import MPIComm
 from taskloaf.test_decorators import mpi_procs
 
 def queue_test_helper(q):
