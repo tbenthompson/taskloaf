@@ -1,12 +1,12 @@
-import taskloaf.worker as tsk
-from taskloaf.mpi import mpirun
-from taskloaf.launch import launch
+import taskloaf as tsk
 
-def submit():
+async def submit():
     addr = tsk.get_service('comm').addr
-    tsk.submit_task(0, lambda: print('hI from proc ' + str(addr)))
-    tsk.submit_task(0, tsk.shutdown)
+    def print_then_shutdown():
+        print('hI from proc ' + str(addr))
+        tsk.submit_task(0, tsk.shutdown)
+    tsk.submit_task(0, print_then_shutdown)
 
 if __name__ == "__main__":
-    launch(1, submit)
-    launch(1, submit, runner = mpirun)
+    tsk.cluster(1, submit)
+    tsk.cluster(1, submit, runner = tsk.mpirun)

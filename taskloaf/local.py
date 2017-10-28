@@ -17,12 +17,12 @@ class LocalComm:
 
 def localrun(n_workers, f):
     try:
-        p = multiprocessing.Pool(n_workers + 1)
+        p = multiprocessing.Pool(n_workers)
         manager = multiprocessing.Manager()
-        qs = [manager.Queue() for i in range(n_workers + 1)]
-        args = [(cloudpickle.dumps(f), i, qs) for i in range(n_workers + 1)]
+        qs = [manager.Queue() for i in range(n_workers)]
+        args = [(cloudpickle.dumps(f), i, qs) for i in range(n_workers)]
         fut = p.starmap_async(localstart, args)
-        fut.wait()
+        return fut.get()[0]
     finally:
         p.close()
         p.join()
@@ -30,7 +30,7 @@ def localrun(n_workers, f):
 def localstart(f, i, qs):
     try:
         c = LocalComm(qs, i)
-        cloudpickle.loads(f)(c)
+        return cloudpickle.loads(f)(c)
     except Exception as e:
         import traceback
         traceback.print_exc()

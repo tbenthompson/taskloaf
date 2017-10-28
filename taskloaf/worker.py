@@ -13,6 +13,25 @@ def get_service(name):
 def shutdown():
     global running
     running = False
+    print("SHUTDOWN")
+
+def start_worker(c, start_coro = None):
+    global running
+    running = True
+
+    start_registries()
+    services['ioloop'] = asyncio.get_event_loop()
+    services['comm'] = c
+
+    coros = [task_loop()]
+    if c is not None:
+        coros.append(comm_poll(c))
+    if start_coro is not None:
+        coros.append(start_coro)
+
+    results = services['ioloop'].run_until_complete(asyncio.gather(*coros))
+    if start_coro is not None:
+        return results[-1]
 
 def local_task(f):
     tasks.append(f)
@@ -26,9 +45,9 @@ def submit_task(to, f):
 
 def _run_task(f):
     if asyncio.iscoroutinefunction(f):
-        asyncio.ensure_future(f())
+        return spawn(f())
     else:
-        f()
+        return f()
 
 async def task_loop():
     while running:
@@ -37,32 +56,23 @@ async def task_loop():
         await asyncio.sleep(0)
 
 async def comm_poll(c):
-    services['comm'] = c
     while running:
         t = c.recv()
         if t is not None:
             tasks.append(t)
         await asyncio.sleep(0)
 
-def start_signals_registry():
+def start_registries():
+    services['waiting_futures'] = dict()
     services['signals_registry'] = dict()
     services['data'] = dict()
 
-def start_worker(c, start_coro = None):
-    global running
-    running = True
-    start_signals_registry()
-    services['ioloop'] = asyncio.get_event_loop()
+def spawn(coro):
+    return asyncio.ensure_future(coro)
 
-    coros = [task_loop()]
-    if c is not None:
-        coros.append(comm_poll(c))
-    if start_coro is not None:
-        coros.append(start_coro)
-
-    results = services['ioloop'].run_until_complete(asyncio.gather(*coros))
-    if start_coro is not None:
-        return results[-1]
+async def run_in_thread(sync_f):
+    result = await asyncio.get_event_loop().run_in_executor(None, sync_f)
+    return result
 
 def run(coro):
     async def caller():
@@ -70,11 +80,3 @@ def run(coro):
         shutdown()
         return result
     return start_worker(None, caller())
-
-async def run_in_thread(sync_f):
-    result = await asyncio.get_event_loop().run_in_executor(None, sync_f)
-    return result
-
-def start_client(c):
-    services['comm'] = c
-    start_signals_registry()
