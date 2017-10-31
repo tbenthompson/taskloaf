@@ -38,7 +38,6 @@ class Promise:
         submit_task(self.owner, wait_to_start)
         return out_pr
 
-
     def next(self, f, to = None):
         return self.then(lambda x: f(), to)
 

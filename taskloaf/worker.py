@@ -45,7 +45,7 @@ def submit_task(to, f):
 
 def _run_task(f):
     if asyncio.iscoroutinefunction(f):
-        return spawn(f())
+        return asyncio.ensure_future(f())
     else:
         return f()
 
@@ -64,9 +64,6 @@ async def comm_poll(c):
 
 def start_registries():
     services['waiting_futures'] = dict()
-
-def spawn(coro):
-    return asyncio.ensure_future(coro)
 
 async def run_in_thread(sync_f):
     return (await asyncio.get_event_loop().run_in_executor(None, sync_f))

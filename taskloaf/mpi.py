@@ -47,4 +47,3 @@ def mpistart(f, i, tag):
         import sys
         traceback.print_exc(file = sys.stdout)
         raise e
-
