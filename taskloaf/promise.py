@@ -24,6 +24,7 @@ class Promise:
         return wf[self.id_].__await__()
 
     def set_result(self, result):
+        assert(get_service('comm').addr == self.owner)
         wf = get_service('waiting_futures')
         if self.id_ not in wf:
             wf[self.id_] = asyncio.Future()

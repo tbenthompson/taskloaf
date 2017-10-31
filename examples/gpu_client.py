@@ -7,10 +7,11 @@ async def work_builder():
     addr = tsk.get_service('comm').addr
     def add_task():
         print("PEACE" + str(addr))
-    await tsk.task(add_task, to = gpu_addr)
-    return 2.0
+        return addr
+    rem_addr = await tsk.task(add_task, to = gpu_addr)
+    return (2.0, rem_addr)
 
-async def f2(x):
+def f2(x):
     return x * 2
 
 async def submit():
@@ -18,7 +19,6 @@ async def submit():
     pr2 = tsk.task(work_builder, to = 1)
     print(await pr1)
     print(await pr2)
-    tsk.task(tsk.shutdown, to = 0)
-    tsk.task(tsk.shutdown, to = 1)
+    return 5.0
 
-tsk.cluster(2, submit)
+print(tsk.cluster(2, submit))
