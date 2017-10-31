@@ -3,13 +3,10 @@ import inspect
 from taskloaf.worker import submit_task, get_service
 from uuid import uuid1 as uuid
 
-def _new_id(addr):
-    return uuid(addr)
-
 class Promise:
-    def __init__(self, owner, id_):
+    def __init__(self, owner):
         self.owner = owner
-        self.id_ = id_
+        self.id_ = uuid(self.owner)
 
     def __await__(self):
         here = get_service('comm').addr
@@ -33,14 +30,14 @@ class Promise:
     def then(self, f, to = None):
         if to is None:
             to = self.owner
-        id_ = _new_id(to)
 
+        out_pr = Promise(to)
         async def wait_to_start():
             v = await self
-            task(lambda v=v: f(v), to = to, id_ = id_)
+            task(lambda v=v: f(v), out_pr = out_pr)
         submit_task(self.owner, wait_to_start)
+        return out_pr
 
-        return Promise(to, id_)
 
     def next(self, f, to = None):
         return self.then(lambda x: f(), to)
@@ -51,31 +48,26 @@ def _unwrap_promise(pr, result):
     else:
         pr.set_result(result)
 
-def task(f, to = None, id_ = None):
-    if to is None:
-        to = get_service('comm').addr
-
-    if id_ is None:
-        id_ = _new_id(to)
-
-    out_pr = Promise(to, id_)
+def task(f, to = None, out_pr = None):
+    if out_pr is None:
+        if to is None:
+            to = get_service('comm').addr
+        out_pr = Promise(to)
 
     async def work_wrapper():
-        assert(get_service('comm').addr == to)
+        assert(get_service('comm').addr == out_pr.owner)
         result = f()
         if inspect.isawaitable(result):
             result = await result
         _unwrap_promise(out_pr, result)
 
-    submit_task(to, work_wrapper)
+    submit_task(out_pr.owner, work_wrapper)
     return out_pr
 
 def when_all(ps, to = None):
     if to is None:
         to = ps[0].owner
-
-    id_ = _new_id(to)
-    out_pr = Promise(to, id_)
+    out_pr = Promise(to)
 
     n = len(ps)
     async def wait_for_all():
@@ -83,5 +75,5 @@ def when_all(ps, to = None):
         for i, p in enumerate(ps):
             results.append(await p)
         out_pr.set_result(results)
-    submit_task(to, wait_for_all)
+    submit_task(out_pr.owner, wait_for_all)
     return out_pr

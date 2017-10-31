@@ -64,8 +64,6 @@ async def comm_poll(c):
 
 def start_registries():
     services['waiting_futures'] = dict()
-    services['signals_registry'] = dict()
-    services['data'] = dict()
 
 def spawn(coro):
     return asyncio.ensure_future(coro)
