@@ -1,6 +1,12 @@
 import numpy as np
 import tectosaur.util.gpu as gpu
 import taskloaf as tsk
+arg = 1.0
+
+def load_module():
+    import os
+    D = os.path.dirname(os.path.realpath(__file__))
+    return gpu.load_gpu('kernels.cl', tmpl_dir = D, tmpl_args = dict(arg = arg))
 
 async def gpu_run():
     # gd = tsk.get_service('gpu_data')
@@ -8,12 +14,9 @@ async def gpu_run():
     #     gd['add'] = (fnc, arg, gpu_R)
     # else:
     #     fnc, arg, gpu_R = gd['add']
-    arg = 1.0
-    import os
-    D = os.path.dirname(os.path.realpath(__file__))
-    module = gpu.load_gpu('kernels.cl', tmpl_dir = D, tmpl_args = dict(arg = arg))
+    module = load_module()
     fnc = module.add
-    R = np.random.rand(100000000)
+    R = np.random.rand(10000000)
     gpu_R = gpu.to_gpu(R)
 
     gpu_out = gpu.empty_gpu(gpu_R.shape)
@@ -21,28 +24,33 @@ async def gpu_run():
     R2 = await gpu.get(gpu_out)
     gpu.logger.debug('run')
 
-gpu_addr = 0
-
-async def setup_gpu_server():
+def setup_gpu_server(which_gpu):
+    import os
+    os.environ['CUDA_DEVICE'] = str(which_gpu)
     import taskloaf.worker as tsk_worker
     tsk_worker.services['gpu_data'] = dict()
-    await gpu_run()
+    load_module()
 
 async def submit():
-    await tsk.task(setup_gpu_server, to = 0)
-    await tsk.task(setup_gpu_server, to = 1)
+    setup_prs = [
+        tsk.task(lambda i=i: setup_gpu_server(i), to = i)
+        for i in range(n_workers)
+    ]
+    for pr in setup_prs:
+        await pr
     import time
     start = time.time()
-    n_tasks = 10
-    prs = []
-    for i in range(n_tasks):
-        prs.append(tsk.task(gpu_run, to = 1 if i < 5 else 0))
-    for i in range(n_tasks):
-        await prs[i]
+    n_tasks = 8 * 2
+    for j in range(10):
+        prs = []
+        for i in range(n_tasks):
+            prs.append(tsk.task(gpu_run, to = i % n_workers))
+        for i in range(n_tasks):
+            await prs[i]
     print(time.time() - start)
 
-tsk.cluster(4, submit)
-
+n_workers = 8
+tsk.cluster(n_workers, submit)
 
 #
 # async def work_builder():
