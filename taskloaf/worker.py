@@ -13,7 +13,6 @@ def get_service(name):
 def shutdown():
     global running
     running = False
-    print("SHUTDOWN")
 
 def start_worker(c, start_coro = None):
     global running
