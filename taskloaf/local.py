@@ -1,5 +1,8 @@
 import cloudpickle
 import multiprocessing
+import asyncio
+
+import taskloaf.worker
 
 class LocalComm:
     def __init__(self, local_queues, addr):
@@ -14,6 +17,13 @@ class LocalComm:
         if self.local_queues[self.addr].empty():
             return None
         return cloudpickle.loads(self.local_queues[self.addr].get())
+
+    async def comm_poll(self, tasks):
+        while taskloaf.worker.running:
+            t = self.recv()
+            if t is not None:
+                tasks.append(t)
+            await asyncio.sleep(0)
 
 def localrun(n_workers, f):
     try:

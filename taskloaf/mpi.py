@@ -1,8 +1,11 @@
 import os
 import inspect
 import cloudpickle
+import asyncio
 from mpi4py import MPI
 from mpi4py.futures import MPIPoolExecutor
+
+import taskloaf.worker
 
 MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
 
@@ -27,6 +30,14 @@ class MPIComm:
         if not msg_exists:
             return None
         return self.comm.recv(source = s.source, tag = self.tag)
+
+    # NOTE: duplicated with LocalComm... not a big deal and probably the best thing to do
+    async def comm_poll(self, tasks):
+        while taskloaf.worker.running:
+            t = self.recv()
+            if t is not None:
+                tasks.append(t)
+            await asyncio.sleep(0)
 
 def mpirun(n_workers, f, tag = 0):
     D = os.path.dirname(inspect.stack()[-1].filename)

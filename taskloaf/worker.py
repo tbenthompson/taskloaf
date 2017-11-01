@@ -23,8 +23,7 @@ def start_worker(c, start_coro = None):
     services['comm'] = c
 
     coros = [task_loop()]
-    if c is not None:
-        coros.append(comm_poll(c))
+    coros.append(c.comm_poll(tasks))
     if start_coro is not None:
         coros.append(start_coro)
 
@@ -54,22 +53,22 @@ async def task_loop():
             _run_task(tasks.pop())
         await asyncio.sleep(0)
 
-async def comm_poll(c):
-    while running:
-        t = c.recv()
-        if t is not None:
-            tasks.append(t)
-        await asyncio.sleep(0)
-
 def start_registries():
     services['waiting_futures'] = dict()
 
 async def run_in_thread(sync_f):
     return (await asyncio.get_event_loop().run_in_executor(None, sync_f))
 
+class NullComm:
+    def __init__(self):
+        self.addr = 0
+
+    async def comm_poll(self, tasks):
+        return
+
 def run(coro):
     async def caller():
         result = await coro
         shutdown()
         return result
-    return start_worker(None, caller())
+    return start_worker(NullComm(), caller())
