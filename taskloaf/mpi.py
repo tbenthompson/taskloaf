@@ -40,9 +40,9 @@ class MPIComm:
             await asyncio.sleep(0)
 
 def mpirun(n_workers, f, tag = 0):
-    D = os.path.dirname(inspect.stack()[-1].filename)
-    # this_dir = os.path.dirname(os.path.realpath(__file__))
-    mpi_args = dict(max_workers = n_workers, path = [D])
+    # D = os.path.dirname(inspect.stack()[-1].filename)
+    # # this_dir = os.path.dirname(os.path.realpath(__file__))
+    mpi_args = dict(max_workers = n_workers)#, path = [])
     with MPIPoolExecutor(**mpi_args) as p:
         out = p.starmap(mpistart, zip([f] * n_workers, range(n_workers), [tag] * n_workers))
         return next(out)

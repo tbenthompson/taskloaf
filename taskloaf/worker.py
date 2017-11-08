@@ -52,6 +52,7 @@ async def task_loop():
         if len(tasks) > 0:
             _run_task(tasks.pop())
         await asyncio.sleep(0)
+    print('quitting task loop(' + str(services['comm'].addr) + '): ' + str(len(tasks)))
 
 def start_registries():
     services['waiting_futures'] = dict()
