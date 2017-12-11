@@ -11,7 +11,9 @@ class LocalComm:
         assert(0 <= addr < len(self.local_queues))
 
     def send(self, to_addr, data):
-        self.local_queues[to_addr].put(cloudpickle.dumps(data))
+        D = cloudpickle.dumps(data)
+        self.local_queues[to_addr].put(D)
+        # print('addr: ', self.addr, 'to: ', to_addr, ' MB: ', len(D) / 1e6)
 
     def recv(self):
         if self.local_queues[self.addr].empty():
@@ -22,6 +24,7 @@ class LocalComm:
         while taskloaf.worker.running:
             t = self.recv()
             if t is not None:
+                # print('addr: ', self.addr, ' adding task: ', len(tasks))
                 tasks.append(t)
             await asyncio.sleep(0)
 

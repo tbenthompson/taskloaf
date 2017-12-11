@@ -9,12 +9,15 @@ import taskloaf.worker
 
 MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
 
+def rank(comm = MPI.COMM_WORLD):
+    return comm.Get_rank()
+
 class MPIComm:
     next_tag = 0
 
     def __init__(self, tag):
         self.comm = MPI.COMM_WORLD
-        self.addr = self.comm.Get_rank()
+        self.addr = rank(self.comm)
         self.tag = MPIComm.next_tag
         self.tag = tag
         MPIComm.next_tag += 1
@@ -58,3 +61,6 @@ def mpistart(f, i, tag):
         import sys
         traceback.print_exc(file = sys.stdout)
         raise e
+
+def mpiexisting(n_workers, f):
+    mpistart(f, 0, 0)

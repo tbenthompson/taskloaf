@@ -16,6 +16,20 @@ def _ensure_future_exists(id_, owner):
         else:
             wf[id_] = [asyncio.Future(), [1], owner]
 
+def _dec_ref(d):
+    owner, id_, gen, n_children = d
+    wf = get_service('waiting_futures')
+    _ensure_future_exists(id_, owner)
+    gen_counts = wf[id_][1]
+    if len(gen_counts) < gen + 2:
+        gen_counts.extend([0] * (gen + 2 - len(gen_counts)))
+    gen_counts[gen] -= 1
+    gen_counts[gen + 1] += n_children
+    for c in gen_counts:
+        if c != 0:
+            return
+    del wf[id_]
+
 class Promise:
     def __init__(self, owner):
         self.owner = owner
@@ -33,21 +47,8 @@ class Promise:
         )
 
     def __del__(self):
-        def dec_ref(d):
-            id_, gen, n_children = d
-            wf = get_service('waiting_futures')
-            _ensure_future_exists(self.id_, self.owner)
-            gen_counts = wf[id_][1]
-            if len(gen_counts) < gen + 2:
-                gen_counts.extend([0] * (gen + 2 - len(gen_counts)))
-            gen_counts[gen] -= 1
-            gen_counts[gen + 1] += n_children
-            for c in gen_counts:
-                if c != 0:
-                    return
-            del wf[id_]
-        data = (self.id_, self.gen, self.n_children)
-        submit_task(self.owner, lambda d=data: dec_ref(d))
+        data = (self.owner, self.id_, self.gen, self.n_children)
+        submit_task(self.owner, lambda d=data: _dec_ref(d))
 
     def __await__(self):
         here = get_service('comm').addr
