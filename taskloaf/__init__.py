@@ -3,4 +3,3 @@ from taskloaf.cluster import cluster
 from taskloaf.local import localrun
 from taskloaf.mpi import mpirun
 from taskloaf.promise import task, when_all, Promise
-from taskloaf.profile import profile_stats, enable_profiling

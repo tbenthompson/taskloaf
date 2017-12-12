@@ -3,9 +3,6 @@ import asyncio
 import uvloop
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
-import taskloaf.profile
-# taskloaf.profile.enable_profiling()
-
 running = None
 tasks = []
 services = dict()
@@ -32,9 +29,6 @@ def start_worker(c, start_coro = None):
         coros.append(start_coro)
 
     results = services['ioloop'].run_until_complete(asyncio.gather(*coros))
-
-    if c.addr == 0:
-        taskloaf.profile.profile_stats()
 
     if start_coro is not None:
         return results[-1]

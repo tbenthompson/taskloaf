@@ -1,3 +1,5 @@
+import os
+import time
 import cloudpickle
 import multiprocessing
 import asyncio
@@ -11,14 +13,21 @@ class LocalComm:
         assert(0 <= addr < len(self.local_queues))
 
     def send(self, to_addr, data):
+        # start = time.time()
         D = cloudpickle.dumps(data)
+        # T = time.time() - start
         self.local_queues[to_addr].put(D)
-        # print('addr: ', self.addr, 'to: ', to_addr, ' MB: ', len(D) / 1e6)
+        # print('addr: ', self.addr, 'to: ', to_addr, ' MB: ', len(D) / 1e6, T)
 
     def recv(self):
         if self.local_queues[self.addr].empty():
             return None
-        return cloudpickle.loads(self.local_queues[self.addr].get())
+        # import time
+        # start = time.time()
+        out = cloudpickle.loads(self.local_queues[self.addr].get())
+        # T = time.time() - start
+        # print('recv: ', T)
+        return out
 
     async def comm_poll(self, tasks):
         while taskloaf.worker.running:
@@ -28,20 +37,22 @@ class LocalComm:
                 tasks.append(t)
             await asyncio.sleep(0)
 
-def localrun(n_workers, f):
+def localrun(n_workers, f, pin = True):
     try:
         p = multiprocessing.Pool(n_workers)
         manager = multiprocessing.Manager()
         qs = [manager.Queue() for i in range(n_workers)]
-        args = [(cloudpickle.dumps(f), i, qs) for i in range(n_workers)]
+        args = [(cloudpickle.dumps(f), i, qs, pin) for i in range(n_workers)]
         fut = p.starmap_async(localstart, args)
         return fut.get()[0]
     finally:
         p.close()
         p.join()
 
-def localstart(f, i, qs):
+def localstart(f, i, qs, pin):
     try:
+        if pin:
+            os.system("taskset -p -c %d %d" % ((i % os.cpu_count()), os.getpid()))
         c = LocalComm(qs, i)
         return cloudpickle.loads(f)(c)
     except Exception as e:
