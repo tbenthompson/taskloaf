@@ -14,20 +14,18 @@ class LocalComm:
 
     def send(self, to_addr, data):
         # start = time.time()
-        D = dumps(data)
         # T = time.time() - start
-        self.local_queues[to_addr].put(D)
+        self.local_queues[to_addr].put(data)
         # print('addr: ', self.addr, 'to: ', to_addr, ' MB: ', len(D) / 1e6, T)
 
-    def recv(self, w):
+    def recv(self):
         if self.local_queues[self.addr].empty():
             return None
         # import time
         # start = time.time()
-        out = loads(w, self.local_queues[self.addr].get())
+        return self.local_queues[self.addr].get()
         # T = time.time() - start
         # print('recv: ', T)
-        return out
 
 def localrun(n_workers, f, pin = True):
     try:

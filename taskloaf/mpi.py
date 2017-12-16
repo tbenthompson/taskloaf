@@ -13,27 +13,27 @@ def rank(comm = MPI.COMM_WORLD):
 class MPIComm:
     next_tag = 0
 
-    def __init__(self, tag):
+    def __init__(self, tag = None):
         self.comm = MPI.COMM_WORLD
         self.addr = rank(self.comm)
-        self.tag = MPIComm.next_tag
+        if tag is None:
+            tag = MPIComm.next_tag
         self.tag = tag
         MPIComm.next_tag += 1
 
     def send(self, to_addr, data):
         # I could potentially used isend, or maybe Ibsend here to avoid the
         # blocking nature of send.
-        D = dumps(data)
-        req = self.comm.send(D, dest = to_addr, tag = self.tag)
+        req = self.comm.send(data, dest = to_addr, tag = self.tag)
 
-    def recv(self, w):
+    def recv(self):
         s = MPI.Status()
         msg_exists = self.comm.iprobe(tag = self.tag, status = s)
         if not msg_exists:
             return None
-        return loads(w, self.comm.recv(source = s.source, tag = self.tag))
+        return self.comm.recv(source = s.source, tag = self.tag)
 
-def mpirun(n_workers, f, tag = 0):
+def mpirun(n_workers, f, tag = None):
     # D = os.path.dirname(inspect.stack()[-1].filename)
     # # this_dir = os.path.dirname(os.path.realpath(__file__))
     mpi_args = dict(max_workers = n_workers)#, path = [])
@@ -53,5 +53,10 @@ def mpistart(f, i, tag):
         traceback.print_exc(file = sys.stdout)
         raise e
 
-def mpiexisting(n_workers, f, tag = 0):
+def mpiexisting(n_workers, f, tag = None):
+    n_mpi_procs = MPI.COMM_WORLD.Get_size()
+    if n_workers > n_mpi_procs:
+        raise Exception(
+            'There are only %s MPI processes but %s were requested' % (n_mpi_procs, n_workers)
+        )
     mpistart(f, rank(), tag)

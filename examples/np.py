@@ -13,4 +13,5 @@ async def submit(w):
     print(time.time() - start)
 
 if __name__ == "__main__":
-    tsk.cluster(2, submit, runner = tsk.mpiexisting)
+    for i in range(3):
+        tsk.cluster(2, submit, runner = tsk.mpiexisting)

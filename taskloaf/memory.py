@@ -20,8 +20,7 @@ class Ref:
         )
 
     def __del__(self):
-        data = (self.owner, self._id, self.gen, self.n_children)
-        self.w.submit_task(self.owner, lambda w,d=data: w.memory.dec_ref(d))
+        self.w.memory.dec_ref(self)
 
     def get(self):
         return self.w.memory.get(self)
@@ -75,12 +74,16 @@ class MemoryManager:
     def delete(self, r):
         del self.blocks[r._id]
 
-    def dec_ref(self, d):
-        owner, _id, gen, n_children = d
-        mem = self.blocks[_id]
-        mem.dec_ref(gen, n_children)
-        if not mem.alive():
-            del self.blocks[_id]
+    def dec_ref(self, r):
+        data = (r.owner, r._id, r.gen, r.n_children)
+        def _dec_ref(w):
+            owner, _id, gen, n_children = data
+            mem = w.memory.blocks[_id]
+            mem.dec_ref(gen, n_children)
+            if not mem.alive():
+                del w.memory.blocks[_id]
+        self.w.submit_task(r.owner, _dec_ref)
+
 
     def n_entries(self):
         return len(self.blocks)

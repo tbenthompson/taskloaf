@@ -3,6 +3,7 @@ from mpi4py import MPI
 from taskloaf.local import LocalComm
 from taskloaf.mpi import MPIComm
 from taskloaf.test_decorators import mpi_procs
+from taskloaf.serialize import dumps, loads
 
 def queue_test_helper(q):
     q.put(123)
@@ -53,11 +54,12 @@ def test_fnc_send():
     c = MPIComm(4)
     if c.addr == 0:
         x = 13
-        c.send(1, lambda: x ** 2)
+        c.send(1, dumps(lambda: x ** 2))
     if c.addr == 1:
         go = True
         while go:
             data = c.recv()
             if data is not None:
+                f = loads(None, data)
                 go = False
-                assert(data() == 169)
+                assert(f() == 169)
