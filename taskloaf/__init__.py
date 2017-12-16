@@ -1,5 +1,5 @@
-from taskloaf.worker import submit_task, get_service, run, run_in_thread
+from taskloaf.promise import task, when_all, Promise, remote_get
+from taskloaf.run import run
 from taskloaf.cluster import cluster
 from taskloaf.local import localrun
-from taskloaf.mpi import mpirun
-from taskloaf.promise import task, when_all, Promise
+from taskloaf.mpi import mpirun, mpiexisting

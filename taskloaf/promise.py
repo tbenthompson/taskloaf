@@ -1,80 +1,57 @@
 import asyncio
 import inspect
-from taskloaf.worker import local_task, submit_task, get_service
+from taskloaf.memory import Ref
 from uuid import uuid1 as uuid
 
-def _ensure_future_exists(id_, owner):
-    wf = get_service('waiting_futures')
-    if id_ not in wf:
-        here = get_service('comm').addr
-        if here != owner:
-            wf[id_] = [asyncio.Future(), False, owner]
-            async def delete_after_triggered():
-                await wf[id_][0]
-                del wf[id_]
-            local_task(delete_after_triggered)
-        else:
-            wf[id_] = [asyncio.Future(), [1], owner]
-
-def _dec_ref(d):
-    owner, id_, gen, n_children = d
-    wf = get_service('waiting_futures')
-    _ensure_future_exists(id_, owner)
-    gen_counts = wf[id_][1]
-    if len(gen_counts) < gen + 2:
-        gen_counts.extend([0] * (gen + 2 - len(gen_counts)))
-    gen_counts[gen] -= 1
-    gen_counts[gen + 1] += n_children
-    for c in gen_counts:
-        if c != 0:
-            return
-    del wf[id_]
-
 class Promise:
-    def __init__(self, owner):
-        self.owner = owner
-        self.id_ = uuid(self.owner)
-        self.gen = 0
-        self.n_children = 0
+    def __init__(self, w, owner):
+        self.r = Ref(w, owner)
+        self.ensure_future_exists()
 
-    def __getstate__(self):
-        self.n_children += 1
-        return dict(
-            gen = self.gen + 1,
-            n_children = 0,
-            owner = self.owner,
-            id_ = self.id_,
-        )
+    @property
+    def w(self):
+        return self.r.w
 
-    def __del__(self):
-        data = (self.owner, self.id_, self.gen, self.n_children)
-        submit_task(self.owner, lambda d=data: _dec_ref(d))
+    @property
+    def owner(self):
+        return self.r.owner
+
+    def ensure_future_exists(self):
+        if not self.w.memory.available(self.r):
+            here = self.w.comm.addr
+            self.w.memory.put([asyncio.Future(), False], r = self.r)
+            if self.owner != here:
+                async def delete_after_triggered(w):
+                    await w.memory.get(self.r)[0]
+                    w.memory.delete(self.r)
+                self.w.local_task(delete_after_triggered)
 
     def __await__(self):
-        here = get_service('comm').addr
-        wf = get_service('waiting_futures')
-        _ensure_future_exists(self.id_, self.owner)
-        if here != self.owner and not wf[self.id_][1]:
-            wf[self.id_][1] = True
-            async def wait_for_promise():
+        here = self.w.comm.addr
+        self.ensure_future_exists()
+        pr_data = self.w.memory.get(self.r)
+        if here != self.owner and not pr_data[1]:
+            pr_data[1] = True
+            async def wait_for_promise(w):
                 v = await self
-                submit_task(here, lambda: self.set_result(v))
-            submit_task(self.owner, wait_for_promise)
-        return wf[self.id_][0].__await__()
+                w.submit_task(here, lambda w: self.set_result(v))
+            self.w.submit_task(self.owner, wait_for_promise)
+        return pr_data[0].__await__()
+        # return wf[self.id_][0].__await__()
 
     def set_result(self, result):
-        _ensure_future_exists(self.id_, self.owner)
-        get_service('waiting_futures')[self.id_][0].set_result(result)
+        self.ensure_future_exists()
+        self.w.memory.get(self.r)[0].set_result(result)
 
     def then(self, f, to = None):
         if to is None:
             to = self.owner
+        out_pr = Promise(self.w, to)
 
-        out_pr = Promise(to)
-        async def wait_to_start():
+        async def wait_to_start(w):
             v = await self
-            task(lambda v=v: f(v), out_pr = out_pr)
-        submit_task(self.owner, wait_to_start)
+            task(w, lambda w, v=v: f(w, v), out_pr = out_pr)
+        self.w.submit_task(self.owner, wait_to_start)
         return out_pr
 
     def next(self, f, to = None):
@@ -86,32 +63,44 @@ def _unwrap_promise(pr, result):
     else:
         pr.set_result(result)
 
-def task(f, to = None, out_pr = None):
+def task(w, f, to = None, out_pr = None):
     if out_pr is None:
         if to is None:
-            to = get_service('comm').addr
-        out_pr = Promise(to)
+            to = w.comm.addr
+        out_pr = Promise(w, to)
 
-    async def work_wrapper():
-        assert(get_service('comm').addr == out_pr.owner)
-        result = f()
+    async def work_wrapper(w):
+        assert(w.comm.addr == out_pr.owner)
+        result = f(w)
         if inspect.isawaitable(result):
             result = await result
         _unwrap_promise(out_pr, result)
 
-    submit_task(out_pr.owner, work_wrapper)
+    w.submit_task(out_pr.owner, work_wrapper)
     return out_pr
 
 def when_all(ps, to = None):
+    w = ps[0].w
     if to is None:
         to = ps[0].owner
-    out_pr = Promise(to)
+    out_pr = Promise(w, to)
 
     n = len(ps)
-    async def wait_for_all():
+    async def wait_for_all(w):
         results = []
         for i, p in enumerate(ps):
             results.append(await p)
         out_pr.set_result(results)
-    submit_task(out_pr.owner, wait_for_all)
+    w.submit_task(out_pr.owner, wait_for_all)
     return out_pr
+
+async def remote_get(r):
+    if not r.available():
+        getter_addr = r.w.comm.addr
+        async def remote_get(w):
+            value = r.get()
+            def remote_put(w, v):
+                w.memory.put(v, r = r)
+            return await task(w, lambda w, v = value: remote_put(w, v), to = getter_addr)
+        await task(r.w, remote_get, to = r.owner)
+    return r.get()

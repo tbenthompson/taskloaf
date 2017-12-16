@@ -1,13 +1,11 @@
 import os
 import inspect
-import cloudpickle
 import asyncio
 from mpi4py import MPI
 from mpi4py.futures import MPIPoolExecutor
 
 import taskloaf.worker
-
-MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
+from taskloaf.serialize import dumps, loads
 
 def rank(comm = MPI.COMM_WORLD):
     return comm.Get_rank()
@@ -25,22 +23,15 @@ class MPIComm:
     def send(self, to_addr, data):
         # I could potentially used isend, or maybe Ibsend here to avoid the
         # blocking nature of send.
-        req = self.comm.send(data, dest = to_addr, tag = self.tag)
+        D = dumps(data)
+        req = self.comm.send(D, dest = to_addr, tag = self.tag)
 
-    def recv(self):
+    def recv(self, w):
         s = MPI.Status()
         msg_exists = self.comm.iprobe(tag = self.tag, status = s)
         if not msg_exists:
             return None
-        return self.comm.recv(source = s.source, tag = self.tag)
-
-    # NOTE: duplicated with LocalComm... not a big deal and probably the best thing to do
-    async def comm_poll(self, tasks):
-        while taskloaf.worker.running:
-            t = self.recv()
-            if t is not None:
-                tasks.append(t)
-            await asyncio.sleep(0)
+        return loads(w, self.comm.recv(source = s.source, tag = self.tag))
 
 def mpirun(n_workers, f, tag = 0):
     # D = os.path.dirname(inspect.stack()[-1].filename)
@@ -62,5 +53,5 @@ def mpistart(f, i, tag):
         traceback.print_exc(file = sys.stdout)
         raise e
 
-def mpiexisting(n_workers, f):
-    mpistart(f, 0, 0)
+def mpiexisting(n_workers, f, tag = 0):
+    mpistart(f, rank(), tag)
