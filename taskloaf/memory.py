@@ -1,5 +1,5 @@
-# from taskloaf.worker import get_service, submit_task
 from uuid import uuid1 as uuid
+import pickle
 
 class Ref:
     def __init__(self, w, owner):
@@ -54,12 +54,17 @@ class MemoryManager:
     def __init__(self, w):
         self.blocks = dict()
         self.w = w
+        self.DECREF = self.w.protocol.add_handler(
+            encoder = lambda d: pickle.dumps(d),
+            decoder = lambda w, b: pickle.loads(b),
+            work_builder = lambda x: lambda w: w.memory._dec_ref(*x)
+        )
 
     def put(self, v, r = None):
         if r is None:
-            r = Ref(self.w, self.w.comm.addr)
+            r = Ref(self.w, self.w.addr)
             self.blocks[r._id] = OwnedMemory(v)
-        elif r.owner == self.w.comm.addr:
+        elif r.owner == self.w.addr:
             self.blocks[r._id] = OwnedMemory(v)
         else:
             self.blocks[r._id] = RemoteMemory(v)
@@ -74,16 +79,14 @@ class MemoryManager:
     def delete(self, r):
         del self.blocks[r._id]
 
-    def dec_ref(self, r):
-        data = (r.owner, r._id, r.gen, r.n_children)
-        def _dec_ref(w):
-            owner, _id, gen, n_children = data
-            mem = w.memory.blocks[_id]
-            mem.dec_ref(gen, n_children)
-            if not mem.alive():
-                del w.memory.blocks[_id]
-        self.w.submit_task(r.owner, _dec_ref)
+    def _dec_ref(self, _id, gen, n_children):
+        mem = self.blocks[_id]
+        mem.dec_ref(gen, n_children)
+        if not mem.alive():
+            del self.blocks[_id]
 
+    def dec_ref(self, r):
+        self.w.send(r.owner, self.DECREF, (r._id, r.gen, r.n_children))
 
     def n_entries(self):
         return len(self.blocks)

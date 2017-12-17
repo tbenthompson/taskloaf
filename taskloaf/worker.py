@@ -1,50 +1,63 @@
+import inspect
 import asyncio
 import uvloop
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
-from taskloaf.serialize import loads, dumps
+import taskloaf.protocol
 
 def shutdown(w):
     w.running = False
 
+# TODO: Should accessing Comm be allowed? Protocol?
 class Worker:
     def __init__(self):
         self.running = None
-        # self.tasks = []
+        self.work = []
+        self.protocol = taskloaf.protocol.Protocol()
+        self.WORK = self.protocol.add_handler()
 
     def start(self, comm, coros):
         self.running = True
 
         self.comm = comm
         self.ioloop = asyncio.get_event_loop()
-        all_coros = [self.comm_poll()] + [c(self) for c in coros]
+        all_coros = [self.comm_poll(), self.work_loop()] + [c(self) for c in coros]
 
         results = self.ioloop.run_until_complete(asyncio.gather(*all_coros))
-        return results[1:]
+        return results[2:]
 
-    def local_task(self, f):
-        self._run_task(f)
-        # self.tasks.append(f)
+    @property
+    def addr(self):
+        return self.comm.addr
 
-    def submit_task(self, to, f):
-        if self.comm.addr == to:
-            self.local_task(f)
+    def send(self, to, type, obj):
+        if self.addr == to:
+            self.work.append(self.protocol.build_work(type, obj))
         else:
-            self.comm.send(to, dumps(f))
+            self.comm.send(to, self.protocol.encode(type, obj))
 
-    def _run_task(self, f):
+    def submit_work(self, to, f):
+        self.send(to, self.WORK, f)
+
+    def run_work(self, f):
         if asyncio.iscoroutinefunction(f):
             return asyncio.ensure_future(f(self))
         else:
             return f(self)
 
-    # async def task_loop(self):
-    #     while self.running:
-    #         if len(self.tasks) > 0:
-    #             # print('addr: ', services['comm'].addr, ' running task: ', len(tasks))
-    #             self._run_task(self.tasks.pop())
-    #         await asyncio.sleep(0)
-    #     # print('quitting task loop(' + str(services['comm'].addr) + '): ' + str(len(tasks)))
+    async def wait_for_work(self, f):
+        result = self.run_work(f)
+        if inspect.isawaitable(result):
+            result = await result
+        return result
+
+    async def work_loop(self):
+        while self.running:
+            if len(self.work) > 0:
+                # print('addr: ', services['comm'].addr, ' running work: ', len(work))
+                self.run_work(self.work.pop())
+            await asyncio.sleep(0)
+        # print('quitting work loop(' + str(services['comm'].addr) + '): ' + str(len(work)))
 
     async def run_in_thread(self, sync_f):
         return (await self.ioloop.run_in_executor(None, sync_f))
@@ -53,6 +66,5 @@ class Worker:
         while self.running:
             t = self.comm.recv()
             if t is not None:
-                self._run_task(loads(self, t))
-                # self.tasks.append(loads(self, t))
+                self.work.append(self.protocol.decode(self, t))
             await asyncio.sleep(0)

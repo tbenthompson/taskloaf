@@ -38,33 +38,14 @@ async def wait_all(jobs):
 def run_tsk_parallel():
     n_cores = 2
     async def submit(w):
-        from pyinstrument import Profiler
 
-        def start_profiler(w):
-            profiler = Profiler()
-            profiler.start()
-            return profiler
+        async with tsk.Profiler(w, range(n_cores)):
+            start = time.time()
+            out = await wait_all([
+                tsk.task(w, lambda w: long_fnc(), to = i % n_cores) for i in range(n_jobs)
+            ])
+            print('inside: ', time.time() - start)
 
-        def stop_profiler(profiler, i):
-            profiler.stop()
-            print('profile for core: ' + str(i))
-            print(profiler.output_text(unicode=True, color=True))
-
-        prof_tsks = [tsk.task(w, start_profiler, to = i) for i in range(1, n_cores)]
-        for pt in prof_tsks:
-            await pt
-        profiler = start_profiler(w)
-
-        start = time.time()
-        out = await wait_all([
-            tsk.task(w, lambda w: long_fnc(), to = i % n_cores) for i in range(n_jobs)
-        ])
-        print('inside: ', time.time() - start)
-
-        stop_profiler(profiler, 0)
-        for _i, pt in enumerate(prof_tsks):
-            i = _i + 1
-            await pt.then(lambda w, x, i = i: stop_profiler(x, i), to = i)
 
     return tsk.cluster(n_cores, submit)#, runner = tsk.mpi.mpiexisting)
 

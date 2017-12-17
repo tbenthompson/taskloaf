@@ -1,7 +1,43 @@
 import asyncio
-import inspect
 from taskloaf.memory import Ref
 from uuid import uuid1 as uuid
+
+import pickle
+import taskloaf.serialize
+
+class PromiseManager:
+    def __init__(self, w):
+        self.TASK = w.protocol.add_handler(
+            work_builder = task_runner_builder
+        )
+        self.SET_RESULT = w.protocol.add_handler(
+            # encoder = set_result_encoder,
+            # decoder = set_result_decoder,
+            work_builder = set_result_builder
+        )
+        self.AWAIT = w.protocol.add_handler(
+            work_builder = await_builder
+        )
+
+def set_result_encoder(args):
+    return taskloaf.serialize.dumps((args[0], pickle.dumps(args[1])))
+
+def set_result_decoder(w, b):
+    pair = taskloaf.serialize.loads(w, b)
+    return pair[0], pickle.loads(pair[1])
+
+def set_result_builder(args):
+    pr, v = args
+    def run(w):
+        pr.set_result(v)
+    return run
+
+def await_builder(args):
+    pr, req_addr = args
+    async def run(w):
+        v = await pr
+        w.send(req_addr, w.promise_manager.SET_RESULT, (pr, v))
+    return run
 
 class Promise:
     def __init__(self, w, owner):
@@ -11,6 +47,10 @@ class Promise:
     @property
     def w(self):
         return self.r.w
+
+    @property
+    def pm(self):
+        return self.r.w.promise_manager
 
     @property
     def owner(self):
@@ -24,7 +64,7 @@ class Promise:
                 async def delete_after_triggered(w):
                     await w.memory.get(self.r)[0]
                     w.memory.delete(self.r)
-                self.w.local_task(delete_after_triggered)
+                self.w.run_work(delete_after_triggered)
 
     def __await__(self):
         here = self.w.comm.addr
@@ -32,10 +72,7 @@ class Promise:
         pr_data = self.w.memory.get(self.r)
         if here != self.owner and not pr_data[1]:
             pr_data[1] = True
-            async def wait_for_promise(w):
-                v = await self
-                w.submit_task(here, lambda w: self.set_result(v))
-            self.w.submit_task(self.owner, wait_for_promise)
+            self.w.send(self.owner, self.w.promise_manager.AWAIT, (self, here))
         return pr_data[0].__await__()
         # return wf[self.id_][0].__await__()
 
@@ -51,7 +88,7 @@ class Promise:
         async def wait_to_start(w):
             v = await self
             task(w, lambda w, v=v: f(w, v), out_pr = out_pr)
-        self.w.submit_task(self.owner, wait_to_start)
+        self.w.submit_work(self.owner, wait_to_start)
         return out_pr
 
     def next(self, f, to = None):
@@ -63,20 +100,20 @@ def _unwrap_promise(pr, result):
     else:
         pr.set_result(result)
 
+def task_runner_builder(args):
+    f, out_pr = args
+    async def task_runner(w):
+        assert(w.comm.addr == out_pr.owner)
+        _unwrap_promise(out_pr, await w.wait_for_work(f))
+    return task_runner
+
 def task(w, f, to = None, out_pr = None):
     if out_pr is None:
         if to is None:
             to = w.comm.addr
         out_pr = Promise(w, to)
 
-    async def work_wrapper(w):
-        assert(w.comm.addr == out_pr.owner)
-        result = f(w)
-        if inspect.isawaitable(result):
-            result = await result
-        _unwrap_promise(out_pr, result)
-
-    w.submit_task(out_pr.owner, work_wrapper)
+    w.send(out_pr.owner, w.promise_manager.TASK, (f, out_pr))
     return out_pr
 
 def when_all(ps, to = None):
@@ -91,7 +128,7 @@ def when_all(ps, to = None):
         for i, p in enumerate(ps):
             results.append(await p)
         out_pr.set_result(results)
-    w.submit_task(out_pr.owner, wait_for_all)
+    w.submit_work(out_pr.owner, wait_for_all)
     return out_pr
 
 async def remote_get(r):
