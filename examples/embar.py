@@ -38,14 +38,12 @@ async def wait_all(jobs):
 def run_tsk_parallel():
     n_cores = 2
     async def submit(w):
-
         async with tsk.Profiler(w, range(n_cores)):
             start = time.time()
             out = await wait_all([
                 tsk.task(w, lambda w: long_fnc(), to = i % n_cores) for i in range(n_jobs)
             ])
             print('inside: ', time.time() - start)
-
 
     return tsk.cluster(n_cores, submit)#, runner = tsk.mpi.mpiexisting)
 

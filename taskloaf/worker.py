@@ -1,3 +1,4 @@
+import time
 import inspect
 import asyncio
 import uvloop
@@ -34,7 +35,12 @@ class Worker:
         if self.addr == to:
             self.work.append(self.protocol.build_work(type, obj))
         else:
-            self.comm.send(to, self.protocol.encode(type, obj))
+            data = self.protocol.encode(type, obj)
+            start = time.time()
+            self.comm.send(to, data)
+            T = time.time() - start
+            if len(data) > 1e6:
+                print('addr: ', self.addr, 'to: ', to, ' MB: ', len(data) / 1e6, T)
 
     def submit_work(self, to, f):
         self.send(to, self.WORK, f)

@@ -11,10 +11,10 @@ class NullComm:
 
 def run(coro):
     async def wrapper(w):
-        w.memory = taskloaf.memory.MemoryManager(w)
-        w.promise_manager = taskloaf.promise.PromiseManager(w)
         result = await coro(w)
         taskloaf.worker.shutdown(w)
         return result
     w = taskloaf.worker.Worker()
+    w.memory = taskloaf.memory.MemoryManager(w)
+    w.promise_manager = taskloaf.promise.PromiseManager(w)
     return w.start(NullComm(), [wrapper])

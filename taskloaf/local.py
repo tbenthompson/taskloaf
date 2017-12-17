@@ -13,10 +13,7 @@ class LocalComm:
         assert(0 <= addr < len(self.local_queues))
 
     def send(self, to_addr, data):
-        # start = time.time()
-        # T = time.time() - start
         self.local_queues[to_addr].put(data)
-        # print('addr: ', self.addr, 'to: ', to_addr, ' MB: ', len(D) / 1e6, T)
 
     def recv(self):
         if self.local_queues[self.addr].empty():

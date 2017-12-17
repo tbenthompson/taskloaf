@@ -22,6 +22,9 @@ class Ref:
     def __del__(self):
         self.w.memory.dec_ref(self)
 
+    def put(self, v):
+        return self.w.memory.put(v, r = self)
+
     def get(self):
         return self.w.memory.get(self)
 

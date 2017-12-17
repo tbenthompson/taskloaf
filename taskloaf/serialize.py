@@ -11,6 +11,12 @@ class CloudPicklerWithCtx(cloudpickle.CloudPickler):
             return marker
         return None
 
+class PicklerWithCtx(pickle.Pickler):
+    def persistent_id(self, obj):
+        if isinstance(obj, taskloaf.worker.Worker):
+            return marker
+        return None
+
 class UnpicklerWithCtx(pickle.Unpickler):
     def __init__(self, w, file):
         super().__init__(file)

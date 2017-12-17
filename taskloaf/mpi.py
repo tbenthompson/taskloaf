@@ -38,13 +38,13 @@ def mpirun(n_workers, f, tag = None):
     # # this_dir = os.path.dirname(os.path.realpath(__file__))
     mpi_args = dict(max_workers = n_workers)#, path = [])
     with MPIPoolExecutor(**mpi_args) as p:
-        out = p.starmap(mpistart, zip([f] * n_workers, range(n_workers), [tag] * n_workers))
+        out = p.starmap(mpistart, zip([dumps(f)] * n_workers, range(n_workers), [tag] * n_workers))
         return next(out)
 
 def mpistart(f, i, tag):
     try:
         c = MPIComm(tag)
-        return f(c)
+        return loads(None, f)(c)
     except Exception as e:
         import traceback
         # mpi4py MPIPoolExecutor supresses stderr until the pool is done...

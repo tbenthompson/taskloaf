@@ -2,8 +2,8 @@ import asyncio
 from taskloaf.memory import Ref
 from uuid import uuid1 as uuid
 
-import pickle
 import taskloaf.serialize
+from io import BytesIO
 
 class PromiseManager:
     def __init__(self, w):
@@ -11,20 +11,11 @@ class PromiseManager:
             work_builder = task_runner_builder
         )
         self.SET_RESULT = w.protocol.add_handler(
-            # encoder = set_result_encoder,
-            # decoder = set_result_decoder,
             work_builder = set_result_builder
         )
         self.AWAIT = w.protocol.add_handler(
             work_builder = await_builder
         )
-
-def set_result_encoder(args):
-    return taskloaf.serialize.dumps((args[0], pickle.dumps(args[1])))
-
-def set_result_decoder(w, b):
-    pair = taskloaf.serialize.loads(w, b)
-    return pair[0], pickle.loads(pair[1])
 
 def set_result_builder(args):
     pr, v = args
@@ -133,11 +124,5 @@ def when_all(ps, to = None):
 
 async def remote_get(r):
     if not r.available():
-        getter_addr = r.w.comm.addr
-        async def remote_get(w):
-            value = r.get()
-            def remote_put(w, v):
-                w.memory.put(v, r = r)
-            return await task(w, lambda w, v = value: remote_put(w, v), to = getter_addr)
-        await task(r.w, remote_get, to = r.owner)
+        r.put(await task(r.w, lambda w: r.get(), to = r.owner))
     return r.get()
