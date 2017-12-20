@@ -8,14 +8,27 @@ from io import BytesIO
 class PromiseManager:
     def __init__(self, w):
         self.TASK = w.protocol.add_handler(
+            'TASK',
             work_builder = task_runner_builder
         )
         self.SET_RESULT = w.protocol.add_handler(
+            'SET_RESULT',
+            encoder = set_result_encoder,
+            decoder = set_result_decoder,
             work_builder = set_result_builder
         )
         self.AWAIT = w.protocol.add_handler(
+            'AWAIT',
             work_builder = await_builder
         )
+
+def set_result_encoder(args):
+    pr_b = taskloaf.serialize.dumps(args[0])
+    obj_b = args[1] if isinstance(args[1], bytes) else taskloaf.serialize.dumps(args[1])
+    return [pr_b, obj_b]
+
+def set_result_decoder(w, args):
+    return taskloaf.serialize.loads(w, args[0]), args[1]
 
 def set_result_builder(args):
     pr, v = args

@@ -8,7 +8,8 @@ def start_profiler(w):
 
 def stop_profiler(w, profiler):
     profiler.stop()
-    print('profile for addr: ' + str(w.addr))
+    if w is not None:
+        print('profile for addr: ' + str(w.addr))
     print(profiler.output_text(unicode=True, color=True))
 
 # TODO: Maybe an example of a more general-purpose "daemon". Could be cool!

@@ -58,8 +58,7 @@ class MemoryManager:
         self.blocks = dict()
         self.w = w
         self.DECREF = self.w.protocol.add_handler(
-            encoder = lambda d: pickle.dumps(d),
-            decoder = lambda w, b: pickle.loads(b),
+            'DECREF',
             work_builder = lambda x: lambda w: w.memory._dec_ref(*x)
         )
 
