@@ -3,7 +3,6 @@ import time
 import multiprocessing
 import asyncio
 
-import taskloaf.worker
 from taskloaf.serialize import loads, dumps
 
 class LocalComm:

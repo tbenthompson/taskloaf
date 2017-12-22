@@ -1,3 +1,4 @@
+import os
 import time
 import numpy as np
 import multiprocessing
@@ -8,31 +9,72 @@ from taskloaf.timer import Timer
 def sum_shmem(sm):
     return np.sum(np.frombuffer(sm.mem))
 
-def shmem_read(filename):
-    return sum_shmem(Shmem(filename))
-
 def test_shmem():
-    with alloc_shmem('block', np.random.rand(100)) as sm:
-        out = multiprocessing.Pool(1).map(shmem_read, [sm.filename])[0]
+    A = np.random.rand(100)
+    with alloc_shmem(A.nbytes) as sm:
+        sm.mem[:] = A
+        out = multiprocessing.Pool(1).map(sum_shmem, [sm])[0]
         assert(out == sum_shmem(sm))
 
-def shmem_zeros(filename):
-    np.frombuffer(Shmem(filename).mem)[:] = 0
+def shmem_zeros(sm):
+    np.frombuffer(sm.mem)[:] = 0
 
 def test_shmem_edit():
-    with alloc_shmem('block', np.random.rand(100)) as sm:
-        out = multiprocessing.Pool(1).map(shmem_zeros, [sm.filename])[0]
+    A = np.random.rand(100)
+    with alloc_shmem(A.nbytes) as sm:
+        sm.mem[:] = A
+        out = multiprocessing.Pool(1).map(shmem_zeros, [sm])[0]
         np.testing.assert_almost_equal(np.frombuffer(sm.mem), 0.0)
 
-def benchmark_shmem():
-    A = np.random.rand(int(3e7)) - 0.5
-    print('sum', np.sum(A))
+"""
+There's some complexity in this benchmark. The performance of allocating mmap
+is pretty much identical to a alloc+memcpy if you can write the relevant data
+to the mmap-ed region before mmap-ing it. However, if you fill the memory
+through the pointer returned by mmap, mmap will zero the memory region first.
 
+An approach that can avoid this problem is to write directly to the file
+associated with the mmap-ed region. Because the memory is not actually
+allocated until it's used, this will avoid the time cost of mmap zeroing the
+memory
+
+Also, note that the lazy nature of python garbage collection means that munmap
+is called at unexpected times and cause some problems with benchmarking.
+"""
+def benchmark_shmem():
     t = Timer()
-    with alloc_shmem('block', memoryview(A)) as sm:
-        t.report('write file')
+    A = np.random.rand(int(1e8)) - 0.5
+    t.report('build A')
+    print('sum', np.sum(A))
+    t.report('sum')
+    b = A.copy()
+    t.report('baseline copy')
+
+    with alloc_shmem(A) as sm:
+        t.report('alloc fillled shmem')
+        del sm.mem
+
+    t.restart()
+    with alloc_shmem(A.nbytes) as sm:
+        f = open(sm.fd, 'r+b', closefd=False)
+        f.seek(0)
+        f.write(A)
+        f.close()
+        t.report('alloc empty, write to file')
+        del sm.mem
+
+    t.restart()
+    with alloc_shmem(A.nbytes) as sm:
+        np.frombuffer(sm.mem)[:] = A
+        t.report('alloc empty shmem and fill')
+        del sm.mem
+
+
+    with alloc_shmem(A) as sm:
+        t.restart()
         print('sum2', np.sum(np.frombuffer(sm.mem)))
         t.report('read and sum')
+        del sm.mem
+
 
 if __name__ == "__main__":
     benchmark_shmem()
