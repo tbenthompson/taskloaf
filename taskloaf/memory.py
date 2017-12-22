@@ -1,11 +1,12 @@
-from uuid import uuid1 as uuid
+import uuid
 import pickle
+import struct
 
 class Ref:
     def __init__(self, w, owner):
         self.w = w
         self.owner = owner
-        self._id = uuid(self.owner)
+        self._id = uuid.uuid1(self.owner)
         self.gen = 0
         self.n_children = 0
 
@@ -20,7 +21,7 @@ class Ref:
         )
 
     def __del__(self):
-        self.w.memory.dec_ref(self)
+        self.w.send(self.owner, self.w.protocol.DECREF, (self._id, self.gen, self.n_children))
 
     def put(self, v):
         return self.w.memory.put(v, r = self)
@@ -53,13 +54,25 @@ class RemoteMemory:
     def __init__(self, value):
         self.value = value
 
+decref_fmt = '16sll'
+def decref_encoder(_id, gen, n_children):
+    out = memoryview(bytearray(40))
+    struct.pack_into(decref_fmt, out, 8, _id.bytes, gen, n_children)
+    return out
+
+def decref_decoder(w, b):
+    out = struct.unpack_from(decref_fmt, b)
+    return (uuid.UUID(bytes = out[0]), *out[1:])
+
 class MemoryManager:
     def __init__(self, w):
         self.blocks = dict()
         self.w = w
-        self.DECREF = self.w.protocol.add_handler(
+        self.w.protocol.add_handler(
             'DECREF',
-            work_builder = lambda x: lambda w: w.memory._dec_ref(*x)
+            encoder = decref_encoder,
+            decoder = decref_decoder,
+            work_builder = lambda x: lambda w: w.memory.dec_ref(*x)
         )
 
     def put(self, v, r = None):
@@ -81,14 +94,11 @@ class MemoryManager:
     def delete(self, r):
         del self.blocks[r._id]
 
-    def _dec_ref(self, _id, gen, n_children):
+    def dec_ref(self, _id, gen, n_children):
         mem = self.blocks[_id]
         mem.dec_ref(gen, n_children)
         if not mem.alive():
             del self.blocks[_id]
-
-    def dec_ref(self, r):
-        self.w.send(r.owner, self.DECREF, (r._id, r.gen, r.n_children))
 
     def n_entries(self):
         return len(self.blocks)

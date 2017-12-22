@@ -1,38 +1,44 @@
-import pickle
+import struct
+import time
 
 import taskloaf.serialize
 
-type_code_size = 12
+def default_encoder(*args):
+    return bytes(8) + taskloaf.serialize.dumps(args)
 
-# TODO: Better (more standard?) naming here.
+def default_decoder(w, bytes_list):
+    return taskloaf.serialize.loads(w, bytes_list)
+
+def default_work_builder(x):
+    return x[0]
+
 class Protocol:
     def __init__(self):
         self.handlers = []
 
-    def add_handler(self, name, *, encoder = None, decoder = None, work_builder = None):
+    def add_handler(self, name, *,
+            encoder = default_encoder,
+            decoder = default_decoder,
+            work_builder = default_work_builder):
 
-        if encoder is None:
-            encoder = lambda x: [taskloaf.serialize.dumps(x)]
-
-        if decoder is None:
-            decoder = lambda w, b: taskloaf.serialize.loads(w, b[0])
-
-        if work_builder is None:
-            work_builder = lambda x: x
-
+        type_code = len(self.handlers)
+        setattr(self, name, type_code)
         self.handlers.append((encoder, decoder, work_builder, name))
-        return len(self.handlers) - 1
+        return type_code
 
-    def encode(self, type, obj):
-        b = self.handlers[type][0](obj)
-        return [pickle.dumps(type)] + b
+    def encode(self, type_code, *args):
+        out = self.handlers[type_code][0](*args)
+        if type(out) is bytes:
+            out = memoryview(bytearray(out))
+        struct.pack_into('l', out, 0, type_code)
+        return out
 
     def decode(self, w, bytes):
-        type = pickle.loads(bytes[0])
-        return type, self.handlers[type][1](w, bytes[1:])
+        type_code = struct.unpack_from('l', bytes)[0]
+        return type_code, self.handlers[type_code][1](w, memoryview(bytes)[8:])
 
-    def build_work(self, type, x):
-        return self.handlers[type][2](x)
+    def build_work(self, type_code, x):
+        return self.handlers[type_code][2](x)
 
-    def get_name(self, type):
-        return self.handlers[type][3]
+    def get_name(self, type_code):
+        return self.handlers[type_code][3]

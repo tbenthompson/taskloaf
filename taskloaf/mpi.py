@@ -3,6 +3,7 @@ import inspect
 import asyncio
 from mpi4py import MPI
 from mpi4py.futures import MPIPoolExecutor
+import numpy as np
 
 import taskloaf.worker
 from taskloaf.serialize import dumps, loads
@@ -10,12 +11,17 @@ from taskloaf.serialize import dumps, loads
 def rank(comm = MPI.COMM_WORLD):
     return comm.Get_rank()
 
+def max_tag(comm = MPI.COMM_WORLD):
+    return comm.Get_attr(MPI.TAG_UB)
+
 class StartMsg:
     def __init__(self, n_items):
         self.n_items = n_items
 
 class MPIComm:
     next_tag = 0
+
+    # multi part messages can be done with tags.
 
     def __init__(self, tag = None):
         self.comm = MPI.COMM_WORLD
@@ -28,19 +34,14 @@ class MPIComm:
     def send(self, to_addr, data):
         # I could potentially used isend, or maybe Ibsend here to avoid the
         # blocking nature of send.
-        self.comm.send(StartMsg(len(data)), dest = to_addr, tag = self.tag)
-        for d in data:
-            self.comm.send(d, dest = to_addr, tag = self.tag)
+        self.comm.isend(data.obj, dest = to_addr, tag = self.tag)
 
     def recv(self):
         s = MPI.Status()
         msg_exists = self.comm.iprobe(tag = self.tag, status = s)
         if not msg_exists:
             return None
-        msg = self.comm.recv(source = s.source, tag = self.tag)
-        n_items = msg.n_items
-        chunks = [self.comm.recv(source = s.source, tag = self.tag) for i in range(n_items)]
-        return chunks
+        return self.comm.recv(source = s.source, tag = self.tag)
 
 def mpirun(n_workers, f, tag = None):
     # D = os.path.dirname(inspect.stack()[-1].filename)

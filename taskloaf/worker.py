@@ -1,5 +1,4 @@
 import time
-import inspect
 import asyncio
 import uvloop
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -16,7 +15,7 @@ class Worker:
         self.running = None
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
-        self.WORK = self.protocol.add_handler('WORK')
+        self.protocol.add_handler('WORK')
 
     def start(self, comm, coros):
         self.running = True
@@ -36,13 +35,13 @@ class Worker:
         if self.addr == to:
             self.work.append(self.protocol.build_work(type_code, objs))
         else:
-            start = time.time()
-            data = self.protocol.encode(type_code, objs)
-            T1 = time.time() - start
-            MB = sum([len(d) for d in data]) / 1e6
-            start = time.time()
+            # start = time.time()
+            data = self.protocol.encode(type_code, *objs)
+            # T1 = time.time() - start
+            # MB = sum([len(d) for d in data]) / 1e6
+            # start = time.time()
             self.comm.send(to, data)
-            T2 = time.time() - start
+            # T2 = time.time() - start
             # if len(data) > 1e6:
             # print(
             #     'send', time.time() - self.st, self.protocol.get_name(type_code), 'from: ', self.addr,
@@ -50,18 +49,20 @@ class Worker:
             # )
 
     def submit_work(self, to, f):
-        self.send(to, self.WORK, f)
+        self.send(to, self.protocol.WORK, [f])
 
-    def run_work(self, f):
+    def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
-            return asyncio.ensure_future(f(self))
+            return asyncio.ensure_future(f(self, *args))
         else:
-            return f(self)
+            return f(self, *args)
 
-    async def wait_for_work(self, f):
-        result = self.run_work(f)
-        if inspect.isawaitable(result):
+    async def wait_for_work(self, f, *args):
+        result = self.run_work(f, *args)
+        try:
             result = await result
+        except TypeError:
+            pass
         return result
 
     async def work_loop(self):
@@ -76,14 +77,15 @@ class Worker:
         return (await self.ioloop.run_in_executor(None, sync_f))
 
     def poll(self):
-        objs = self.comm.recv()
-        if objs is not None:
-            MB = sum([len(o) / 1e6 for o in objs])
+        msg = self.comm.recv()
+        if msg is not None:
+            # MB = sum([len(o) / 1e6 for o in objs])
             start = time.time()
-            type, obj = self.protocol.decode(self, objs)
+            # print(objs)
+            type_code, obj = self.protocol.decode(self, memoryview(msg))
             T = time.time() - start
             # print('recv', time.time() - self.st, self.protocol.get_name(type), 'to: ', self.addr, 'MB:', MB, T)
-            self.work.append(self.protocol.build_work(type, obj))
+            self.work.append(self.protocol.build_work(type_code, obj))
 
     async def poll_loop(self):
         while self.running:

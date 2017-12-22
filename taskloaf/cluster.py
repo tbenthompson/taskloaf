@@ -2,6 +2,7 @@ import taskloaf.worker
 import taskloaf.memory
 import taskloaf.promise
 from taskloaf.local import localrun
+from taskloaf.run import default_worker
 
 
 def cluster(n_workers, coro, runner = localrun):
@@ -12,9 +13,6 @@ def cluster(n_workers, coro, runner = localrun):
                 for i in range(n_workers):
                     w.submit_work(i, taskloaf.worker.shutdown)
                 return result
-        w = taskloaf.worker.Worker()
-        w.memory = taskloaf.memory.MemoryManager(w)
-        w.promise_manager = taskloaf.promise.PromiseManager(w)
-        return w.start(c, [setup])[0]
+        return default_worker().start(c, [setup])[0]
 
     return runner(n_workers, wrap_start_coro)
