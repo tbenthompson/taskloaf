@@ -3,6 +3,57 @@ import time
 
 import taskloaf.serialize
 
+def get_fmt(t):
+    if t == int:
+        return 'l'
+    elif t == bytes:
+        return 'v'
+
+def get_bytes_idxs(fmt):
+    return [i for i, char in enumerate(fmt) if char == 'v']
+
+def bytes_to_length(fmt):
+    return fmt.replace('v', 'l')
+
+class SimplePack:
+    def __init__(self, type_list):
+        self.fmt = ''.join([get_fmt(t) for t in type_list])
+        self.bytes_idxs = get_bytes_idxs(self.fmt)
+        self._packer = struct.Struct(bytes_to_length(self.fmt))
+
+    def pack(self, *args):
+        n_total_bytes = self._packer.size
+        packer_args = []
+        for i in range(len(args)):
+            if i in self.bytes_idxs:
+                n_bytes = len(args[i])
+                packer_args.append(n_bytes)
+                n_total_bytes += n_bytes
+            else:
+                packer_args.append(args[i])
+
+        out = memoryview(bytearray(n_total_bytes))
+        self._packer.pack_into(out, 0, *packer_args)
+
+        next_byte_idx = self._packer.size
+        for idx in self.bytes_idxs:
+            start_idx = next_byte_idx
+            next_byte_idx += packer_args[idx]
+            out[start_idx:next_byte_idx] = args[idx]
+        return out
+
+    def unpack(self, b):
+        out = list(self._packer.unpack_from(b))
+
+        next_byte_idx = self._packer.size
+        for idx in self.bytes_idxs:
+            start_idx = next_byte_idx
+            next_byte_idx += out[idx]
+            out[idx] = b[start_idx:next_byte_idx]
+        return out
+
+
+
 def default_encoder(*args):
     return bytes(8) + taskloaf.serialize.dumps(args)
 

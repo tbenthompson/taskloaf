@@ -1,21 +1,26 @@
 import time
 import asyncio
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 import taskloaf.protocol
 
 def shutdown(w):
+    print('kill', w.addr)
     w.running = False
+    # w.ioloop.stop()
 
 # TODO: Should accessing Comm be allowed? Protocol?
 class Worker:
     def __init__(self):
         self.st = time.time()
+        self.next_id = 0
         self.running = None
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
         self.protocol.add_handler('WORK')
+
+    def get_id(self):
+        self.next_id += 1
+        return self.next_id - 1
 
     def start(self, comm, coros):
         self.running = True
@@ -25,6 +30,7 @@ class Worker:
         all_coros = [self.poll_loop(), self.work_loop()] + [c(self) for c in coros]
 
         results = self.ioloop.run_until_complete(asyncio.gather(*all_coros))
+        print('ioloop done')
         return results[2:]
 
     @property
@@ -53,17 +59,15 @@ class Worker:
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
-            return asyncio.ensure_future(f(self, *args))
+            asyncio.ensure_future(f(self, *args))
         else:
-            return f(self, *args)
+            f(self, *args)
 
     async def wait_for_work(self, f, *args):
-        result = self.run_work(f, *args)
-        try:
-            result = await result
-        except TypeError:
-            pass
-        return result
+        if asyncio.iscoroutinefunction(f):
+            return await asyncio.ensure_future(f(self, *args))
+        else:
+            return f(self, *args)
 
     async def work_loop(self):
         while self.running:

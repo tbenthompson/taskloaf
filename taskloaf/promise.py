@@ -26,6 +26,7 @@ def setup_protocol(w):
         work_builder = await_builder
     )
 
+
 def struct_pack(fmt, *args):
     out = memoryview(bytearray(struct.calcsize(fmt) + 8))
     struct.pack_into(fmt, out, 8, *args)
@@ -35,8 +36,9 @@ def unpack_promise(w, vals, offset):
     r = Ref.__new__(Ref)
     r.w = w
     r.owner = vals[offset]
-    r._id = uuid.UUID(bytes = vals[offset+1])
-    r.gen = vals[offset+2]
+    r.creator = vals[offset+1]
+    r._id = vals[offset+2]
+    r.gen = vals[offset+3]
     r.n_children = 0
     p = Promise.__new__(Promise)
     p.r = r
@@ -44,9 +46,9 @@ def unpack_promise(w, vals, offset):
 
 def pack_promise(p):
     p.r.n_children += 1
-    return p.r.owner, p.r._id.bytes, p.r.gen + 1
+    return p.r.owner, p.r.creator, p.r._id, p.r.gen + 1
 
-promise_fmt = 'l16sl'
+promise_fmt = 'llll'
 
 def pr_v_fmt(n_v_bytes):
     return promise_fmt + str(n_v_bytes) + 's'
@@ -64,7 +66,7 @@ def set_result_encoder(pr, v):
 def set_result_decoder(w, b):
     is_bytes, n_v_bytes = struct.unpack_from('?l', b)
     vals = struct.unpack_from(pr_v_fmt(n_v_bytes), b, offset = struct.calcsize('?l'))
-    out_v = vals[3]
+    out_v = vals[4]
     if not is_bytes:
         out_v = taskloaf.serialize.loads(w, out_v)
     return unpack_promise(w, vals, 0), out_v
@@ -81,7 +83,7 @@ def task_encoder(f, pr):
 def task_decoder(w, b):
     n_f_bytes = struct.unpack_from('l', b)[0]
     vals = struct.unpack_from(pr_v_fmt(n_f_bytes), b, offset = 8)
-    return vals[3], unpack_promise(w, vals, 0)
+    return vals[4], unpack_promise(w, vals, 0)
 
 
 
@@ -91,7 +93,7 @@ def await_encoder(pr, req_addr):
 
 def await_decoder(w, b):
     vals = struct.unpack_from(await_fmt, b)
-    return unpack_promise(w, vals, 0), vals[3]
+    return unpack_promise(w, vals, 0), vals[4]
 
 def set_result_builder(args):
     pr, v = args

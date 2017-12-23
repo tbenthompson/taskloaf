@@ -6,22 +6,30 @@ class Ref:
     def __init__(self, w, owner):
         self.w = w
         self.owner = owner
-        self._id = uuid.uuid1(self.owner)
+        self.creator = w.addr
+        self._id = w.get_id()
         self.gen = 0
         self.n_children = 0
+
+    def index(self):
+        return (self.creator, self._id)
 
     def __getstate__(self):
         self.n_children += 1
         return dict(
             w = self.w,
+            owner = self.owner,
+            creator = self.creator,
+            _id = self._id,
             gen = self.gen + 1,
             n_children = 0,
-            owner = self.owner,
-            _id = self._id,
         )
 
     def __del__(self):
-        self.w.send(self.owner, self.w.protocol.DECREF, (self._id, self.gen, self.n_children))
+        self.w.send(
+            self.owner, self.w.protocol.DECREF,
+            (self.creator, self._id, self.gen, self.n_children)
+        )
 
     def put(self, v):
         return self.w.memory.put(v, r = self)
@@ -54,15 +62,14 @@ class RemoteMemory:
     def __init__(self, value):
         self.value = value
 
-decref_fmt = '16sll'
-def decref_encoder(_id, gen, n_children):
-    out = memoryview(bytearray(40))
-    struct.pack_into(decref_fmt, out, 8, _id.bytes, gen, n_children)
+decref_fmt = struct.Struct('llll')
+def decref_encoder(creator, _id, gen, n_children):
+    out = memoryview(bytearray(decref_fmt.size + 8))
+    decref_fmt.pack_into(out, 8, creator, _id, gen, n_children)
     return out
 
 def decref_decoder(w, b):
-    out = struct.unpack_from(decref_fmt, b)
-    return (uuid.UUID(bytes = out[0]), *out[1:])
+    return decref_fmt.unpack_from(b)
 
 class MemoryManager:
     def __init__(self, w):
@@ -78,27 +85,28 @@ class MemoryManager:
     def put(self, v, r = None):
         if r is None:
             r = Ref(self.w, self.w.addr)
-            self.blocks[r._id] = OwnedMemory(v)
+            self.blocks[r.index()] = OwnedMemory(v)
         elif r.owner == self.w.addr:
-            self.blocks[r._id] = OwnedMemory(v)
+            self.blocks[r.index()] = OwnedMemory(v)
         else:
-            self.blocks[r._id] = RemoteMemory(v)
+            self.blocks[r.index()] = RemoteMemory(v)
         return r
 
     def get(self, r):
-        return self.blocks[r._id].value
+        return self.blocks[r.index()].value
 
     def available(self, r):
-        return r._id in self.blocks
+        return r.index() in self.blocks
 
     def delete(self, r):
-        del self.blocks[r._id]
+        del self.blocks[r.index()]
 
-    def dec_ref(self, _id, gen, n_children):
-        mem = self.blocks[_id]
+    def dec_ref(self, creator, _id, gen, n_children):
+        idx = (creator, _id)
+        mem = self.blocks[idx]
         mem.dec_ref(gen, n_children)
         if not mem.alive():
-            del self.blocks[_id]
+            del self.blocks[idx]
 
     def n_entries(self):
         return len(self.blocks)

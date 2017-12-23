@@ -34,7 +34,7 @@ class MPIComm:
     def send(self, to_addr, data):
         # I could potentially used isend, or maybe Ibsend here to avoid the
         # blocking nature of send.
-        self.comm.isend(data.obj, dest = to_addr, tag = self.tag)
+        self.comm.send(data.obj, dest = to_addr, tag = self.tag)
 
     def recv(self):
         s = MPI.Status()
@@ -70,4 +70,7 @@ def mpiexisting(n_workers, f, tag = None):
             'There are only %s MPI processes but %s were requested' % (n_mpi_procs, n_workers)
         )
     c = MPIComm(tag)
-    return f(c)
+    if c.addr >= n_workers:
+        return
+    out = f(c)
+    return out
