@@ -41,14 +41,26 @@ def test_pack():
     assert(packer.fmt == 'l')
     assert(struct.unpack(packer.fmt, b)[0] == 13)
 
+def np_to_bytes(A):
+    return pyarrow.serialize(np.array(A)).to_buffer().to_pybytes()
+
+np_from_bytes = pyarrow.deserialize
+
 def test_pack_bytes():
     packer = SimplePack([int, bytes])
     assert(packer.fmt == 'lv')
     A = np.random.rand(100)
-    b = packer.pack(13, pyarrow.serialize(A).to_buffer().to_pybytes())
+    b = packer.pack(13, np_to_bytes(A))
     orig = packer.unpack(b)
     assert(orig[0] == 13)
-    np.testing.assert_almost_equal(A, pyarrow.deserialize(orig[1]))
+    np.testing.assert_almost_equal(A, np_from_bytes(orig[1]))
+
+def test_pack_complex():
+    packer = SimplePack([int, bytes, bytes])
+    vals = packer.unpack(packer.pack(45, np_to_bytes([0,1]), np_to_bytes([3,4])))
+    assert(vals[0] == 45)
+    np.testing.assert_almost_equal(np_from_bytes(vals[1]), [0,1])
+    np.testing.assert_almost_equal(np_from_bytes(vals[2]), [3,4])
 
 
 # def test_capnp_await():

@@ -4,11 +4,9 @@ import asyncio
 import taskloaf.protocol
 
 def shutdown(w):
-    print('kill', w.addr)
     w.running = False
     # w.ioloop.stop()
 
-# TODO: Should accessing Comm be allowed? Protocol?
 class Worker:
     def __init__(self):
         self.st = time.time()
@@ -30,7 +28,6 @@ class Worker:
         all_coros = [self.poll_loop(), self.work_loop()] + [c(self) for c in coros]
 
         results = self.ioloop.run_until_complete(asyncio.gather(*all_coros))
-        print('ioloop done')
         return results[2:]
 
     @property

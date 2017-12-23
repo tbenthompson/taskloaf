@@ -34,7 +34,7 @@ class MPIComm:
     def send(self, to_addr, data):
         # I could potentially used isend, or maybe Ibsend here to avoid the
         # blocking nature of send.
-        self.comm.send(data.obj, dest = to_addr, tag = self.tag)
+        self.comm.isend(data.obj, dest = to_addr, tag = self.tag)
 
     def recv(self):
         s = MPI.Status()

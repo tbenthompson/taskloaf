@@ -4,6 +4,7 @@ import uuid
 import struct
 
 import taskloaf.serialize
+import taskloaf.protocol
 from io import BytesIO
 
 def setup_protocol(w):
@@ -72,6 +73,13 @@ def set_result_decoder(w, b):
     return unpack_promise(w, vals, 0), out_v
 
 def task_encoder(f, pr):
+    # task_packer = taskloaf.protocol.SimplePack([int, int, int, int, int, bytes, bytes])
+    # if type(f) is bytes:
+    #     f_b = f
+    # else:
+    #     f_b = taskloaf.serialize.dumps(f)
+    # return task_packer.pack(0, *pack_promise(pr), f_b, args)
+
     if type(f) is bytes:
         f_b = f
     else:
@@ -81,6 +89,9 @@ def task_encoder(f, pr):
     return struct_pack(tsk_fmt, n_f_bytes, *pack_promise(pr), f_b)
 
 def task_decoder(w, b):
+    # task_packer = taskloaf.protocol.SimplePack([int, int, int, int, bytes, bytes])
+    # out = task_packer.unpack(b)
+    # return out[4], unpack_promise(w, out, 0), out[5]
     n_f_bytes = struct.unpack_from('l', b)[0]
     vals = struct.unpack_from(pr_v_fmt(n_f_bytes), b, offset = 8)
     return vals[4], unpack_promise(w, vals, 0)

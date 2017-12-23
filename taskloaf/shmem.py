@@ -10,18 +10,22 @@ def mmap_full_file(fd):
     return mmap.mmap(fd, get_size_from_fd(fd))
 
 class Shmem:
-    def __init__(self, fd):
-        self.setup(fd)
+    def __init__(self, filename):
+        self.setup(filename)
 
-    def setup(self, fd):
-        self.fd = fd
-        self.mem = mmap_full_file(fd)
+    def setup(self, filename):
+        self.filename = filename
+        self.file = open(self.filename, 'r+b')
+        self.mem = mmap_full_file(self.file.fileno())
 
     def __getstate__(self):
-        return self.fd
+        return self.filename
 
     def __setstate__(self, newstate):
         self.setup(newstate)
+
+    def __del__(self):
+        self.file.close()
 
 @contextlib.contextmanager
 def alloc_shmem(obj):
@@ -32,7 +36,7 @@ def alloc_shmem(obj):
             # Remove the file immediately so we don't leave cruft hanging
             # around on the filesystem. We'll do just fine with only a
             # file descriptor
-            os.remove(filename)
+            # os.remove(filename)
 
             if type(obj) is int:
                 # Create a sparse file of the proper size.
@@ -42,6 +46,6 @@ def alloc_shmem(obj):
             else:
                 f.write(obj)
                 f.seek(0)
-            yield Shmem(f.fileno())
+        yield Shmem(filename)
     finally:
         pass
