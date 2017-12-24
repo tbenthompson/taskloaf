@@ -15,7 +15,8 @@ struct MaybeBytes {
 struct Task {
     ref @0 :Ref;
     f @1 :MaybeBytes;
-    args @2 :MaybeBytes;
+    hasargs @2 :Bool;
+    args @3 :MaybeBytes;
 }
 
 struct SetResult {

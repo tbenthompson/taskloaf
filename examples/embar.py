@@ -8,13 +8,13 @@ import asyncio
 import uvloop
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
-n_jobs = 1000
-job_size = 10000
+n_jobs = 10000
+job_size = 1000
 def invert(w, A):
     Ainv = np.linalg.inv(A)
     return None
 
-def long_fnc():
+def long_fnc(i):
     x = 4
     for i in range(job_size):
         if i % 2 == 0:
@@ -30,7 +30,7 @@ def caller(i):
 
 def run_once():
     for i in range(n_jobs):
-        long_fnc()
+        long_fnc(i)
 
 def run_mp_parallel():
     import multiprocessing
@@ -53,11 +53,11 @@ def run_tsk_parallel():
         # def fnc(w):
         #     A_inside = tsk.remote_get(r)
         #     return invert(w, A_inside)
-        fnc = taskloaf.serialize.dumps(lambda w: long_fnc())
+        fnc = taskloaf.serialize.dumps(lambda w, i_b: long_fnc(i_b))
         async with tsk.profile.Profiler(w, range(n_cores)):
             start = time.time()
             out = await wait_all([
-                tsk.task(w, fnc, to = i % n_cores) for i in range(n_jobs)
+                tsk.task(w, fnc, i.to_bytes(8, 'little'), to = i % n_cores) for i in range(n_jobs)
             ])
             print('inside: ', time.time() - start)
 

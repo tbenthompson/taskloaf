@@ -1,11 +1,8 @@
 import asyncio
-from taskloaf.memory import Ref
-import uuid
-import struct
-
-import taskloaf.serialize
-
 import capnp
+
+from taskloaf.memory import Ref
+from taskloaf.serialize import encode_maybe_bytes, decode_maybe_bytes
 import taskloaf.task_capnp
 
 def setup_protocol(w):
@@ -29,35 +26,14 @@ def setup_protocol(w):
     )
 
 
-def set_result_encoder(pr, v):
-    m = taskloaf.task_capnp.Message.new_message()
-    m.init('setresult')
-    new_encode_promise(m.setresult.ref, pr)
-    new_encode_maybe_bytes(m.setresult.v, v)
-    return bytes(8) + m.to_bytes()
-
-def set_result_decoder(w, b):
-    m = taskloaf.task_capnp.Message.from_bytes(b)
-    return new_decode_promise(w, m.setresult.ref), new_decode_maybe_bytes(w, m.setresult.v),
-
-def new_encode_maybe_bytes(chunk, v):
-    chunk.wasbytes = (type(v) is bytes)
-    chunk.bytes = v if chunk.wasbytes else taskloaf.serialize.dumps(v)
-
-def new_decode_maybe_bytes(w, chunk):
-    if chunk.wasbytes:
-        return chunk.bytes
-    else:
-        return taskloaf.serialize.loads(w, chunk.bytes)
-
-def new_encode_promise(ref, pr):
+def encode_promise(ref, pr):
     pr.r.n_children += 1
     ref.owner = pr.r.owner
     ref.creator = pr.r.creator
     ref.id = pr.r._id
     ref.gen = pr.r.gen + 1
 
-def new_decode_promise(w, capnp_ref):
+def decode_promise(w, capnp_ref):
     r = Ref.__new__(Ref)
     r.w = w
     r.owner = capnp_ref.owner
@@ -69,27 +45,49 @@ def new_decode_promise(w, capnp_ref):
     p.r = r
     return p
 
-def task_encoder(f, pr):
+def set_result_encoder(pr, v):
+    m = taskloaf.task_capnp.Message.new_message()
+    m.init('setresult')
+    encode_promise(m.setresult.ref, pr)
+    encode_maybe_bytes(m.setresult.v, v)
+    return bytes(8) + m.to_bytes()
+
+def set_result_decoder(w, b):
+    m = taskloaf.task_capnp.Message.from_bytes(b)
+    return decode_promise(w, m.setresult.ref), decode_maybe_bytes(w, m.setresult.v),
+
+def task_encoder(f, pr, has_args, args):
     m = taskloaf.task_capnp.Message.new_message()
     m.init('task')
-    new_encode_promise(m.task.ref, pr)
-    new_encode_maybe_bytes(m.task.f, f)
+    encode_promise(m.task.ref, pr)
+    encode_maybe_bytes(m.task.f, f)
+    m.task.hasargs = has_args
+    if has_args:
+        encode_maybe_bytes(m.task.args, args)
     return bytes(8) + m.to_bytes()
 
 def task_decoder(w, b):
     m = taskloaf.task_capnp.Message.from_bytes(b)
-    return new_decode_maybe_bytes(w, m.task.f), new_decode_promise(w, m.task.ref)
+    args_b = None
+    if m.task.hasargs:
+        args_b = decode_maybe_bytes(w, m.task.args)
+    return (
+        decode_maybe_bytes(w, m.task.f),
+        decode_promise(w, m.task.ref),
+        m.task.hasargs,
+        args_b
+    )
 
 def await_encoder(pr, req_addr):
     m = taskloaf.task_capnp.Message.new_message()
     m.init('await')
-    new_encode_promise(m.await.ref, pr)
+    encode_promise(m.await.ref, pr)
     m.await.reqaddr = req_addr
     return bytes(8) + m.to_bytes()
 
 def await_decoder(w, b):
     m = taskloaf.task_capnp.Message.from_bytes(b)
-    return new_decode_promise(w, m.await.ref), m.await.reqaddr
+    return decode_promise(w, m.await.ref), m.await.reqaddr
 
 def set_result_builder(args):
     pr, v = args
@@ -162,25 +160,31 @@ def _unwrap_promise(pr, result):
         pr.set_result(result)
 
 def task_runner_builder(data):
-    f = data[0]
+    f_b = data[0]
     out_pr = data[1]
-    args = data[2:]
+    has_args = data[2]
+    args_b = data[3]
     async def task_runner(w):
         assert(w.comm.addr == out_pr.owner)
-        if isinstance(f, bytes):
-            f_b = taskloaf.serialize.loads(w, f)
+        if isinstance(f_b, bytes):
+            f = taskloaf.serialize.loads(w, f_b)
         else:
-            f_b = f
-        _unwrap_promise(out_pr, await w.wait_for_work(f_b, *args))
+            f = f_b
+
+        if has_args:
+            waiter = w.wait_for_work(f, args_b)
+        else:
+            waiter = w.wait_for_work(f)
+        _unwrap_promise(out_pr, await waiter)
     return task_runner
 
-def task(w, f, *args, to = None, out_pr = None):
+def task(w, f, args = None, to = None, out_pr = None):
     if out_pr is None:
         if to is None:
             to = w.comm.addr
         out_pr = Promise(w, to)
 
-    msg = [f, out_pr] + list(args)
+    msg = [f, out_pr, args is not None, args]
     w.send(out_pr.owner, w.protocol.TASK, msg)
     return out_pr
 
