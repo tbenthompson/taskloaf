@@ -4,8 +4,9 @@ import uuid
 import struct
 
 import taskloaf.serialize
-import taskloaf.protocol
-from io import BytesIO
+
+import capnp
+import taskloaf.task_capnp
 
 def setup_protocol(w):
     w.protocol.add_handler(
@@ -28,83 +29,67 @@ def setup_protocol(w):
     )
 
 
-def struct_pack(fmt, *args):
-    out = memoryview(bytearray(struct.calcsize(fmt) + 8))
-    struct.pack_into(fmt, out, 8, *args)
-    return out
+def set_result_encoder(pr, v):
+    m = taskloaf.task_capnp.Message.new_message()
+    m.init('setresult')
+    new_encode_promise(m.setresult.ref, pr)
+    new_encode_maybe_bytes(m.setresult.v, v)
+    return bytes(8) + m.to_bytes()
 
-def unpack_promise(w, vals, offset):
+def set_result_decoder(w, b):
+    m = taskloaf.task_capnp.Message.from_bytes(b)
+    return new_decode_promise(w, m.setresult.ref), new_decode_maybe_bytes(w, m.setresult.v),
+
+def new_encode_maybe_bytes(chunk, v):
+    chunk.wasbytes = (type(v) is bytes)
+    chunk.bytes = v if chunk.wasbytes else taskloaf.serialize.dumps(v)
+
+def new_decode_maybe_bytes(w, chunk):
+    if chunk.wasbytes:
+        return chunk.bytes
+    else:
+        return taskloaf.serialize.loads(w, chunk.bytes)
+
+def new_encode_promise(ref, pr):
+    pr.r.n_children += 1
+    ref.owner = pr.r.owner
+    ref.creator = pr.r.creator
+    ref.id = pr.r._id
+    ref.gen = pr.r.gen + 1
+
+def new_decode_promise(w, capnp_ref):
     r = Ref.__new__(Ref)
     r.w = w
-    r.owner = vals[offset]
-    r.creator = vals[offset+1]
-    r._id = vals[offset+2]
-    r.gen = vals[offset+3]
+    r.owner = capnp_ref.owner
+    r.creator = capnp_ref.creator
+    r._id = capnp_ref.id
+    r.gen = capnp_ref.gen
     r.n_children = 0
     p = Promise.__new__(Promise)
     p.r = r
     return p
 
-def pack_promise(p):
-    p.r.n_children += 1
-    return p.r.owner, p.r.creator, p.r._id, p.r.gen + 1
-
-promise_fmt = 'llll'
-
-def pr_v_fmt(n_v_bytes):
-    return promise_fmt + str(n_v_bytes) + 's'
-
-def set_result_encoder(pr, v):
-    is_bytes = type(v) is bytes
-    if is_bytes:
-        v_b = v
-    else:
-        v_b = taskloaf.serialize.dumps(v)
-    n_v_bytes = len(v_b)
-    sr_fmt = '?l' + pr_v_fmt(n_v_bytes)
-    return struct_pack(sr_fmt, is_bytes, n_v_bytes, *pack_promise(pr), v_b)
-
-def set_result_decoder(w, b):
-    is_bytes, n_v_bytes = struct.unpack_from('?l', b)
-    vals = struct.unpack_from(pr_v_fmt(n_v_bytes), b, offset = struct.calcsize('?l'))
-    out_v = vals[4]
-    if not is_bytes:
-        out_v = taskloaf.serialize.loads(w, out_v)
-    return unpack_promise(w, vals, 0), out_v
-
 def task_encoder(f, pr):
-    # task_packer = taskloaf.protocol.SimplePack([int, int, int, int, int, bytes, bytes])
-    # if type(f) is bytes:
-    #     f_b = f
-    # else:
-    #     f_b = taskloaf.serialize.dumps(f)
-    # return task_packer.pack(0, *pack_promise(pr), f_b, args)
-
-    if type(f) is bytes:
-        f_b = f
-    else:
-        f_b = taskloaf.serialize.dumps(f)
-    n_f_bytes = len(f_b)
-    tsk_fmt = 'l' + pr_v_fmt(n_f_bytes)
-    return struct_pack(tsk_fmt, n_f_bytes, *pack_promise(pr), f_b)
+    m = taskloaf.task_capnp.Message.new_message()
+    m.init('task')
+    new_encode_promise(m.task.ref, pr)
+    new_encode_maybe_bytes(m.task.f, f)
+    return bytes(8) + m.to_bytes()
 
 def task_decoder(w, b):
-    # task_packer = taskloaf.protocol.SimplePack([int, int, int, int, bytes, bytes])
-    # out = task_packer.unpack(b)
-    # return out[4], unpack_promise(w, out, 0), out[5]
-    n_f_bytes = struct.unpack_from('l', b)[0]
-    vals = struct.unpack_from(pr_v_fmt(n_f_bytes), b, offset = 8)
-    return vals[4], unpack_promise(w, vals, 0)
+    m = taskloaf.task_capnp.Message.from_bytes(b)
+    return new_decode_maybe_bytes(w, m.task.f), new_decode_promise(w, m.task.ref)
 
-
-
-await_fmt = promise_fmt + 'l'
 def await_encoder(pr, req_addr):
-    return struct_pack(await_fmt, *pack_promise(pr), req_addr)
+    m = taskloaf.task_capnp.Message.new_message()
+    m.init('await')
+    new_encode_promise(m.await.ref, pr)
+    m.await.reqaddr = req_addr
+    return bytes(8) + m.to_bytes()
 
 def await_decoder(w, b):
-    vals = struct.unpack_from(await_fmt, b)
-    return unpack_promise(w, vals, 0), vals[4]
+    m = taskloaf.task_capnp.Message.from_bytes(b)
+    return new_decode_promise(w, m.await.ref), m.await.reqaddr
 
 def set_result_builder(args):
     pr, v = args

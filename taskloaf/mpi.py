@@ -32,16 +32,16 @@ class MPIComm:
         MPIComm.next_tag += 1
 
     def send(self, to_addr, data):
-        # I could potentially used isend, or maybe Ibsend here to avoid the
-        # blocking nature of send.
-        self.comm.isend(data.obj, dest = to_addr, tag = self.tag)
+        self.comm.Isend(data.obj, dest = to_addr, tag = self.tag)
 
     def recv(self):
         s = MPI.Status()
         msg_exists = self.comm.iprobe(tag = self.tag, status = s)
         if not msg_exists:
             return None
-        return self.comm.recv(source = s.source, tag = self.tag)
+        out = memoryview(bytearray(s.count))
+        self.comm.Recv(out, source = s.source, tag = self.tag)
+        return out
 
 def mpirun(n_workers, f, tag = None):
     # D = os.path.dirname(inspect.stack()[-1].filename)

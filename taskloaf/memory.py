@@ -1,6 +1,5 @@
-import uuid
-import pickle
-import struct
+import capnp
+import taskloaf.task_capnp
 
 class Ref:
     def __init__(self, w, owner):
@@ -62,14 +61,18 @@ class RemoteMemory:
     def __init__(self, value):
         self.value = value
 
-decref_fmt = struct.Struct('llll')
 def decref_encoder(creator, _id, gen, n_children):
-    out = memoryview(bytearray(decref_fmt.size + 8))
-    decref_fmt.pack_into(out, 8, creator, _id, gen, n_children)
-    return out
+    m = taskloaf.task_capnp.Message.new_message()
+    m.init('decref')
+    m.decref.creator = creator
+    m.decref.id = _id
+    m.decref.gen = gen
+    m.decref.nchildren = n_children
+    return bytes(8) + m.to_bytes()
 
 def decref_decoder(w, b):
-    return decref_fmt.unpack_from(b)
+    decref_obj = taskloaf.task_capnp.Message.from_bytes(b).decref
+    return decref_obj.creator, decref_obj.id, decref_obj.gen, decref_obj.nchildren
 
 class MemoryManager:
     def __init__(self, w):

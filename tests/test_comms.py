@@ -40,21 +40,21 @@ def test_empty_recv():
 def test_data_send():
     c = MPIComm(3)
     if c.addr == 0:
-        c.send(1, 123)
+        c.send(1, memoryview(dumps(123)))
     if c.addr == 1:
         go = True
         while go:
             data = c.recv()
             if data is not None:
                 go = False
-                assert(data == 123)
+                assert(loads(None, data) == 123)
 
 @mpi_procs(2)
 def test_fnc_send():
     c = MPIComm(4)
     if c.addr == 0:
         x = 13
-        c.send(1, dumps(lambda: x ** 2))
+        c.send(1, memoryview(dumps(lambda: x ** 2)))
     if c.addr == 1:
         go = True
         while go:

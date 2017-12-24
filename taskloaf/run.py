@@ -2,10 +2,13 @@ import taskloaf.worker
 import taskloaf.memory
 import taskloaf.promise
 
-def default_worker():
-    w = taskloaf.worker.Worker()
+def add_plugins(w):
     w.memory = taskloaf.memory.MemoryManager(w)
     taskloaf.promise.setup_protocol(w)
+
+def default_worker():
+    w = taskloaf.worker.Worker()
+    add_plugins(w)
     return w
 
 class NullComm:
