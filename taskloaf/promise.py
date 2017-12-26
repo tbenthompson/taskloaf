@@ -26,12 +26,12 @@ def setup_protocol(w):
     )
 
 
-def encode_promise(ref, pr):
-    pr.r.n_children += 1
-    ref.owner = pr.r.owner
-    ref.creator = pr.r.creator
-    ref.id = pr.r._id
-    ref.gen = pr.r.gen + 1
+def encode_ref(dest, ref):
+    ref.n_children += 1
+    dest.owner = ref.owner
+    dest.creator = ref.creator
+    dest.id = ref._id
+    dest.gen = ref.gen + 1
 
 def decode_promise(w, capnp_ref):
     r = Ref.__new__(Ref)
@@ -48,7 +48,7 @@ def decode_promise(w, capnp_ref):
 def set_result_encoder(pr, v):
     m = taskloaf.task_capnp.Message.new_message()
     m.init('setresult')
-    encode_promise(m.setresult.ref, pr)
+    encode_ref(m.setresult.ref, pr.r)
     encode_maybe_bytes(m.setresult.v, v)
     return bytes(8) + m.to_bytes()
 
@@ -59,7 +59,7 @@ def set_result_decoder(w, b):
 def task_encoder(f, pr, has_args, args):
     m = taskloaf.task_capnp.Message.new_message()
     m.init('task')
-    encode_promise(m.task.ref, pr)
+    encode_ref(m.task.ref, pr.r)
     encode_maybe_bytes(m.task.f, f)
     m.task.hasargs = has_args
     if has_args:
@@ -81,7 +81,7 @@ def task_decoder(w, b):
 def await_encoder(pr, req_addr):
     m = taskloaf.task_capnp.Message.new_message()
     m.init('await')
-    encode_promise(m.await.ref, pr)
+    encode_ref(m.await.ref, pr.r)
     m.await.reqaddr = req_addr
     return bytes(8) + m.to_bytes()
 
