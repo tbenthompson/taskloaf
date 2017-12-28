@@ -15,4 +15,4 @@ async def submit(w):
         print(w.memory.n_entries())
 
 if __name__ == "__main__":
-    print(tsk.cluster(2, submit))
+    print(tsk.cluster(2, submit))#, runner = tsk.mpiexisting))

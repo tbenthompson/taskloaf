@@ -1,7 +1,7 @@
 import gc
 
 from taskloaf.memory import *
-from fakes import fake_worker
+from taskloaf.run import null_comm_worker
 
 def test_refcount_simple():
     rc = RefCount()
@@ -24,7 +24,7 @@ def test_refcount_alive():
     assert(rc.alive())
 
 def test_put_get_delete():
-    w = fake_worker()
+    w = null_comm_worker()
     mm = w.memory
     dref = DistributedRef(w, w.addr + 1)
     mm.put(1, dref = dref)
@@ -34,7 +34,7 @@ def test_put_get_delete():
     assert(not mm.available(dref))
 
 def test_decref_local():
-    w = fake_worker()
+    w = null_comm_worker()
     mm = w.memory
     dref = mm.put(1)
     assert(len(mm.blocks.keys()) == 1)
@@ -43,7 +43,7 @@ def test_decref_local():
     assert(len(mm.blocks.keys()) == 0)
 
 def test_decref_encode():
-    w = fake_worker()
+    w = null_comm_worker()
     coded = decref_encoder(1, 2, 3, 4)
     creator, _id, gen, n_children = decref_decoder(w, memoryview(coded)[8:])
     assert(creator == 1)

@@ -13,7 +13,7 @@ class LocalComm:
         self.i = 0
 
     def send(self, to_addr, data):
-        self.local_queues[to_addr].put(data, block = False)
+        self.local_queues[to_addr].put(bytes(data), block = False)
 
     def recv(self):
         self.i += 1

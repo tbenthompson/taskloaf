@@ -27,7 +27,6 @@ def test_work():
 # from taskloaf.memory import DistributedRef
 # from taskloaf.promise import encode_dref
 # import taskloaf.serialize
-# from fakes import fake_worker, FakePromise
 #
 # # TODO: I think I should add the shmemPtr to the dref itself?
 # # TODO: The situation with a task launch where the creator != owner leads to some difficulties. This is a weird semi-initialized state. It needs to be somewhat similar to a normal promise in that it should be await-able.

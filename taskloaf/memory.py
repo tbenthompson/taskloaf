@@ -1,5 +1,5 @@
 import capnp
-import taskloaf.task_capnp
+import taskloaf.message_capnp
 
 class DistributedRef:
     def __init__(self, worker, owner):

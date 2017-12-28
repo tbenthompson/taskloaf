@@ -1,8 +1,6 @@
 import taskloaf.worker
-import taskloaf.memory
-import taskloaf.promise
 from taskloaf.local import localrun
-from taskloaf.run import default_worker
+from taskloaf.run import add_plugins
 
 def killall(w, n_workers):
     for i in range(n_workers):
@@ -16,7 +14,8 @@ def cluster(n_workers, coro, runner = localrun):
                 killall(w, n_workers)
                 return result
         try:
-            result = default_worker(c).start(setup)
+            w = add_plugins(taskloaf.worker.Worker(c))
+            result = w.start(setup)
             return result
         except Exception as e:
             killall(w, n_workers)

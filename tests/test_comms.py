@@ -19,26 +19,21 @@ def test_local_comm():
     qs = [Queue(), Queue()]
     c0 = LocalComm(qs, 0)
     c1 = LocalComm(qs, 1)
-    c0.send(1, 456)
+    c0.send(1, memoryview(dumps(456)))
     go = True
     while go:
         val = c1.recv()
         if val is not None:
-            assert(val == 456)
+            assert(loads(None, val) == 456)
             go = False
 
-def test_tag_increment():
-    c1 = MPIComm(0)
-    c2 = MPIComm(1)
-    assert(c2.tag == c1.tag + 1)
-
 def test_empty_recv():
-    c = MPIComm(2)
+    c = MPIComm()
     assert(c.recv() is None)
 
 @mpi_procs(2)
 def test_data_send():
-    c = MPIComm(3)
+    c = MPIComm()
     if c.addr == 0:
         c.send(1, memoryview(dumps(123)))
     if c.addr == 1:
@@ -51,7 +46,7 @@ def test_data_send():
 
 @mpi_procs(2)
 def test_fnc_send():
-    c = MPIComm(4)
+    c = MPIComm()
     if c.addr == 0:
         x = 13
         c.send(1, memoryview(dumps(lambda: x ** 2)))

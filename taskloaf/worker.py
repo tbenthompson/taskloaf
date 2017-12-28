@@ -7,6 +7,9 @@ class NullComm:
     def __init__(self):
         self.addr = 0
 
+    def send(self, to, data):
+        pass
+
     def recv(self):
         return None
 

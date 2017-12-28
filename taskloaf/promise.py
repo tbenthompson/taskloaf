@@ -122,7 +122,7 @@ class Promise:
             if self.owner != here:
                 async def delete_after_triggered(worker):
                     await worker.memory.get(self.dref)[0]
-                    worker.memory.delete(self.r)
+                    worker.memory.delete(self.dref)
                 self.worker.run_work(delete_after_triggered)
 
     def __await__(self):
@@ -155,7 +155,7 @@ class Promise:
 
 def _unwrap_promise(pr, result):
     if isinstance(result, Promise):
-        result.then(pr.set_result)
+        result.then(lambda w, x: pr.set_result(x))
     else:
         pr.set_result(result)
 
