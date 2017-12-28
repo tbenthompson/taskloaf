@@ -15,9 +15,9 @@ def cluster(n_workers, coro, runner = localrun):
                 result = await coro(w)
                 killall(w, n_workers)
                 return result
-        w = default_worker()
         try:
-            result = w.start(c, [setup])[0]
+            result = default_worker(c).start(setup)
+            return result
         except Exception as e:
             killall(w, n_workers)
             raise e

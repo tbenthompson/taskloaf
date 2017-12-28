@@ -3,32 +3,38 @@ import asyncio
 
 import taskloaf.protocol
 
+class NullComm:
+    def __init__(self):
+        self.addr = 0
+
+    def recv(self):
+        return None
+
 def shutdown(w):
     w.running = False
+    # Can leaked async tasks be stopped somehow?
     # w.ioloop.stop()
 
 class Worker:
-    def __init__(self):
+    def __init__(self, comm):
+        self.comm = comm
         self.st = time.time()
-        self.next_id = 0
         self.running = None
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
         self.protocol.add_handler('WORK')
 
-    def get_id(self):
-        self.next_id += 1
-        return self.next_id - 1
-
-    def start(self, comm, coros):
+    def start(self, coro):
         self.running = True
 
-        self.comm = comm
+        # Should taskloaf create its own event loop?
         self.ioloop = asyncio.get_event_loop()
-        all_coros = [self.poll_loop(), self.work_loop()] + [c(self) for c in coros]
+        results = self.ioloop.run_until_complete(asyncio.gather(
+            self.poll_loop(), self.work_loop(), coro(self)
+        ))
 
-        results = self.ioloop.run_until_complete(asyncio.gather(*all_coros))
-        return results[2:]
+        assert(not self.running)
+        return results[2]
 
     @property
     def addr(self):

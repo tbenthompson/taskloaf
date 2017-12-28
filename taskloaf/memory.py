@@ -1,12 +1,12 @@
 import capnp
 import taskloaf.task_capnp
 
-class Ref:
-    def __init__(self, w, owner):
-        self.w = w
+class DistributedRef:
+    def __init__(self, worker, owner):
+        self.worker = worker
         self.owner = owner
-        self.creator = w.addr
-        self._id = w.get_id()
+        self.creator = worker.addr
+        self._id = worker.memory.get_new_id()
         self.gen = 0
         self.n_children = 0
 
@@ -16,7 +16,7 @@ class Ref:
     def __getstate__(self):
         self.n_children += 1
         return dict(
-            w = self.w,
+            worker = self.worker,
             owner = self.owner,
             creator = self.creator,
             _id = self._id,
@@ -25,23 +25,13 @@ class Ref:
         )
 
     def __del__(self):
-        self.w.send(
-            self.owner, self.w.protocol.DECREF,
-            (self.creator, self._id, self.gen, self.n_children)
+        self.worker.memory.dec_ref(
+            self.creator, self._id, self.gen, self.n_children,
+            owner = self.owner
         )
 
-    def put(self, v):
-        return self.w.memory.put(v, r = self)
-
-    def get(self):
-        return self.w.memory.get(self)
-
-    def available(self):
-        return self.w.memory.available(self)
-
-class OwnedMemory:
-    def __init__(self, value):
-        self.value = value
+class RefCount:
+    def __init__(self):
         self.gen_counts = [1]
 
     def dec_ref(self, gen, n_children):
@@ -57,6 +47,11 @@ class OwnedMemory:
                 return True
         return False
 
+class OwnedMemory:
+    def __init__(self, value):
+        self.value = value
+        self.refcount = RefCount()
+
 class RemoteMemory:
     def __init__(self, value):
         self.value = value
@@ -70,46 +65,63 @@ def decref_encoder(creator, _id, gen, n_children):
     m.decref.nchildren = n_children
     return bytes(8) + m.to_bytes()
 
-def decref_decoder(w, b):
+def decref_decoder(worker, b):
     decref_obj = taskloaf.task_capnp.Message.from_bytes(b).decref
     return decref_obj.creator, decref_obj.id, decref_obj.gen, decref_obj.nchildren
 
 class MemoryManager:
-    def __init__(self, w):
+    def __init__(self, worker):
         self.blocks = dict()
-        self.w = w
-        self.w.protocol.add_handler(
+        self.worker = worker
+        self.worker.protocol.add_handler(
             'DECREF',
             encoder = decref_encoder,
             decoder = decref_decoder,
-            work_builder = lambda x: lambda w: w.memory.dec_ref(*x)
+            work_builder = lambda x: lambda worker: worker.memory._dec_ref_owned(*x)
         )
+        self.next_id = 0
 
-    def put(self, v, r = None):
-        if r is None:
-            r = Ref(self.w, self.w.addr)
-            self.blocks[r.index()] = OwnedMemory(v)
-        elif r.owner == self.w.addr:
-            self.blocks[r.index()] = OwnedMemory(v)
+    def get_new_id(self):
+        self.next_id += 1
+        return self.next_id - 1
+
+    def put(self, v, dref = None):
+        if dref is None:
+            dref = DistributedRef(self.worker, self.worker.addr)
+            self._put_owned(v, dref)
+        elif dref.owner == self.worker.addr:
+            self._put_owned(v, dref)
         else:
-            self.blocks[r.index()] = RemoteMemory(v)
-        return r
+            self.blocks[dref.index()] = RemoteMemory(v)
+        return dref
 
-    def get(self, r):
-        return self.blocks[r.index()].value
+    def _put_owned(self, v, dref):
+        self.blocks[dref.index()] = OwnedMemory(v)
 
-    def available(self, r):
-        return r.index() in self.blocks
+    def get(self, dref):
+        return self.blocks[dref.index()].value
 
-    def delete(self, r):
-        del self.blocks[r.index()]
+    def available(self, dref):
+        return dref.index() in self.blocks
 
-    def dec_ref(self, creator, _id, gen, n_children):
+    def delete(self, dref):
+        del self.blocks[dref.index()]
+
+    def _dec_ref_owned(self, creator, _id, gen, n_children):
         idx = (creator, _id)
-        mem = self.blocks[idx]
+        mem = self.blocks[idx].refcount
         mem.dec_ref(gen, n_children)
         if not mem.alive():
             del self.blocks[idx]
+
+    def dec_ref(self, creator, _id, gen, n_children, owner):
+        if owner != self.worker.addr:
+            self.worker.send(
+                owner, self.worker.protocol.DECREF,
+                (creator, _id, gen, n_children)
+            )
+        else:
+            self._dec_ref_owned(creator, _id, gen, n_children)
 
     def n_entries(self):
         return len(self.blocks)
