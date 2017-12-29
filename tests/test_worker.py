@@ -46,17 +46,11 @@ def test_remote_work():
                 assert(w.addr == 0)
                 taskloaf.worker.shutdown(w)
             w.submit_work(0, h)
+            taskloaf.worker.shutdown(w)
         w.submit_work(1, g)
         while w.running:
             await asyncio.sleep(0)
-    c = MPIComm()
-    w = taskloaf.worker.Worker(c)
-    try:
-        w.start(f)
-    except Exception as e:
-        killall(w, 2)
-        raise e
-    # cluster(2, f, runner = mpiexisting)
+    taskloaf.worker.Worker(MPIComm()).start(f)
 
 def test_cluster_output():
     async def f(w):

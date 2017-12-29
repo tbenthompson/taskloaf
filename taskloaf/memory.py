@@ -1,61 +1,7 @@
 import capnp
+import asyncio
 import taskloaf.message_capnp
-
-class DistributedRef:
-    def __init__(self, worker, owner):
-        self.worker = worker
-        self.owner = owner
-        self.creator = worker.addr
-        self._id = worker.memory.get_new_id()
-        self.gen = 0
-        self.n_children = 0
-        self.shmem_ptr = 0
-
-    def index(self):
-        return (self.creator, self._id)
-
-    def __getstate__(self):
-        self.n_children += 1
-        return dict(
-            worker = self.worker,
-            owner = self.owner,
-            creator = self.creator,
-            _id = self._id,
-            gen = self.gen + 1,
-            n_children = 0,
-        )
-
-    def __del__(self):
-        self.worker.memory.dec_ref(
-            self.creator, self._id, self.gen, self.n_children,
-            owner = self.owner
-        )
-
-    # TODO: After encoding or pickling, the __del__ call will only happen if
-    # the object is decoded properly and nothing bad happens. This is scary,
-    # but is hard to avoid without adding a whole lot more synchronization and
-    # tracking. It would be worth adding some tools to check that memory isn't
-    # being leaked. Maybe a counter of number of encoded and decoded drefs
-    # (those #s should be equal).
-    def encode_capnp(self, dest):
-        self.n_children += 1
-        dest.owner = self.owner
-        dest.creator = self.creator
-        dest.id = self._id
-        dest.gen = self.gen + 1
-        dest.shmemPtr = self.shmem_ptr
-
-    @classmethod
-    def decode_capnp(cls, worker, m):
-        dref = DistributedRef.__new__(DistributedRef)
-        dref.owner = m.owner
-        dref.creator = m.creator
-        dref._id = m.id
-        dref.gen = m.gen
-        dref.shmem_ptr = m.shmemPtr
-        dref.n_children = 0
-        dref.worker = worker
-        return dref
+from taskloaf.dref import DistributedRef
 
 class RefCount:
     def __init__(self):
@@ -83,28 +29,72 @@ class RemoteMemory:
     def __init__(self, value):
         self.value = value
 
-def decref_encoder(type_code, creator, _id, gen, n_children):
-    m = taskloaf.message_capnp.DecRef.new_message()
-    m.typeCode = type_code
-    m.creator = creator
-    m.id = _id
-    m.gen = gen
-    m.nchildren = n_children
-    return m.to_bytes()
+class DRefListSerializer:
+    @staticmethod
+    def serialize(type_code, drefs):
+        m = taskloaf.message_capnp.Message.new_message()
+        m.typeCode = type_code
+        m.init('drefList', len(drefs))
+        for i in range(len(drefs)):
+            drefs[i].encode_capnp(m.drefList[i])
+        return m.to_bytes()
 
-def decref_decoder(worker, b):
-    decref_obj = taskloaf.message_capnp.DecRef.from_bytes(b)
-    return decref_obj.creator, decref_obj.id, decref_obj.gen, decref_obj.nchildren
+    @staticmethod
+    def deserialize(w, m):
+        return [DistributedRef.decode_capnp(w, dr) for dr in m.drefList]
+
+class DecRefSerializer:
+    @staticmethod
+    def serialize(type_code, args):
+        m = taskloaf.message_capnp.Message.new_message()
+        m.typeCode = type_code
+        m.init('decRef')
+        m.decRef.creator = args[0]
+        m.decRef.id = args[1]
+        m.decRef.gen = args[2]
+        m.decRef.nchildren = args[3]
+        return m.to_bytes()
+
+    @staticmethod
+    def deserialize(w, m):
+        return m.decRef.creator, m.decRef.id, m.decRef.gen, m.decRef.nchildren
+
+class RemotePutSerializer:
+    @staticmethod
+    def serialize(type_code, args):
+        dref, v = args
+        m = taskloaf.message_capnp.Message.new_message()
+        m.typeCode = type_code
+        m.init('remotePut')
+        dref.encode_capnp(m.remotePut.dref)
+        m.remotePut.val = v
+        return m.to_bytes()
+
+    @staticmethod
+    def deserialize(w, m):
+        return (
+            DistributedRef.decode_capnp(w, m.remotePut.dref),
+            m.remotePut.val
+        )
 
 class MemoryManager:
     def __init__(self, worker):
         self.blocks = dict()
         self.worker = worker
-        self.worker.protocol.add_handler(
+        self.worker.protocol.add_msg_type(
             'DECREF',
-            encoder = decref_encoder,
-            decoder = decref_decoder,
-            work_builder = lambda x: lambda worker: worker.memory._dec_ref_owned(*x)
+            serializer = DecRefSerializer,
+            handler = lambda x: lambda worker: worker.memory._dec_ref_owned(*x)
+        )
+        self.worker.protocol.add_msg_type(
+            'REMOTEGET',
+            serializer = DRefListSerializer,
+            handler = handle_remote_get
+        )
+        self.worker.protocol.add_msg_type(
+            'REMOTEPUT',
+            serializer = RemotePutSerializer,
+            handler = handle_remote_put
         )
         self.next_id = 0
 
@@ -153,11 +143,23 @@ class MemoryManager:
     def n_entries(self):
         return len(self.blocks)
 
-# worker.send(owner,
+def handle_remote_put(args):
+    dref_dest, v = args
+    def run(w):
+        w.memory.get(dref_dest).set_result(v)
+    return run
 
-async def remote_get(dref):
-    if not dref.available():
-        dref.put(asyncio.Future())
-        worker.send(owner, self.worker.protocol.REMOTEGET, [dref])
-        # dref.put(await task(dref.worker, lambda worker: dref.get(), to = dref.owner))
-    return dref.get()
+def handle_remote_get(args):
+    dref_dest, dref = args
+    def run(worker):
+        v = worker.memory.get(dref)
+        worker.send(dref_dest.owner, worker.protocol.REMOTEPUT, [dref_dest, v])
+    return run
+
+async def remote_get(worker, dref):
+    mm = worker.memory
+    if not mm.available(dref):
+        dref_dest = mm.put(asyncio.Future())
+        worker.send(dref.owner, worker.protocol.REMOTEGET, [dref_dest, dref])
+        mm.put(await mm.get(dref_dest), dref = dref)
+    return mm.get(dref)

@@ -28,7 +28,7 @@ struct DecRef {
     nchildren @3 :Int64;
 }
 
-struct SendData {
+struct RemotePut {
     dref @0 :DistributedRef;
     val @1 :Data;
 }
@@ -46,7 +46,7 @@ struct Message {
     typeCode @0 :Int64;
     union {
         drefList @1 :List(DistributedRef);
-        sendData @2 :SendData;
+        remotePut @2 :RemotePut;
         decRef @3 :DecRef;
         arbitrary @4 :Arbitrary;
     }

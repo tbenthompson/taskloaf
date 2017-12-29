@@ -36,16 +36,11 @@ def localrun(n_workers, f):
 
 
 def localstart(f, i, qs):
-    try:
-        # I removed this because it creates some noise and isn't worth it for
-        # the low efficiency multiprocessing comm anyway. Use MPI!
-        # if pin:
-        #     os.system("taskset -p -c %d %d" % ((i % os.cpu_count()), os.getpid()))
-        c = LocalComm(qs, i)
-        out = f(c)
-        if c.addr == 0:
-            qs[-1].put(out)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise e
+    # I removed this core pinning because it creates some noise and isn't worth
+    # it for the low efficiency multiprocessing comm anyway. Use MPI!
+    # if pin:
+    #     os.system("taskset -p -c %d %d" % ((i % os.cpu_count()), os.getpid()))
+    c = LocalComm(qs, i)
+    out = f(c)
+    if c.addr == 0:
+        qs[-1].put(out)

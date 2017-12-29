@@ -23,7 +23,5 @@ def pytest_runtest_protocol(item, nextitem):
         c = MPIComm()
         for i in range(50):
             v = c.recv()
-            if v is not None:
-                print('found msg!')
         MPI.COMM_WORLD.Barrier()
         return _pytest.runner.pytest_runtest_protocol(item, nextitem)

@@ -1,16 +1,21 @@
 import gc
-import pickle
+import asyncio
 
-import taskloaf.serialize
+from taskloaf.serialize import dumps, loads
 import taskloaf.message_capnp
 from taskloaf.memory import *
 from taskloaf.run import null_comm_worker
+from taskloaf.cluster import cluster
+from taskloaf.test_decorators import mpi_procs
+from taskloaf.mpi import mpiexisting
+
+one_serialized = dumps(1)
 
 def dref_serialization_tester(sfnc, dfnc):
     w = null_comm_worker()
     mm = w.memory
     assert(mm.n_entries() == 0)
-    dref = mm.put(1)
+    dref = mm.put(one_serialized)
     assert(mm.n_entries() > 0)
     dref_bytes = sfnc(dref)
     del dref
@@ -21,10 +26,7 @@ def dref_serialization_tester(sfnc, dfnc):
     assert(w.memory.n_entries() == 0)
 
 def test_dref_pickle_delete():
-    dref_serialization_tester(
-        taskloaf.serialize.dumps,
-        taskloaf.serialize.loads
-    )
+    dref_serialization_tester(dumps, loads)
 
 def test_dref_encode_capnp():
     def serialize(dref):
@@ -60,16 +62,16 @@ def test_put_get_delete():
     w = null_comm_worker()
     mm = w.memory
     dref = DistributedRef(w, w.addr + 1)
-    mm.put(1, dref = dref)
+    mm.put(one_serialized, dref = dref)
     assert(mm.available(dref))
-    assert(mm.get(dref) == 1)
+    assert(loads(None, mm.get(dref)) == 1)
     mm.delete(dref)
     assert(not mm.available(dref))
 
 def test_decref_local():
     w = null_comm_worker()
     mm = w.memory
-    dref = mm.put(1)
+    dref = mm.put(one_serialized)
     assert(len(mm.blocks.keys()) == 1)
     del dref
     gc.collect() # Force a GC collect to make sure that dref.__del__ is called
@@ -77,25 +79,25 @@ def test_decref_local():
 
 def test_decref_encode():
     w = null_comm_worker()
-    coded = decref_encoder(0, 1, 2, 3, 4)
-    creator, _id, gen, n_children = decref_decoder(w, memoryview(coded))
+    b = DecRefSerializer.serialize(0, [1, 2, 3, 4])
+    m = taskloaf.message_capnp.Message.from_bytes(b)
+    creator, _id, gen, n_children = DecRefSerializer.deserialize(w, m)
     assert(creator == 1)
     assert(_id == 2)
     assert(gen == 3)
     assert(n_children == 4)
 
-from taskloaf.cluster import cluster
-from taskloaf.promise import task
-from taskloaf.test_decorators import mpi_procs
-from taskloaf.mpi import MPIComm
-
 @mpi_procs(2)
 def test_remote_get():
     async def f(w):
-        pass
-        # dref = w.memory.put(1)
-        # print(remote_get(dref))
-        # # def wait_for_data():
-        # # task(
-
+        dref = w.memory.put(one_serialized)
+        assert(loads(None, await remote_get(w, dref)) == 1)
+        async def g(w):
+            assert(loads(None, await remote_get(w, dref)) == 1)
+            def h(w):
+                taskloaf.worker.shutdown(w)
+            w.submit_work(0, h)
+        w.submit_work(1, g)
+        while w.running:
+            await asyncio.sleep(0)
     cluster(2, f)

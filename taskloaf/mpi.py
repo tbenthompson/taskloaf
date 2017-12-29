@@ -45,16 +45,8 @@ def mpirun(n_workers, f):
         return next(out)
 
 def mpistart(f, i):
-    try:
-        c = MPIComm()
-        return loads(None, f)(c)
-    except Exception as e:
-        import traceback
-        # mpi4py MPIPoolExecutor supresses stderr until the pool is done...
-        # so send the exception info to stdout
-        import sys
-        traceback.print_exc(file = sys.stdout)
-        raise e
+    c = MPIComm()
+    return loads(None, f)(c)
 
 def mpiexisting(n_workers, f):
     n_mpi_procs = MPI.COMM_WORLD.Get_size()

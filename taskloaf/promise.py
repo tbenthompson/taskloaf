@@ -1,98 +1,24 @@
 import asyncio
 import capnp
 
-from taskloaf.memory import DistributedRef
-from taskloaf.serialize import encode_maybe_bytes, decode_maybe_bytes
-import taskloaf.message_capnp
+from taskloaf.memory import DistributedRef, DRefListSerializer
 
 def setup_protocol(worker):
-    worker.protocol.add_handler(
+    worker.protocol.add_msg_type(
         'TASK',
-        encoder = task_encoder,
-        decoder = task_decoder,
-        work_builder = task_runner_builder
+        serializer = DRefListSerializer,
+        handler = task_runner_builder
     )
-    worker.protocol.add_handler(
-        'SET_RESULT',
-        encoder = set_result_encoder,
-        decoder = set_result_decoder,
-        work_builder = set_result_builder
+    worker.protocol.add_msg_type(
+        'SETRESULT',
+        serializer = DRefListSerializer,
+        handler = set_result_builder
     )
-    worker.protocol.add_handler(
+    worker.protocol.add_msg_type(
         'AWAIT',
-        encoder = await_encoder,
-        decoder = await_decoder,
-        work_builder = await_builder
+        serializer = DRefListSerializer,
+        handler = await_builder
     )
-    worker.protocol.add_handler(
-        'NEWTASK', work_builder = new_task_runner_builder
-    )
-
-
-def encode_ref(dest, ref):
-    ref.n_children += 1
-    dest.owner = ref.owner
-    dest.creator = ref.creator
-    dest.id = ref._id
-    dest.gen = ref.gen + 1
-
-def decode_promise(worker, capnp_ref):
-    dref = DistributedRef.__new__(DistributedRef)
-    dref.worker = worker
-    dref.owner = capnp_ref.owner
-    dref.creator = capnp_ref.creator
-    dref._id = capnp_ref.id
-    dref.gen = capnp_ref.gen
-    dref.n_children = 0
-    p = Promise.__new__(Promise)
-    p.dref = dref
-    return p
-
-def set_result_encoder(type_code, pr, v):
-    m = taskloaf.task_capnp.Message.new_message()
-    m.typeCode = type_code
-    m.init('setresult')
-    encode_ref(m.setresult.ref, pr.dref)
-    encode_maybe_bytes(m.setresult.v, v)
-    return bytes(8) + m.to_bytes()
-
-def set_result_decoder(worker, b):
-    m = taskloaf.task_capnp.Message.from_bytes(b)
-    return decode_promise(worker, m.setresult.ref), decode_maybe_bytes(worker, m.setresult.v),
-
-def task_encoder(type_code, f, pr, has_args, args):
-    m = taskloaf.task_capnp.Task.new_message()
-    m.typeCode = type_code
-    encode_ref(m.ref, pr.dref)
-    encode_maybe_bytes(m.f, f)
-    m.hasargs = has_args
-    if has_args:
-        encode_maybe_bytes(m.args, args)
-    return m.to_bytes()
-
-def task_decoder(worker, b):
-    m = taskloaf.task_capnp.Task.from_bytes(b)
-    args_b = None
-    if m.hasargs:
-        args_b = decode_maybe_bytes(worker, m.args)
-    return (
-        decode_maybe_bytes(worker, m.f),
-        decode_promise(worker, m.ref),
-        m.hasargs,
-        args_b
-    )
-
-def await_encoder(type_code, pr, req_addr):
-    m = taskloaf.task_capnp.Message.new_message()
-    m.typeCode = type_code
-    m.init('await')
-    encode_ref(m.await.ref, pr.dref)
-    m.await.reqaddr = req_addr
-    return bytes(8) + m.to_bytes()
-
-def await_decoder(worker, b):
-    m = taskloaf.task_capnp.Message.from_bytes(b)
-    return decode_promise(worker, m.await.ref), m.await.reqaddr
 
 def set_result_builder(args):
     pr, v = args
@@ -165,6 +91,7 @@ def _unwrap_promise(pr, result):
         pr.set_result(result)
 
 def task_runner_builder(data):
+    print(data)
     f_b = data[0]
     out_pr = data[1]
     has_args = data[2]
@@ -183,10 +110,6 @@ def task_runner_builder(data):
         _unwrap_promise(out_pr, await waiter)
     return task_runner
 
-# TODO: once this new version works, clear out the old stuff
-def new_task_runner_builder(data):
-    pass
-
 def to_dref(worker, v):
     if isinstance(v, DistributedRef):
         return v
@@ -198,16 +121,13 @@ def task(worker, f, args = None, to = None, out_pr = None):
             to = worker.comm.addr
         out_pr = Promise(worker, to)
 
-    msg = [f, out_pr, args is not None, args]
-    worker.send(out_pr.owner, worker.protocol.TASK, msg)
-
-    # drefs = [
-    #     out_pr.dref,
-    #     to_dref(worker, f)
-    # ]
-    # if args is not None:
-    #     drefs.append(to_dref(worker, args))
-    # worker.new_send(out_pr.owner, worker.protocol.NEWTASK, drefs)
+    drefs = [
+        out_pr.dref,
+        to_dref(worker, f)
+    ]
+    if args is not None:
+        drefs.append(to_dref(worker, args))
+    worker.send(out_pr.owner, worker.protocol.TASK, drefs)
 
     return out_pr
 

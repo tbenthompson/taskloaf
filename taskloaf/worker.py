@@ -26,13 +26,7 @@ class Worker:
         self.running = None
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
-        self.protocol.add_handler('WORK')
-        self.protocol.add_handler(
-            'NEWHANDLER',
-            encoder = taskloaf.protocol.dreflist_encode,
-            decoder = taskloaf.protocol.dreflist_decode,
-            work_builder = self.new_recv
-        )
+        self.protocol.add_msg_type('WORK', handler = lambda x: x[0])
 
     def start(self, coro):
         self.running = True
@@ -50,35 +44,15 @@ class Worker:
     def addr(self):
         return self.comm.addr
 
+    def schedule_work_here(self, type_code, args):
+        self.work.append(self.protocol.handle(type_code, args))
+
     def send(self, to, type_code, objs):
         if self.addr == to:
-            self.work.append(self.protocol.build_work(type_code, objs))
+            self.schedule_work_here(type_code, objs)
         else:
-            # start = time.time()
-            data = self.protocol.encode(type_code, *objs)
-            # T1 = time.time() - start
-            # MB = sum([len(d) for d in data]) / 1e6
-            # start = time.time()
-            print(data)
+            data = self.protocol.encode(type_code, objs)
             self.comm.send(to, data)
-            # T2 = time.time() - start
-            # if len(data) > 1e6:
-            # print(
-            #     'send', time.time() - self.st, self.protocol.get_name(type_code), 'from: ', self.addr,
-            #     'to: ', to, ' MB: ', MB, (T1, T2)
-            # )
-
-    def new_send(self, to, type_code, drefs):
-        if self.addr == to:
-            self.work.append(self.protocol.build_work(type_code, drefs))
-        else:
-            data = taskloaf.protocol.new_encode(type_code, drefs)
-            self.send(to, self.protocol.NEWHANDLER, data)
-            # self.comm.send(to, data)
-
-    def new_recv(self, data):
-        type_code, drefs = taskloaf.protocol.new_decode(self, data)
-        return taskloaf.protocol.build_work(type_code, drefs)
 
     def submit_work(self, to, f):
         self.send(to, self.protocol.WORK, [f])
@@ -98,10 +72,8 @@ class Worker:
     async def work_loop(self):
         while self.running:
             if len(self.work) > 0:
-                # print('addr: ', services['comm'].addr, ' running work: ', len(work))
                 self.run_work(self.work.pop())
             await asyncio.sleep(0)
-        # print('quitting work loop(' + str(services['comm'].addr) + '): ' + str(len(work)))
 
     async def run_in_thread(self, sync_f):
         return (await self.ioloop.run_in_executor(None, sync_f))
@@ -109,13 +81,8 @@ class Worker:
     def poll(self):
         msg = self.comm.recv()
         if msg is not None:
-            # MB = sum([len(o) / 1e6 for o in objs])
-            start = time.time()
-            # print(objs)
-            type_code, obj = self.protocol.decode(self, memoryview(msg))
-            T = time.time() - start
-            # print('recv', time.time() - self.st, self.protocol.get_name(type), 'to: ', self.addr, 'MB:', MB, T)
-            self.work.append(self.protocol.build_work(type_code, obj))
+            type_code, args = self.protocol.decode(self, memoryview(msg))
+            self.schedule_work_here(type_code, args)
 
     async def poll_loop(self):
         while self.running:
