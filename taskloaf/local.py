@@ -22,24 +22,29 @@ class LocalComm:
         except:
             return None
 
-def localrun(n_workers, f, pin = True):
+def localrun(n_workers, f):
     try:
-        qs = [multiprocessing.Queue() for i in range(n_workers)]
-        args = [(f, i, qs, pin) for i in range(n_workers)]
+        qs = [multiprocessing.Queue() for i in range(n_workers + 1)]
+        args = [(f, i, qs) for i in range(n_workers)]
         ps = [multiprocessing.Process(target = localstart, args = args[i]) for i in range(n_workers)]
         for p in ps:
             p.start()
+        return qs[-1].get()
     finally:
         for p in ps:
             p.join()
 
-def localstart(f, i, qs, pin):
+
+def localstart(f, i, qs):
     try:
-        if pin:
-            os.system("taskset -p -c %d %d" % ((i % os.cpu_count()), os.getpid()))
+        # I removed this because it creates some noise and isn't worth it for
+        # the low efficiency multiprocessing comm anyway. Use MPI!
+        # if pin:
+        #     os.system("taskset -p -c %d %d" % ((i % os.cpu_count()), os.getpid()))
         c = LocalComm(qs, i)
         out = f(c)
-        return out
+        if c.addr == 0:
+            qs[-1].put(out)
     except Exception as e:
         import traceback
         traceback.print_exc()

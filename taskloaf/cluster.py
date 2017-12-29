@@ -18,6 +18,7 @@ def cluster(n_workers, coro, runner = localrun):
             result = w.start(setup)
             return result
         except Exception as e:
+            print("EXCEPTION")
             killall(w, n_workers)
             raise e
 

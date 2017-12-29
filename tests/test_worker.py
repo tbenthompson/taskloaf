@@ -31,13 +31,15 @@ def test_run_output():
         return 1
     assert(run(f) == 1)
 
-from taskloaf.cluster import cluster
-from taskloaf.mpi import mpiexisting
+from taskloaf.cluster import cluster, add_plugins, killall
+from taskloaf.mpi import mpiexisting, MPIComm
 from taskloaf.test_decorators import mpi_procs
 import asyncio
 @mpi_procs(2)
 def test_remote_work():
     async def f(w):
+        if w.addr != 0:
+            return
         def g(w):
             assert(w.addr == 1)
             def h(w):
@@ -47,7 +49,14 @@ def test_remote_work():
         w.submit_work(1, g)
         while w.running:
             await asyncio.sleep(0)
-    cluster(2, f, runner = mpiexisting)
+    c = MPIComm()
+    w = taskloaf.worker.Worker(c)
+    try:
+        w.start(f)
+    except Exception as e:
+        killall(w, 2)
+        raise e
+    # cluster(2, f, runner = mpiexisting)
 
 def test_cluster_output():
     async def f(w):

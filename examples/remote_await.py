@@ -7,4 +7,4 @@ async def submit(w):
     return (await pr)
 
 if __name__ == "__main__":
-    print(tsk.cluster(2, submit))
+    assert(tsk.cluster(2, submit) == 45)

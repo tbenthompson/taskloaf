@@ -1,16 +1,40 @@
-import struct
-import time
-
+import capnp
+import taskloaf.message_capnp
+import taskloaf.memory
 import taskloaf.serialize
-
-def default_encoder(*args):
-    return bytes(8) + taskloaf.serialize.dumps(args)
-
-def default_decoder(w, bytes_list):
-    return taskloaf.serialize.loads(w, bytes_list)
 
 def default_work_builder(x):
     return x[0]
+
+class CloudPickleSerializer:
+    @staticmethod
+    def serialize(type_code, drefs):
+        m = taskloaf.message_capnp.Message.new_message()
+        m.typeCode = type_code
+        m.init('arbitrary')
+        m.arbitrary.bytes = taskloaf.serialize.dumps(args)
+        return m.to_bytes()
+
+    @staticmethod
+    def deserialize(w, m):
+        return taskloaf.serialize.loads(w, m.arbitrary.bytes)
+
+class DRefListSerializer:
+    @staticmethod
+    def serialize(type_code, drefs):
+        m = taskloaf.message_capnp.Message.new_message()
+        m.typeCode = type_code
+        m.init('drefs', len(drefs))
+        for i in range(len(drefs)):
+            drefs[i].encode_capnp(m.drefs[i])
+        return m.to_bytes()
+
+    @staticmethod
+    def deserialize(w, m):
+        return [
+            taskloaf.memory.DistributedRef.decode_capnp(w, dr)
+            for dr in m.drefs
+        ]
 
 class Protocol:
     def __init__(self):
@@ -27,15 +51,11 @@ class Protocol:
         return type_code
 
     def encode(self, type_code, *args):
-        out = self.handlers[type_code][0](*args)
-        if type(out) is bytes:
-            out = memoryview(bytearray(out))
-        struct.pack_into('l', out, 0, type_code)
-        return out
+        return memoryview(self.handlers[type_code][0](type_code, *args))
 
-    def decode(self, w, bytes):
-        type_code = struct.unpack_from('l', bytes)[0]
-        return type_code, self.handlers[type_code][1](w, memoryview(bytes)[8:])
+    def decode(self, w, b):
+        m = taskloaf.message_capnp.Message.from_bytes(b)
+        return m.typeCode, self.handlers[m.typeCode][1](w, m)
 
     def build_work(self, type_code, x):
         return self.handlers[type_code][2](x)

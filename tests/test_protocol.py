@@ -1,4 +1,6 @@
-from taskloaf.protocol import Protocol
+from taskloaf.protocol import *
+from taskloaf.memory import DistributedRef
+from taskloaf.run import null_comm_worker
 
 def test_roundtrip():
     p = Protocol()
@@ -18,6 +20,15 @@ def test_work():
     set.val = 0
     p.build_work(0, [set])()
     assert(set.val == 1)
+
+def test_encode_decode():
+    w = null_comm_worker()
+    drefs = [DistributedRef(w, w.addr + 1) for i in range(3)]
+    type_code, new_drefs = dreflist_decode(w, dreflist_encode(12, drefs))
+    assert(type_code == 12)
+    for dr1, dr2 in zip(drefs, new_drefs):
+        assert(dr1._id == dr2._id)
+
 
 
 

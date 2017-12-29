@@ -3,7 +3,7 @@ import capnp
 
 from taskloaf.memory import DistributedRef
 from taskloaf.serialize import encode_maybe_bytes, decode_maybe_bytes
-import taskloaf.task_capnp
+import taskloaf.message_capnp
 
 def setup_protocol(worker):
     worker.protocol.add_handler(
@@ -23,6 +23,9 @@ def setup_protocol(worker):
         encoder = await_encoder,
         decoder = await_decoder,
         work_builder = await_builder
+    )
+    worker.protocol.add_handler(
+        'NEWTASK', work_builder = new_task_runner_builder
     )
 
 
@@ -45,8 +48,9 @@ def decode_promise(worker, capnp_ref):
     p.dref = dref
     return p
 
-def set_result_encoder(pr, v):
+def set_result_encoder(type_code, pr, v):
     m = taskloaf.task_capnp.Message.new_message()
+    m.typeCode = type_code
     m.init('setresult')
     encode_ref(m.setresult.ref, pr.dref)
     encode_maybe_bytes(m.setresult.v, v)
@@ -56,30 +60,31 @@ def set_result_decoder(worker, b):
     m = taskloaf.task_capnp.Message.from_bytes(b)
     return decode_promise(worker, m.setresult.ref), decode_maybe_bytes(worker, m.setresult.v),
 
-def task_encoder(f, pr, has_args, args):
-    m = taskloaf.task_capnp.Message.new_message()
-    m.init('task')
-    encode_ref(m.task.ref, pr.dref)
-    encode_maybe_bytes(m.task.f, f)
-    m.task.hasargs = has_args
+def task_encoder(type_code, f, pr, has_args, args):
+    m = taskloaf.task_capnp.Task.new_message()
+    m.typeCode = type_code
+    encode_ref(m.ref, pr.dref)
+    encode_maybe_bytes(m.f, f)
+    m.hasargs = has_args
     if has_args:
-        encode_maybe_bytes(m.task.args, args)
-    return bytes(8) + m.to_bytes()
+        encode_maybe_bytes(m.args, args)
+    return m.to_bytes()
 
 def task_decoder(worker, b):
-    m = taskloaf.task_capnp.Message.from_bytes(b)
+    m = taskloaf.task_capnp.Task.from_bytes(b)
     args_b = None
-    if m.task.hasargs:
-        args_b = decode_maybe_bytes(worker, m.task.args)
+    if m.hasargs:
+        args_b = decode_maybe_bytes(worker, m.args)
     return (
-        decode_maybe_bytes(worker, m.task.f),
-        decode_promise(worker, m.task.ref),
-        m.task.hasargs,
+        decode_maybe_bytes(worker, m.f),
+        decode_promise(worker, m.ref),
+        m.hasargs,
         args_b
     )
 
-def await_encoder(pr, req_addr):
+def await_encoder(type_code, pr, req_addr):
     m = taskloaf.task_capnp.Message.new_message()
+    m.typeCode = type_code
     m.init('await')
     encode_ref(m.await.ref, pr.dref)
     m.await.reqaddr = req_addr
@@ -178,6 +183,15 @@ def task_runner_builder(data):
         _unwrap_promise(out_pr, await waiter)
     return task_runner
 
+# TODO: once this new version works, clear out the old stuff
+def new_task_runner_builder(data):
+    pass
+
+def to_dref(worker, v):
+    if isinstance(v, DistributedRef):
+        return v
+    return worker.memory.put(v)
+
 def task(worker, f, args = None, to = None, out_pr = None):
     if out_pr is None:
         if to is None:
@@ -186,6 +200,15 @@ def task(worker, f, args = None, to = None, out_pr = None):
 
     msg = [f, out_pr, args is not None, args]
     worker.send(out_pr.owner, worker.protocol.TASK, msg)
+
+    # drefs = [
+    #     out_pr.dref,
+    #     to_dref(worker, f)
+    # ]
+    # if args is not None:
+    #     drefs.append(to_dref(worker, args))
+    # worker.new_send(out_pr.owner, worker.protocol.NEWTASK, drefs)
+
     return out_pr
 
 def when_all(ps, to = None):

@@ -3,6 +3,7 @@ import asyncio
 
 import taskloaf.protocol
 
+# A NullComm is handy for running single-threaded or for some testing purposes
 class NullComm:
     def __init__(self):
         self.addr = 0
@@ -26,6 +27,12 @@ class Worker:
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
         self.protocol.add_handler('WORK')
+        self.protocol.add_handler(
+            'NEWHANDLER',
+            encoder = taskloaf.protocol.dreflist_encode,
+            decoder = taskloaf.protocol.dreflist_decode,
+            work_builder = self.new_recv
+        )
 
     def start(self, coro):
         self.running = True
@@ -52,6 +59,7 @@ class Worker:
             # T1 = time.time() - start
             # MB = sum([len(d) for d in data]) / 1e6
             # start = time.time()
+            print(data)
             self.comm.send(to, data)
             # T2 = time.time() - start
             # if len(data) > 1e6:
@@ -59,6 +67,18 @@ class Worker:
             #     'send', time.time() - self.st, self.protocol.get_name(type_code), 'from: ', self.addr,
             #     'to: ', to, ' MB: ', MB, (T1, T2)
             # )
+
+    def new_send(self, to, type_code, drefs):
+        if self.addr == to:
+            self.work.append(self.protocol.build_work(type_code, drefs))
+        else:
+            data = taskloaf.protocol.new_encode(type_code, drefs)
+            self.send(to, self.protocol.NEWHANDLER, data)
+            # self.comm.send(to, data)
+
+    def new_recv(self, data):
+        type_code, drefs = taskloaf.protocol.new_decode(self, data)
+        return taskloaf.protocol.build_work(type_code, drefs)
 
     def submit_work(self, to, f):
         self.send(to, self.protocol.WORK, [f])
