@@ -21,19 +21,19 @@ def setup_protocol(worker):
         handler = await_builder
     )
 
-def await_builder(args):
-    pr_dref, req_addr = args
+def await_builder(worker, args):
+    pr_dref = args[0]
+    req_addr = worker.cur_msg.sourceAddr
     async def run(worker):
         res_dref = await Promise(pr_dref).await_result_dref()
-        print(res_dref, pr_dref)
         worker.send(req_addr, worker.protocol.SETRESULT, [pr_dref, res_dref])
     return run
 
-def set_result_builder(args):
+def set_result_builder(worker, args):
     async def run(worker):
         fut_val = await remote_get(worker, args[1])
-        worker.memory.put(fut_val, dref = args[1])
-        Promise(args[0]).set_result(args[1])
+        worker.memory.put(value = fut_val, dref = args[1])
+        worker.memory.get(args[0])[0].set_result(args[1])
     return run
 
 class Promise:
@@ -52,7 +52,10 @@ class Promise:
     def ensure_future_exists(self):
         if not self.worker.memory.available(self.dref):
             here = self.worker.comm.addr
-            self.worker.memory.put([asyncio.Future(), False], dref = self.dref)
+            self.worker.memory.put(
+                value = [asyncio.Future(), False],
+                dref = self.dref
+            )
             if self.owner != here:
                 async def delete_after_triggered(worker):
                     await worker.memory.get(self.dref)[0]
@@ -60,8 +63,8 @@ class Promise:
                 self.worker.run_work(delete_after_triggered)
 
     def __await__(self):
-        result_dref = yield from self.await_result_dref()
-        out = yield from remote_get(self.worker, result_dref).__await__()
+        res_dref = yield from self.await_result_dref()
+        out = yield from remote_get(self.worker, res_dref).__await__()
         return out
 
     def await_result_dref(self):
@@ -70,12 +73,12 @@ class Promise:
         pr_data = self.worker.memory.get(self.dref)
         if here != self.owner and not pr_data[1]:
             pr_data[1] = True
-            self.worker.send(self.owner, self.worker.protocol.AWAIT, [self.dref, here])
+            self.worker.send(self.owner, self.worker.protocol.AWAIT, [self.dref])
         return pr_data[0]
 
     def set_result(self, result):
         self.ensure_future_exists()
-        res_dref = self.worker.memory.put(result)
+        res_dref = self.worker.memory.put(value = result)
         self.worker.memory.get(self.dref)[0].set_result(res_dref)
 
     def then(self, f, to = None):
@@ -98,7 +101,7 @@ def _unwrap_promise(pr, result):
     else:
         pr.set_result(result)
 
-def task_runner_builder(data):
+def task_runner_builder(worker, data):
     async def task_runner(worker):
         out_pr = Promise(data[0])
         assert(worker.comm.addr == out_pr.dref.owner)
@@ -123,8 +126,9 @@ def is_dref(v):
 def ensure_dref_if_remote(worker, v, to):
     if worker.addr == to or is_dref(v):
         return v
-    return worker.memory.put(v)
+    return worker.memory.put(value = v)
 
+# BAD OLD COMMENT?
 # f and args can be provided in two forms:
 # -- a python object (f should be callable or awaitable)
 # -- a dref to a serialized object in the memory manager

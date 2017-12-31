@@ -27,9 +27,11 @@ class RemoteMemory:
     def __init__(self, value, serialized):
         if value is not None:
             self.value = value
-        if serialized is not None:
+        elif serialized is not None:
             self.serialized = serialized
             self.needs_deserialize = True
+        else:
+            self.value = None
 
     def get_serialized(self):
         if not hasattr(self, 'serialized'):

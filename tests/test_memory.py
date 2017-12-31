@@ -15,7 +15,7 @@ def dref_serialization_tester(sfnc, dfnc):
     w = null_comm_worker()
     mm = w.memory
     assert(mm.n_entries() == 0)
-    dref = mm.put(one_serialized)
+    dref = mm.put(value = 1)
     assert(mm.n_entries() > 0)
     dref_bytes = sfnc(dref)
     del dref
@@ -62,16 +62,16 @@ def test_put_get_delete():
     w = null_comm_worker()
     mm = w.memory
     dref = DistributedRef(w, w.addr + 1)
-    mm.put(one_serialized, dref = dref)
+    mm.put(value = 1, dref = dref)
     assert(mm.available(dref))
-    assert(loads(None, mm.get(dref)) == 1)
+    assert(mm.get(dref) == 1)
     mm.delete(dref)
     assert(not mm.available(dref))
 
 def test_decref_local():
     w = null_comm_worker()
     mm = w.memory
-    dref = mm.put(one_serialized)
+    dref = mm.put(value = 1)
     assert(len(mm.blocks.keys()) == 1)
     del dref
     gc.collect() # Force a GC collect to make sure that dref.__del__ is called

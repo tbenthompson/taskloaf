@@ -21,8 +21,24 @@ def test_task():
         def there(w):
             assert(w.addr == 1)
             return 13
-        assert(await task(w, there, to = 1) == 1)
+        assert(await task(w, there, to = 1) == 13)
+
+        thirteen = taskloaf.serialize.dumps(13)
+        def there2(w):
+            assert(w.addr == 1)
+            return thirteen
+        assert(await task(w, there2, to = 1) == thirteen)
+
+        there_bytes = w.memory.put(serialized = taskloaf.serialize.dumps(there))
+        assert(await task(w, there_bytes, to = 1) == 13)
+
     cluster(2, f)
+
+# @mpi_procs(2)
+# def test_then():
+#     async def f(w):
+#         task(w, lambda w: 10, to = 1).then(
+#     cluster(2, f)
 
 
 # test task, then, unwrap, when_all, delete_after_triggered
