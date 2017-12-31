@@ -30,7 +30,8 @@ struct DecRef {
 
 struct RemotePut {
     dref @0 :DistributedRef;
-    val @1 :Data;
+    needsDeserialize @1 :Bool;
+    val @2 :Data;
 }
 
 struct Arbitrary {
@@ -44,10 +45,11 @@ struct Arbitrary {
 # of using Python.
 struct Message {
     typeCode @0 :Int64;
+    sourceAddr @1 :Int64;
     union {
-        drefList @1 :List(DistributedRef);
-        remotePut @2 :RemotePut;
-        decRef @3 :DecRef;
-        arbitrary @4 :Arbitrary;
+        drefList @2 :List(DistributedRef);
+        remotePut @3 :RemotePut;
+        decRef @4 :DecRef;
+        arbitrary @5 :Arbitrary;
     }
 }

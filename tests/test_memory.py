@@ -79,7 +79,7 @@ def test_decref_local():
 
 def test_decref_encode():
     w = null_comm_worker()
-    b = DecRefSerializer.serialize(0, [1, 2, 3, 4])
+    b = DecRefSerializer.serialize([1, 2, 3, 4]).to_bytes()
     m = taskloaf.message_capnp.Message.from_bytes(b)
     creator, _id, gen, n_children = DecRefSerializer.deserialize(w, m)
     assert(creator == 1)
@@ -90,10 +90,16 @@ def test_decref_encode():
 @mpi_procs(2)
 def test_remote_get():
     async def f(w):
-        dref = w.memory.put(one_serialized)
-        assert(loads(None, await remote_get(w, dref)) == 1)
+        dref = w.memory.put(value = 1)
+        dref2 = w.memory.put(value = one_serialized)
+        dref3 = w.memory.put(serialized = one_serialized)
+        assert(await remote_get(w, dref) == 1)
+        assert(await remote_get(w, dref2) == one_serialized)
+        assert(await remote_get(w, dref3) == 1)
         async def g(w):
-            assert(loads(None, await remote_get(w, dref)) == 1)
+            assert(await remote_get(w, dref) == 1)
+            assert(await remote_get(w, dref2) == one_serialized)
+            assert(await remote_get(w, dref3) == 1)
             def h(w):
                 taskloaf.worker.shutdown(w)
             w.submit_work(0, h)

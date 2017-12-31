@@ -1,7 +1,8 @@
 import asyncio
 import capnp
 
-from taskloaf.memory import DistributedRef, DRefListSerializer
+import taskloaf.serialize
+from taskloaf.memory import DistributedRef, DRefListSerializer, remote_get
 
 def setup_protocol(worker):
     worker.protocol.add_msg_type(
@@ -20,22 +21,24 @@ def setup_protocol(worker):
         handler = await_builder
     )
 
-def set_result_builder(args):
-    pr, v = args
-    def run(worker):
-        pr.set_result(v)
+def await_builder(args):
+    pr_dref, req_addr = args
+    async def run(worker):
+        res_dref = await Promise(pr_dref).await_result_dref()
+        print(res_dref, pr_dref)
+        worker.send(req_addr, worker.protocol.SETRESULT, [pr_dref, res_dref])
     return run
 
-def await_builder(args):
-    pr, req_addr = args
+def set_result_builder(args):
     async def run(worker):
-        v = await pr
-        worker.send(req_addr, worker.protocol.SET_RESULT, [pr, v])
+        fut_val = await remote_get(worker, args[1])
+        worker.memory.put(fut_val, dref = args[1])
+        Promise(args[0]).set_result(args[1])
     return run
 
 class Promise:
-    def __init__(self, worker, owner):
-        self.dref = DistributedRef(worker, owner)
+    def __init__(self, dref):
+        self.dref = dref
         self.ensure_future_exists()
 
     @property
@@ -57,23 +60,28 @@ class Promise:
                 self.worker.run_work(delete_after_triggered)
 
     def __await__(self):
+        result_dref = yield from self.await_result_dref()
+        out = yield from remote_get(self.worker, result_dref).__await__()
+        return out
+
+    def await_result_dref(self):
         here = self.worker.comm.addr
         self.ensure_future_exists()
         pr_data = self.worker.memory.get(self.dref)
         if here != self.owner and not pr_data[1]:
             pr_data[1] = True
-            self.worker.send(self.owner, self.worker.protocol.AWAIT, [self, here])
-        return pr_data[0].__await__()
-        # return wf[self.id_][0].__await__()
+            self.worker.send(self.owner, self.worker.protocol.AWAIT, [self.dref, here])
+        return pr_data[0]
 
     def set_result(self, result):
         self.ensure_future_exists()
-        self.worker.memory.get(self.dref)[0].set_result(result)
+        res_dref = self.worker.memory.put(result)
+        self.worker.memory.get(self.dref)[0].set_result(res_dref)
 
     def then(self, f, to = None):
         if to is None:
             to = self.owner
-        out_pr = Promise(self.worker, to)
+        out_pr = Promise(DistributedRef(self.worker, to))
 
         async def wait_to_start(worker):
             v = await self
@@ -91,43 +99,49 @@ def _unwrap_promise(pr, result):
         pr.set_result(result)
 
 def task_runner_builder(data):
-    print(data)
-    f_b = data[0]
-    out_pr = data[1]
-    has_args = data[2]
-    args_b = data[3]
     async def task_runner(worker):
-        assert(worker.comm.addr == out_pr.owner)
-        if isinstance(f_b, bytes):
-            f = taskloaf.serialize.loads(worker, f_b)
-        else:
-            f = f_b
+        out_pr = Promise(data[0])
+        assert(worker.comm.addr == out_pr.dref.owner)
 
-        if has_args:
-            waiter = worker.wait_for_work(f, args_b)
+        f = data[1]
+        if is_dref(f):
+            f = await remote_get(worker, f)
+
+        if len(data) > 2:
+            args = data[2]
+            if is_dref(args):
+                args = await remote_get(worker, args)
+            waiter = worker.wait_for_work(f, args)
         else:
             waiter = worker.wait_for_work(f)
         _unwrap_promise(out_pr, await waiter)
     return task_runner
 
-def to_dref(worker, v):
-    if isinstance(v, DistributedRef):
+def is_dref(v):
+    return isinstance(v, DistributedRef)
+
+def ensure_dref_if_remote(worker, v, to):
+    if worker.addr == to or is_dref(v):
         return v
     return worker.memory.put(v)
 
+# f and args can be provided in two forms:
+# -- a python object (f should be callable or awaitable)
+# -- a dref to a serialized object in the memory manager
+# if f is a function and the task is being run locally, f is never serialized, but when the task is being run remotely, f is entered into the
 def task(worker, f, args = None, to = None, out_pr = None):
     if out_pr is None:
         if to is None:
             to = worker.comm.addr
-        out_pr = Promise(worker, to)
+        out_pr = Promise(DistributedRef(worker, to))
 
-    drefs = [
+    task_objs = [
         out_pr.dref,
-        to_dref(worker, f)
+        ensure_dref_if_remote(worker, f, to)
     ]
     if args is not None:
-        drefs.append(to_dref(worker, args))
-    worker.send(out_pr.owner, worker.protocol.TASK, drefs)
+        task_objs.append(ensure_dref_if_remote(worker, args, to))
+    worker.send(out_pr.owner, worker.protocol.TASK, task_objs)
 
     return out_pr
 
@@ -135,7 +149,7 @@ def when_all(ps, to = None):
     worker = ps[0].worker
     if to is None:
         to = ps[0].owner
-    out_pr = Promise(worker, to)
+    out_pr = Promise(DistributedRef(worker, to))
 
     n = len(ps)
     async def wait_for_all(worker):
@@ -145,8 +159,3 @@ def when_all(ps, to = None):
         out_pr.set_result(results)
     worker.submit_work(out_pr.owner, wait_for_all)
     return out_pr
-
-async def remote_get(dref):
-    if not dref.available():
-        dref.put(await task(dref.worker, lambda worker: dref.get(), to = dref.owner))
-    return dref.get()

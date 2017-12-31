@@ -39,13 +39,3 @@ def loads(w, bytes_obj):
     with BytesIO(bytes_obj) as file:
         up = UnpicklerWithCtx(w, file)
         return up.load()
-
-def encode_maybe_bytes(chunk, v):
-    chunk.wasbytes = (type(v) is bytes)
-    chunk.bytes = v if chunk.wasbytes else taskloaf.serialize.dumps(v)
-
-def decode_maybe_bytes(w, chunk):
-    if chunk.wasbytes:
-        return chunk.bytes
-    else:
-        return taskloaf.serialize.loads(w, chunk.bytes)

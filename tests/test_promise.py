@@ -1,21 +1,28 @@
 import numpy as np
 from taskloaf.promise import *
+from taskloaf.test_decorators import mpi_procs
 from taskloaf.run import null_comm_worker
 from taskloaf.cluster import cluster
 
-# def test_task():
-#     async def f(w):
-#         w.abc = 0
-#         def here(w):
-#             w.abc = 1
-#         await task(w, here)
-#         assert(w.abc == 1)
-#
-#         def there(w):
-#             assert(w.addr == 1)
-#             return 13
-#         assert(await task(w, there, to = 1) == 1)
-#     cluster(2, f)
+@mpi_procs(2)
+def test_task():
+    async def f(w):
+        w.abc = 0
+        def here(w):
+            w.abc = 1
+        await task(w, here)
+        assert(w.abc == 1)
+
+        def here_args(w, x):
+            w.abc = x
+        await task(w, here_args, 17)
+        assert(w.abc == 17)
+
+        def there(w):
+            assert(w.addr == 1)
+            return 13
+        assert(await task(w, there, to = 1) == 1)
+    cluster(2, f)
 
 
 # test task, then, unwrap, when_all, delete_after_triggered
