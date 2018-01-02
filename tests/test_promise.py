@@ -32,36 +32,39 @@ def test_task():
         there_bytes = w.memory.put(serialized = taskloaf.serialize.dumps(there))
         assert(await task(w, there_bytes, to = 1) == 13)
 
+        def f_with_args(w, a):
+            return a
+        f_bytes = w.memory.put(serialized = taskloaf.serialize.dumps(f_with_args))
+        assert(await task(w, f_bytes, 14, to = 1) == 14)
+        a_bytes = w.memory.put(serialized = taskloaf.serialize.dumps(15))
+        assert(await task(w, f_bytes, a_bytes, to = 1) == 15)
+
     cluster(2, f)
 
-# @mpi_procs(2)
-# def test_then():
-#     async def f(w):
-#         task(w, lambda w: 10, to = 1).then(
-#     cluster(2, f)
+import asyncio
+@mpi_procs(2)
+def test_then():
+    async def f(w):
+        y = await task(w, lambda w: 10, to = 1).then(lambda w, x: 2 * x, to = 0)
+        assert(y == 20)
+    cluster(2, f)
 
+@mpi_procs(2)
+def test_auto_unwrap():
+    async def f(w):
+        y = await task(w, lambda w: 10, to = 1).then(
+            lambda w, x: task(w, lambda w: 2 * x),
+            to = 0
+        )
+        assert(y == 20)
+    cluster(2, f)
 
-# test task, then, unwrap, when_all, delete_after_triggered
-
-# def test_task_encode():
-#     w = null_comm_worker()
-#     coded = task_encoder(lambda x: 15, Promise(w, 0), True, 123)
-#     f, pr, has_args, args = task_decoder(w, memoryview(coded)[8:])
-#     assert(f(0) == 15)
-#     assert(pr.dref.owner == 0)
-#     assert(has_args)
-#     assert(args == 123)
-#
-# def test_setresult_encode():
-#     w = null_comm_worker()
-#     coded = set_result_encoder(Promise(w, 0), np.array([0,1,2]))
-#     pr, v = set_result_decoder(w, memoryview(coded)[8:])
-#     np.testing.assert_almost_equal(v, [0,1,2])
-#     assert(pr.dref.owner == 0)
-#
-# def test_await_encode():
-#     w = null_comm_worker()
-#     coded = await_encoder(Promise(w, 0), 199)
-#     pr, req_addr = await_decoder(w, memoryview(coded)[8:])
-#     assert(req_addr == 199)
-#     assert(pr.dref.owner == 0)
+@mpi_procs(2)
+def test_when_all():
+    async def f(w):
+        y = await when_all([
+            task(w, lambda w: 10),
+            task(w, lambda w: 5, to = 1)
+        ]).then(lambda w, x: sum(x), to = 1)
+        assert(y == 15)
+    cluster(2, f)

@@ -39,7 +39,6 @@ def set_result_builder(worker, args):
 class Promise:
     def __init__(self, dref):
         self.dref = dref
-        self.ensure_future_exists()
 
     @property
     def worker(self):
