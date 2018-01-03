@@ -16,8 +16,7 @@ class NullComm:
 
 def shutdown(w):
     w.running = False
-    # Can leaked async tasks be stopped somehow?
-    # w.ioloop.stop()
+    w.coros.cancel()
 
 class Worker:
     def __init__(self, comm):
@@ -27,21 +26,24 @@ class Worker:
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
         self.protocol.add_msg_type('WORK', handler = lambda w, x: x[0])
+        self.exception = None
 
     def start(self, coro):
         self.running = True
 
         # Should taskloaf create its own event loop?
         self.ioloop = asyncio.get_event_loop()
-        results = self.ioloop.run_until_complete(asyncio.gather(
-            self.poll_loop(), self.work_loop(), coro(self)
-        ))
+        self.coros = asyncio.gather(self.poll_loop(), self.work_loop(), coro(self))
+        results = self.ioloop.run_until_complete(self.coros)
 
         # TODO: Wait for unfinished tasks?
         # pending = asyncio.Task.all_tasks()
         # loop.run_until_complete(asyncio.gather(*pending))
 
         assert(not self.running)
+        if self.exception is not None:
+            print('Free task experienced an exception, re-raising from addr =', self.addr)
+            raise self.exception
         return results[2]
 
     @property
@@ -61,14 +63,23 @@ class Worker:
     def submit_work(self, to, f):
         self.send(to, self.protocol.WORK, [f])
 
+    def start_free_task(self, f, args):
+        # TODO: DOCUMENT THIS. Old thoughts: How to catch exceptions that
+        # happen in these functions?  They should catch their own exceptions
+        # and stop the worker and set a flag with the exception. Then the
+        # worker will raise a AsyncTaskException or something like that, and
+        # print the subsidiary
+        async def free_task_wrapper():
+            try:
+                await f(self, *args)
+            except Exception as e:
+                self.exception = e
+                self.running = False
+        asyncio.ensure_future(free_task_wrapper())
+
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
-            # TODO: How to catch exceptions that happen in these functions?
-            # They should catch their own exceptions and stop the worker and
-            # set a flag with the exception. Then the worker will raise a
-            # AsyncTaskException or something like that, and print the
-            # subsidiary
-            asyncio.ensure_future(f(self, *args))
+            self.start_free_task(f, args)
         else:
             f(self, *args)
 

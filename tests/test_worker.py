@@ -56,3 +56,13 @@ def test_cluster_output():
     async def f(w):
         return 1
     assert(cluster(1, f, runner = mpiexisting) == 1)
+
+# When originally written, this test hung forever. So, even though there are no
+# asserts, it is testing *something*.
+@mpi_procs(2)
+def test_cluster_broken_task():
+    async def f(w):
+        async def broken_task(w):
+            print(x)
+        await taskloaf.task(w, broken_task, to = 1)
+    assert(cluster(2, f) == 1)
