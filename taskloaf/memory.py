@@ -83,17 +83,21 @@ class MemoryManager:
         return self.next_id - 1
 
     def put(self, *, value = None, serialized = None, dref = None):
+        putter = self._put_owned
         if dref is None:
             dref = DistributedRef(self.worker, self.worker.addr)
-            self._put_owned(value, serialized, dref)
-        elif dref.owner == self.worker.addr:
-            self._put_owned(value, serialized, dref)
-        else:
-            self.blocks[dref.index()] = RemoteMemory(value, serialized)
+        elif dref.owner != self.worker.addr:
+            putter = self._put_remote
+
+        putter(value, serialized, dref)
         return dref
 
     def _put_owned(self, value, serialized, dref):
         self.blocks[dref.index()] = OwnedMemory(value, serialized)
+
+    # TODO: How to deal with remote data? See trello.
+    def _put_remote(self, value, serialized, dref):
+        self.blocks[dref.index()] = RemoteMemory(value, serialized)
 
     def get(self, dref):
         return self.blocks[dref.index()].get_value(dref.worker)
