@@ -53,15 +53,19 @@ def run_tsk_parallel():
         # def fnc(w):
         #     A_inside = tsk.remote_get(r)
         #     return invert(w, A_inside)
-        fnc = taskloaf.serialize.dumps(lambda w, i_b: long_fnc(i_b))
+        fnc_dref = w.memory.put(
+            serialized = taskloaf.serialize.dumps(lambda w: long_fnc(0))
+        )
+        print(fnc_dref.index())
         async with tsk.profile.Profiler(w, range(n_cores)):
             start = time.time()
             out = await wait_all([
-                tsk.task(w, fnc, i.to_bytes(8, 'little'), to = i % n_cores) for i in range(n_jobs)
+                tsk.task(w, fnc_dref, to = i % n_cores) for i in range(n_jobs)
             ])
+            print(out)
             print('inside: ', time.time() - start)
 
-    return tsk.cluster(n_cores, submit, runner = tsk.mpi.mpiexisting)
+    return tsk.cluster(n_cores, submit)
 
 def run_dask_parallel():
     import dask

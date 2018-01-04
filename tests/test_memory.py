@@ -107,3 +107,15 @@ def test_remote_get():
         while True:
             await asyncio.sleep(0)
     cluster(2, f)
+
+@mpi_procs(2)
+def test_remote_double_get():
+    async def f(w):
+        dref = w.memory.put(value = 1)
+        async def g(w):
+            assert(await remote_get(w, dref) == 1)
+        t1 = taskloaf.task(w, g, to = 1)
+        t2 = taskloaf.task(w, g, to = 1)
+        await t1
+        await t2
+    cluster(2, f)

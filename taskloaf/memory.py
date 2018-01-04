@@ -180,7 +180,12 @@ class RemotePutSerializer:
 def handle_remote_put(worker, args):
     dref, needs_deserialize, v = args
     def run(w):
-        w.memory.get(dref).set_result((needs_deserialize, v))
+        mm = w.memory
+        mm.get(dref).set_result(None)
+        if needs_deserialize:
+            mm.put(serialized = v, dref = dref)
+        else:
+            mm.put(value = v, dref = dref)
     return run
 
 def handle_remote_get(worker, args):
@@ -197,9 +202,7 @@ async def remote_get(worker, dref):
     if not mm.available(dref):
         mm.put(value = asyncio.Future(), dref = dref)
         worker.send(dref.owner, worker.protocol.REMOTEGET, [dref])
-        needs_deserialize, v = await mm.get(dref)
-        if needs_deserialize:
-            mm.put(serialized = v, dref = dref)
-        else:
-            mm.put(value = v, dref = dref)
+    val = mm.get(dref)
+    if isinstance(val, asyncio.Future):
+        await mm.get(dref)
     return mm.get(dref)

@@ -76,7 +76,8 @@ class Worker:
                 with suppress(CancelledError):
                     return await f(self, *args)
             except Exception as e:
-                self.exception = e
+                if self.exception is None:
+                    self.exception = e
                 self.submit_work(self.addr, shutdown)
         return free_task_wrapper()
 
