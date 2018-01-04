@@ -57,7 +57,6 @@ def test_cluster_output():
     async def f(w):
         return 1
     assert(cluster(1, f) == 1)
-    print("DONE!", rank())
 
 # When originally written, this test hung forever. So, even though there are no
 # asserts, it is testing *something*. It checks that the exception behavior

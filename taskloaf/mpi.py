@@ -19,9 +19,13 @@ class StartMsg:
         self.n_items = n_items
 
 class MPIComm:
+    default_comm = MPI.COMM_WORLD
+
     # multi part messages can be done with tags.
-    def __init__(self):
-        self.comm = MPI.COMM_WORLD
+    def __init__(self, comm = None):
+        if comm is None:
+            comm = MPIComm.default_comm
+        self.comm = comm
         self.addr = rank(self.comm)
 
     def send(self, to_addr, data):
