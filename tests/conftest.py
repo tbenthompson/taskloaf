@@ -21,7 +21,7 @@ def pytest_runtest_protocol(item, nextitem):
         return True
     else:
         c = MPIComm()
-        for i in range(50):
+        for i in range(500):
             v = c.recv()
         MPI.COMM_WORLD.Barrier()
         return _pytest.runner.pytest_runtest_protocol(item, nextitem)

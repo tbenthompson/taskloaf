@@ -104,6 +104,6 @@ def test_remote_get():
                 taskloaf.worker.shutdown(w)
             w.submit_work(0, h)
         w.submit_work(1, g)
-        while w.running:
+        while True:
             await asyncio.sleep(0)
     cluster(2, f)

@@ -1,5 +1,7 @@
 import time
 import asyncio
+from concurrent.futures import CancelledError
+from contextlib import suppress
 
 import taskloaf.protocol
 
@@ -15,36 +17,36 @@ class NullComm:
         return None
 
 def shutdown(w):
-    w.running = False
-    w.coros.cancel()
+    for t in asyncio.Task.all_tasks():
+        t.cancel()
 
 class Worker:
     def __init__(self, comm):
         self.comm = comm
         self.st = time.time()
-        self.running = None
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
         self.protocol.add_msg_type('WORK', handler = lambda w, x: x[0])
         self.exception = None
 
     def start(self, coro):
-        self.running = True
-
-        # Should taskloaf create its own event loop?
         self.ioloop = asyncio.get_event_loop()
-        self.coros = asyncio.gather(self.poll_loop(), self.work_loop(), coro(self))
-        results = self.ioloop.run_until_complete(self.coros)
 
-        # TODO: Wait for unfinished tasks?
-        # pending = asyncio.Task.all_tasks()
-        # loop.run_until_complete(asyncio.gather(*pending))
+        async def coro_wrapper(w):
+            self.result = await coro(w)
 
-        assert(not self.running)
+        self.result = None
+        with suppress(CancelledError):
+            self.ioloop.run_until_complete(asyncio.gather(
+                self.poll_loop(),
+                self.work_loop(),
+                self.make_free_task(coro_wrapper, [])
+            ))
+
         if self.exception is not None:
-            print('Free task experienced an exception, re-raising from addr =', self.addr)
+            # print('Free task experienced an exception, re-raising from addr =', self.addr)
             raise self.exception
-        return results[2]
+        return self.result
 
     @property
     def addr(self):
@@ -63,7 +65,7 @@ class Worker:
     def submit_work(self, to, f):
         self.send(to, self.protocol.WORK, [f])
 
-    def start_free_task(self, f, args):
+    def make_free_task(self, f, args):
         # TODO: DOCUMENT THIS. Old thoughts: How to catch exceptions that
         # happen in these functions?  They should catch their own exceptions
         # and stop the worker and set a flag with the exception. Then the
@@ -71,11 +73,15 @@ class Worker:
         # print the subsidiary
         async def free_task_wrapper():
             try:
-                await f(self, *args)
+                with suppress(CancelledError):
+                    return await f(self, *args)
             except Exception as e:
                 self.exception = e
-                self.running = False
-        asyncio.ensure_future(free_task_wrapper())
+                self.submit_work(self.addr, shutdown)
+        return free_task_wrapper()
+
+    def start_free_task(self, f, args):
+        return asyncio.ensure_future(self.make_free_task(f, args))
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
@@ -85,18 +91,19 @@ class Worker:
 
     async def wait_for_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
-            return await asyncio.ensure_future(f(self, *args))
+            return await self.start_free_task(f, args)
         else:
             return f(self, *args)
 
-    async def work_loop(self):
-        while self.running:
-            if len(self.work) > 0:
-                self.run_work(self.work.pop())
-            await asyncio.sleep(0)
-
     async def run_in_thread(self, sync_f):
         return (await self.ioloop.run_in_executor(None, sync_f))
+
+    async def work_loop(self):
+        with suppress(CancelledError):
+            while True:
+                if len(self.work) > 0:
+                    self.run_work(self.work.pop())
+                await asyncio.sleep(0)
 
     def poll(self):
         msg = self.comm.recv()
@@ -107,6 +114,7 @@ class Worker:
             self.cur_msg = None
 
     async def poll_loop(self):
-        while self.running:
-            self.poll()
-            await asyncio.sleep(0)
+        with suppress(CancelledError):
+            while True:
+                self.poll()
+                await asyncio.sleep(0)

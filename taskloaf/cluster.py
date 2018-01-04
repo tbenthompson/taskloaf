@@ -10,12 +10,13 @@ def cluster(n_workers, coro, runner = mpiexisting):
     def wrap_start_coro(c):
         async def setup(worker):
             if worker.comm.addr == 0:
-                result = await coro(worker)
+                out = await coro(worker)
                 killall(worker, n_workers)
-                return result
+                return out
         worker = add_plugins(taskloaf.worker.Worker(c))
         try:
             result = worker.start(setup)
+            killall(worker, n_workers)
             return result
         except Exception as e:
             killall(worker, n_workers)
