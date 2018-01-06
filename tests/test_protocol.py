@@ -3,34 +3,34 @@ from taskloaf.memory import DistributedRef, DRefListSerializer
 from taskloaf.run import null_comm_worker
 
 def test_roundtrip_default():
-    w = null_comm_worker()
-    p = Protocol()
-    p.add_msg_type('simple')
-    data = (123, 456)
-    b = p.encode(w, p.simple, data)
-    out = p.decode(w, b)
-    assert(out[1] == data)
+    with null_comm_worker() as w:
+        p = Protocol()
+        p.add_msg_type('simple')
+        data = (123, 456)
+        b = p.encode(w, p.simple, data)
+        out = p.decode(w, b)
+        assert(out[1] == data)
 
 def test_work():
-    w = null_comm_worker()
-    p = Protocol()
-    p.add_msg_type('simple', handler = lambda w, x: x)
-    assert(p.get_name(p.simple) == 'simple')
-    def f():
-        f.val = 1
-    f.val = 0
-    p.handle(w, 0, f)()
-    assert(f.val == 1)
+    with null_comm_worker() as w:
+        p = Protocol()
+        p.add_msg_type('simple', handler = lambda w, x: x)
+        assert(p.get_name(p.simple) == 'simple')
+        def f():
+            f.val = 1
+        f.val = 0
+        p.handle(w, 0, f)()
+        assert(f.val == 1)
 
 def test_encode_decode():
-    w = null_comm_worker()
-    p = Protocol()
-    p.add_msg_type('simple', serializer = DRefListSerializer)
-    drefs = [DistributedRef(w, w.addr + 1) for i in range(3)]
-    b = p.encode(w, p.simple, drefs)
-    type_code, new_drefs = p.decode(w, b)
-    for dr1, dr2 in zip(drefs, new_drefs):
-        assert(dr1._id == dr2._id)
+    with null_comm_worker() as w:
+        p = Protocol()
+        p.add_msg_type('simple', serializer = DRefListSerializer)
+        drefs = [DistributedRef(w, w.addr + 1) for i in range(3)]
+        b = p.encode(w, p.simple, drefs)
+        type_code, new_drefs = p.decode(w, b)
+        for dr1, dr2 in zip(drefs, new_drefs):
+            assert(dr1._id == dr2._id)
 
 
 

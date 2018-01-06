@@ -1,5 +1,6 @@
 import taskloaf.worker
 from taskloaf.mpi import mpiexisting
+from taskloaf.run import add_plugins
 
 def killall(w, n_workers):
     for i in range(n_workers):
@@ -13,11 +14,7 @@ def cluster(n_workers, coro, runner = mpiexisting):
                 killall(worker, n_workers)
                 return out
         with taskloaf.worker.Worker(c) as worker:
-            store = taskloaf.memory.SerializedMemoryStore(
-                worker.addr, worker.exit_stack
-            )
-            worker.memory = taskloaf.memory.MemoryManager(worker)
-            taskloaf.promise.setup_protocol(worker)
+            add_plugins(worker)
             try:
                 result = worker.start(setup)
                 killall(worker, n_workers)

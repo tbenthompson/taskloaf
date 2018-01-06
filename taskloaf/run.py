@@ -1,12 +1,22 @@
 import taskloaf.worker
 import taskloaf.memory
 import taskloaf.promise
+import contextlib
 
-def null_comm_worker():
-    worker = taskloaf.worker.Worker(taskloaf.worker.NullComm())
+def add_plugins(worker):
+    store = taskloaf.memory.SerializedMemoryStore(worker.addr, worker.exit_stack)
     worker.memory = taskloaf.memory.MemoryManager(worker)
     taskloaf.promise.setup_protocol(worker)
     return worker
+
+@contextlib.contextmanager
+def null_comm_worker():
+    try:
+        with taskloaf.worker.Worker(taskloaf.worker.NullComm()) as worker:
+            add_plugins(worker)
+            yield worker
+    finally:
+        pass
 
 def run(coro):
     async def wrapper(w):
@@ -14,5 +24,5 @@ def run(coro):
         taskloaf.worker.shutdown(w)
         return result
 
-    worker = null_comm_worker()
-    return worker.start(wrapper)
+    with null_comm_worker() as worker:
+        return worker.start(wrapper)

@@ -12,18 +12,18 @@ from taskloaf.mpi import mpiexisting
 one_serialized = dumps(1)
 
 def dref_serialization_tester(sfnc, dfnc):
-    w = null_comm_worker()
-    mm = w.memory
-    assert(mm.n_entries() == 0)
-    dref = mm.put(value = 1)
-    assert(mm.n_entries() > 0)
-    dref_bytes = sfnc(dref)
-    del dref
-    assert(mm.n_entries() > 0)
-    dref2 = dfnc(w, dref_bytes)
-    del dref2
-    gc.collect()
-    assert(w.memory.n_entries() == 0)
+    with null_comm_worker() as w:
+        mm = w.memory
+        assert(mm.n_entries() == 0)
+        dref = mm.put(value = 1)
+        assert(mm.n_entries() > 0)
+        dref_bytes = sfnc(dref)
+        del dref
+        assert(mm.n_entries() > 0)
+        dref2 = dfnc(w, dref_bytes)
+        del dref2
+        gc.collect()
+        assert(w.memory.n_entries() == 0)
 
 def test_dref_pickle_delete():
     dref_serialization_tester(dumps, loads)
@@ -59,33 +59,33 @@ def test_refcount_alive():
     assert(rc.alive())
 
 def test_put_get_delete():
-    w = null_comm_worker()
-    mm = w.memory
-    dref = DistributedRef(w, w.addr + 1)
-    mm.put(value = 1, dref = dref)
-    assert(mm.available(dref))
-    assert(mm.get(dref) == 1)
-    mm.delete(dref)
-    assert(not mm.available(dref))
+    with null_comm_worker() as w:
+        mm = w.memory
+        dref = DistributedRef(w, w.addr + 1)
+        mm.put(value = 1, dref = dref)
+        assert(mm.available(dref))
+        assert(mm.get(dref) == 1)
+        mm.delete(dref)
+        assert(not mm.available(dref))
 
 def test_decref_local():
-    w = null_comm_worker()
-    mm = w.memory
-    dref = mm.put(value = 1)
-    assert(len(mm.blocks.keys()) == 1)
-    del dref
-    gc.collect() # Force a GC collect to make sure that dref.__del__ is called
-    assert(len(mm.blocks.keys()) == 0)
+    with null_comm_worker() as w:
+        mm = w.memory
+        dref = mm.put(value = 1)
+        assert(len(mm.blocks.keys()) == 1)
+        del dref
+        gc.collect() # Force a GC collect to make sure that dref.__del__ is called
+        assert(len(mm.blocks.keys()) == 0)
 
 def test_decref_encode():
-    w = null_comm_worker()
-    b = MemoryManager.DecRefSerializer.serialize([1, 2, 3, 4]).to_bytes()
-    m = taskloaf.message_capnp.Message.from_bytes(b)
-    creator, _id, gen, n_children = MemoryManager.DecRefSerializer.deserialize(w, m)
-    assert(creator == 1)
-    assert(_id == 2)
-    assert(gen == 3)
-    assert(n_children == 4)
+    with null_comm_worker() as w:
+        b = MemoryManager.DecRefSerializer.serialize([1, 2, 3, 4]).to_bytes()
+        m = taskloaf.message_capnp.Message.from_bytes(b)
+        creator, _id, gen, n_children = MemoryManager.DecRefSerializer.deserialize(w, m)
+        assert(creator == 1)
+        assert(_id == 2)
+        assert(gen == 3)
+        assert(n_children == 4)
 
 @mpi_procs(2)
 def test_remote_get():
