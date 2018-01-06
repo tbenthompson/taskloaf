@@ -1,7 +1,7 @@
 import time
 import asyncio
 from concurrent.futures import CancelledError
-from contextlib import suppress
+from contextlib import suppress, ExitStack
 
 import taskloaf.protocol
 
@@ -28,6 +28,13 @@ class Worker:
         self.protocol = taskloaf.protocol.Protocol()
         self.protocol.add_msg_type('WORK', handler = lambda w, x: x[0])
         self.exception = None
+        self.exit_stack = ExitStack()
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        self.exit_stack.close()
 
     def start(self, coro):
         self.ioloop = asyncio.get_event_loop()
@@ -66,11 +73,6 @@ class Worker:
         self.send(to, self.protocol.WORK, [f])
 
     def make_free_task(self, f, args):
-        # TODO: DOCUMENT THIS. Old thoughts: How to catch exceptions that
-        # happen in these functions?  They should catch their own exceptions
-        # and stop the worker and set a flag with the exception. Then the
-        # worker will raise a AsyncTaskException or something like that, and
-        # print the subsidiary
         async def free_task_wrapper():
             try:
                 with suppress(CancelledError):

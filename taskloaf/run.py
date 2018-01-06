@@ -3,6 +3,7 @@ import taskloaf.memory
 import taskloaf.promise
 
 def add_plugins(w):
+
     w.memory = taskloaf.memory.MemoryManager(w)
     taskloaf.promise.setup_protocol(w)
     return w

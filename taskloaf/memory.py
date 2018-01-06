@@ -53,6 +53,13 @@ class OwnedMemory(RemoteMemory):
         self.refcount = RefCount()
         super().__init__(value, serialized)
 
+class SerializedMemoryStore:
+    def __init__(self, addr, exit_stack):
+        pass
+    #     exit_stack.
+
+    # def __enter__(self):
+
 
 # The value that is "put" into the memory manager should always be the same as
 # the value that is "get" from the memory manager, even if the object must be
@@ -63,7 +70,7 @@ class MemoryManager:
         self.worker = worker
         self.worker.protocol.add_msg_type(
             'DECREF',
-            serializer = DecRefSerializer,
+            serializer = MemoryManager.DecRefSerializer,
             handler = lambda w, x: lambda worker: worker.memory._dec_ref_owned(*x)
         )
         self.worker.protocol.add_msg_type(
@@ -95,7 +102,6 @@ class MemoryManager:
     def _put_owned(self, value, serialized, dref):
         self.blocks[dref.index()] = OwnedMemory(value, serialized)
 
-    # TODO: How to deal with remote data? See trello.
     def _put_remote(self, value, serialized, dref):
         self.blocks[dref.index()] = RemoteMemory(value, serialized)
 
@@ -127,6 +133,21 @@ class MemoryManager:
         else:
             self._dec_ref_owned(creator, _id, gen, n_children)
 
+    class DecRefSerializer:
+        @staticmethod
+        def serialize(args):
+            m = taskloaf.message_capnp.Message.new_message()
+            m.init('decRef')
+            m.decRef.creator = args[0]
+            m.decRef.id = args[1]
+            m.decRef.gen = args[2]
+            m.decRef.nchildren = args[3]
+            return m
+
+        @staticmethod
+        def deserialize(w, m):
+            return m.decRef.creator, m.decRef.id, m.decRef.gen, m.decRef.nchildren
+
     def n_entries(self):
         return len(self.blocks)
 
@@ -143,20 +164,26 @@ class DRefListSerializer:
     def deserialize(w, m):
         return [DistributedRef.decode_capnp(w, dr) for dr in m.drefList]
 
-class DecRefSerializer:
-    @staticmethod
-    def serialize(args):
-        m = taskloaf.message_capnp.Message.new_message()
-        m.init('decRef')
-        m.decRef.creator = args[0]
-        m.decRef.id = args[1]
-        m.decRef.gen = args[2]
-        m.decRef.nchildren = args[3]
-        return m
+async def remote_get(worker, dref):
+    mm = worker.memory
+    if not mm.available(dref):
+        mm.put(value = asyncio.Future(), dref = dref)
+        worker.send(dref.owner, worker.protocol.REMOTEGET, [dref])
+    val = mm.get(dref)
+    if isinstance(val, asyncio.Future):
+        await mm.get(dref)
+    return mm.get(dref)
 
-    @staticmethod
-    def deserialize(w, m):
-        return m.decRef.creator, m.decRef.id, m.decRef.gen, m.decRef.nchildren
+def handle_remote_put(worker, args):
+    dref, needs_deserialize, v = args
+    def run(w):
+        mm = w.memory
+        mm.get(dref).set_result(None)
+        if needs_deserialize:
+            mm.put(serialized = v, dref = dref)
+        else:
+            mm.put(value = v, dref = dref)
+    return run
 
 class RemotePutSerializer:
     @staticmethod
@@ -177,17 +204,6 @@ class RemotePutSerializer:
             m.remotePut.val
         )
 
-def handle_remote_put(worker, args):
-    dref, needs_deserialize, v = args
-    def run(w):
-        mm = w.memory
-        mm.get(dref).set_result(None)
-        if needs_deserialize:
-            mm.put(serialized = v, dref = dref)
-        else:
-            mm.put(value = v, dref = dref)
-    return run
-
 def handle_remote_get(worker, args):
     dref = args[0]
     source_addr = worker.cur_msg.sourceAddr
@@ -196,13 +212,3 @@ def handle_remote_get(worker, args):
         args = [dref, needs_deserialize, v]
         worker.send(source_addr, worker.protocol.REMOTEPUT, args)
     return run
-
-async def remote_get(worker, dref):
-    mm = worker.memory
-    if not mm.available(dref):
-        mm.put(value = asyncio.Future(), dref = dref)
-        worker.send(dref.owner, worker.protocol.REMOTEGET, [dref])
-    val = mm.get(dref)
-    if isinstance(val, asyncio.Future):
-        await mm.get(dref)
-    return mm.get(dref)

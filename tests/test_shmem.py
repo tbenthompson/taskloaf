@@ -6,25 +6,29 @@ import multiprocessing
 from taskloaf.shmem import alloc_shmem, Shmem
 from taskloaf.timer import Timer
 
-def sum_shmem(sm):
-    return np.sum(np.frombuffer(sm.mem))
+def sum_shmem(filepath):
+    with Shmem(filepath) as sm:
+        return np.sum(np.frombuffer(sm.mem))
 
 def test_shmem():
     A = np.random.rand(100)
-    with alloc_shmem(A.nbytes) as sm:
-        sm.mem[:] = A
-        out = multiprocessing.Pool(1).map(sum_shmem, [sm])[0]
-        assert(out == sum_shmem(sm))
+    with alloc_shmem(A.nbytes) as filepath:
+        with Shmem(filepath) as sm:
+            sm.mem[:] = A
+            out = multiprocessing.Pool(1).map(sum_shmem, [sm.filepath])[0]
+            assert(out == sum_shmem(sm.filepath))
 
-def shmem_zeros(sm):
-    np.frombuffer(sm.mem)[:] = 0
+def shmem_zeros(filepath):
+    with Shmem(filepath) as sm:
+        np.frombuffer(sm.mem)[:] = 0
 
 def test_shmem_edit():
     A = np.random.rand(100)
-    with alloc_shmem(A.nbytes) as sm:
-        sm.mem[:] = A
-        out = multiprocessing.Pool(1).map(shmem_zeros, [sm])[0]
-        np.testing.assert_almost_equal(np.frombuffer(sm.mem), 0.0)
+    with alloc_shmem(A.nbytes) as filepath:
+        with Shmem(filepath) as sm:
+            sm.mem[:] = A
+            out = multiprocessing.Pool(1).map(shmem_zeros, [sm.filepath])[0]
+            np.testing.assert_almost_equal(np.frombuffer(sm.mem), 0.0)
 
 """
 There's some complexity in this benchmark. The performance of allocating mmap

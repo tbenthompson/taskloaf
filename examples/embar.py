@@ -4,9 +4,11 @@ import taskloaf.profile
 import taskloaf.serialize
 import time
 
-import asyncio
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+# uvloop is faster!
+
+# import asyncio
+# import uvloop
+# asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 n_jobs = 10000
 job_size = 1000
@@ -56,13 +58,11 @@ def run_tsk_parallel():
         fnc_dref = w.memory.put(
             serialized = taskloaf.serialize.dumps(lambda w: long_fnc(0))
         )
-        print(fnc_dref.index())
         async with tsk.profile.Profiler(w, range(n_cores)):
             start = time.time()
             out = await wait_all([
                 tsk.task(w, fnc_dref, to = i % n_cores) for i in range(n_jobs)
             ])
-            print(out)
             print('inside: ', time.time() - start)
 
     return tsk.cluster(n_cores, submit)

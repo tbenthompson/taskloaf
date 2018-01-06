@@ -79,9 +79,9 @@ def test_decref_local():
 
 def test_decref_encode():
     w = null_comm_worker()
-    b = DecRefSerializer.serialize([1, 2, 3, 4]).to_bytes()
+    b = MemoryManager.DecRefSerializer.serialize([1, 2, 3, 4]).to_bytes()
     m = taskloaf.message_capnp.Message.from_bytes(b)
-    creator, _id, gen, n_children = DecRefSerializer.deserialize(w, m)
+    creator, _id, gen, n_children = MemoryManager.DecRefSerializer.deserialize(w, m)
     assert(creator == 1)
     assert(_id == 2)
     assert(gen == 3)
