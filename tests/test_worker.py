@@ -5,7 +5,8 @@ from taskloaf.run import run
 def test_shutdown():
     async def f(w):
         taskloaf.worker.shutdown(w)
-    taskloaf.worker.Worker(taskloaf.worker.NullComm()).start(f)
+    with taskloaf.worker.Worker(taskloaf.worker.NullComm()) as w:
+        w.start(f)
 
 def test_run_work():
     val = [0, 1]
@@ -32,7 +33,7 @@ def test_run_output():
         return 1
     assert(run(f) == 1)
 
-from taskloaf.cluster import cluster, add_plugins, killall
+from taskloaf.cluster import cluster
 from taskloaf.mpi import mpiexisting, MPIComm, rank
 from taskloaf.test_decorators import mpi_procs
 import asyncio

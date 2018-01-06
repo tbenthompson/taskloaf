@@ -28,12 +28,12 @@ class Worker:
         self.protocol = taskloaf.protocol.Protocol()
         self.protocol.add_msg_type('WORK', handler = lambda w, x: x[0])
         self.exception = None
-        self.exit_stack = ExitStack()
 
     def __enter__(self):
-        pass
+        self.exit_stack = ExitStack()
+        return self
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, traceback):
         self.exit_stack.close()
 
     def start(self, coro):

@@ -2,14 +2,11 @@ import taskloaf.worker
 import taskloaf.memory
 import taskloaf.promise
 
-def add_plugins(w):
-
-    w.memory = taskloaf.memory.MemoryManager(w)
-    taskloaf.promise.setup_protocol(w)
-    return w
-
 def null_comm_worker():
-    return add_plugins(taskloaf.worker.Worker(taskloaf.worker.NullComm()))
+    worker = taskloaf.worker.Worker(taskloaf.worker.NullComm())
+    worker.memory = taskloaf.memory.MemoryManager(worker)
+    taskloaf.promise.setup_protocol(worker)
+    return worker
 
 def run(coro):
     async def wrapper(w):
@@ -17,4 +14,5 @@ def run(coro):
         taskloaf.worker.shutdown(w)
         return result
 
-    return null_comm_worker().start(wrapper)
+    worker = null_comm_worker()
+    return worker.start(wrapper)

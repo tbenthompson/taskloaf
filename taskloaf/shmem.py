@@ -49,6 +49,7 @@ def alloc_shmem(obj, filename = None):
     if filename is None:
         filename = str(uuid.uuid4())
     filepath = os.path.join('/dev/shm', filename)
+    assert(not os.path.exists(filepath))
     try:
         init_shmem_file(filepath, obj)
         yield filepath

@@ -1,6 +1,7 @@
 import capnp
 import asyncio
 import taskloaf.message_capnp
+import taskloaf.shmem
 from taskloaf.dref import DistributedRef
 
 class RefCount:
@@ -55,8 +56,14 @@ class OwnedMemory(RemoteMemory):
 
 class SerializedMemoryStore:
     def __init__(self, addr, exit_stack):
-        pass
-    #     exit_stack.
+        size = int(1e8)
+        filename = 'taskloaf' + str(addr)
+        self.shmem_filepath = exit_stack.enter_context(
+            taskloaf.shmem.alloc_shmem(size, filename)
+        )
+        self.shmem = exit_stack.enter_context(
+            taskloaf.shmem.Shmem(self.shmem_filepath)
+        )
 
     # def __enter__(self):
 
