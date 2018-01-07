@@ -1,14 +1,25 @@
+import attr
+
+@attr.s
 class ShmemPtr:
-    def __init__(self, needs_deserialize, start, end):
-        self.needs_deserialize = needs_deserialize
-        self.start = start
-        self.end = end
+    needs_deserialize = attr.ib()
+    start = attr.ib()
+    end = attr.ib()
 
     def is_null(self):
         return self.end == 0
 
     def dereference(self, mem):
         return mem[self.start:self.end]
+
+    def encode_capnp(self, dest):
+        dest.needsDeserialize = self.needs_deserialize
+        dest.start = self.start
+        dest.end = self.end
+
+    @classmethod
+    def decode_capnp(cls, m):
+        return ShmemPtr(m.needsDeserialize, m.start, m.end)
 
 class DistributedRef:
     def __init__(self, worker, owner):
@@ -53,9 +64,7 @@ class DistributedRef:
         dest.creator = self.creator
         dest.id = self._id
         dest.gen = self.gen + 1
-        dest.shmemPtrNeedsDeserialize = self.shmem_ptr.needs_deserialize
-        dest.shmemPtrStart = self.shmem_ptr.start
-        dest.shmemPtrEnd = self.shmem_ptr.end
+        self.shmem_ptr.encode_capnp(dest.shmemPtr)
 
     @classmethod
     def decode_capnp(cls, worker, m):
@@ -64,9 +73,7 @@ class DistributedRef:
         dref.creator = m.creator
         dref._id = m.id
         dref.gen = m.gen
-        dref.shmem_ptr = ShmemPtr(
-            m.shmemPtrNeedsDeserialize, m.shmemPtrStart, m.shmemPtrEnd
-        )
+        dref.shmem_ptr = ShmemPtr.decode_capnp(m.shmemPtr)
         dref.n_children = 0
         dref.worker = worker
         return dref

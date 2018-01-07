@@ -11,16 +11,19 @@
 # generally an undesirable thing. But, having null shmem_ptrs is probably okay
 # since the user can fall back to referring to the memory location using the
 # (creator, _id) tuple.
-#
+
+struct ShmemPtr {
+    needsDeserialize @0 :Bool;
+    start @1 :Int64;
+    end @2 :Int64;
+}
 
 struct DistributedRef {
     owner @0 :UInt32;
     creator @1 :UInt32;
     id @2 :Int64;
     gen @3 :UInt32;
-    shmemPtrNeedsDeserialize @4 :Bool;
-    shmemPtrStart @5 :Int64;
-    shmemPtrEnd @6 :Int64;
+    shmemPtr @4 :ShmemPtr;
 }
 
 struct DecRef {
@@ -32,8 +35,7 @@ struct DecRef {
 
 struct RemotePut {
     dref @0 :DistributedRef;
-    needsDeserialize @1 :Bool;
-    val @2 :Data;
+    val @1 :Data;
 }
 
 struct Arbitrary {

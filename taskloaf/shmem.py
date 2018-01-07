@@ -15,7 +15,7 @@ class Shmem:
 
     def __enter__(self):
         self.file = open(self.filepath, 'r+b')
-        self.mem = mmap_full_file(self.file.fileno())
+        self.mem = memoryview(mmap_full_file(self.file.fileno()))
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):

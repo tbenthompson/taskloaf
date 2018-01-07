@@ -1,3 +1,4 @@
+import os
 import capnp
 import asyncio
 import taskloaf.message_capnp
@@ -29,8 +30,13 @@ class RemoteMemory:
         self.store = store
         if value is not None:
             self.value = value
+            if is_bytes(self.value):
+                self.serialized = ShmemPtr(
+                    False,
+                    *self.store.store(memoryview(self.value))
+                )
         elif serialized is not None:
-            self.serialized = ShmemPtr(True, *self.store.store(serialized))
+            self.serialized = ShmemPtr(True, *self.store.store(memoryview(serialized)))
         else:
             self.value = None
 
@@ -39,16 +45,10 @@ class RemoteMemory:
 
     def get_serialized(self):
         if not self.has_serialized():
-            if is_bytes(self.value):
-                self.serialized = ShmemPtr(
-                    False,
-                    *self.store.store(self.value)
-                )
-            else:
-                self.serialized = ShmemPtr(
-                    True,
-                    *self.store.store(taskloaf.serialize.dumps(self.value))
-                )
+            self.serialized = ShmemPtr(
+                True,
+                *self.store.store(memoryview(taskloaf.serialize.dumps(self.value)))
+            )
         return (
             self.serialized.needs_deserialize,
             self.store.dereference(self.serialized)
@@ -68,8 +68,12 @@ class OwnedMemory(RemoteMemory):
 
 class SerializedMemoryStore:
     def __init__(self, addr, exit_stack):
-        size = int(1e8)
+        size = int(2e8)
         filename = 'taskloaf' + str(addr)
+        try:
+            os.remove('/dev/shm/' + filename)
+        except FileNotFoundError:
+            pass
         self.shmem_filepath = exit_stack.enter_context(
             taskloaf.shmem.alloc_shmem(size, filename)
         )
@@ -78,11 +82,16 @@ class SerializedMemoryStore:
         )
         self.ptr = 0
 
-    def store(self, bytes):
-        size = len(bytes)
+    def store(self, memory):
+        size = memory.nbytes
         old_ptr = self.ptr
         next_ptr = self.ptr + size
-        self.shmem.mem[self.ptr:next_ptr] = bytes
+        if size > 1e5:
+            with open(self.shmem_filepath, 'r+b') as f:
+                f.seek(self.ptr)
+                f.write(memory)
+        else:
+            self.shmem.mem[self.ptr:next_ptr] = memory
         self.ptr = next_ptr
         return old_ptr, next_ptr
 
@@ -142,21 +151,27 @@ class MemoryManager:
         if dref.index() in self.blocks:
             return self.blocks[dref.index()].get_value(dref.worker)
         else:
-            if dref.owner not in self.remote_shmem:
-                exit_stack = self.worker.exit_stack
-                self.remote_shmem[dref.owner] = exit_stack.enter_context(
-                    taskloaf.shmem.Shmem('/dev/shm/taskloaf' + str(dref.owner))
-                )
-            shmem = self.remote_shmem[dref.owner]
-            v = dref.shmem_ptr.dereference(shmem.mem)
+            v = self.get_remote_shmem(dref)
             if dref.shmem_ptr.needs_deserialize:
                 self.put(serialized = v, dref = dref)
                 return self.get(dref)
             else:
                 return v
 
+    def get_remote_shmem(self, dref):
+        if dref.owner not in self.remote_shmem:
+            exit_stack = self.worker.exit_stack
+            self.remote_shmem[dref.owner] = exit_stack.enter_context(
+                taskloaf.shmem.Shmem('/dev/shm/taskloaf' + str(dref.owner))
+            )
+        shmem = self.remote_shmem[dref.owner]
+        return dref.shmem_ptr.dereference(shmem.mem)
+
     def get_serialized(self, dref):
         return self.blocks[dref.index()].get_serialized()
+
+    def get_shmem_ptr(self, dref):
+        return self.blocks[dref.index()].serialized
 
     def available(self, dref):
         return (
@@ -229,11 +244,12 @@ async def remote_get(worker, dref):
         return val
 
 def handle_remote_put(worker, args):
-    dref, needs_deserialize, v = args
+    dref, v = args
     def run(w):
         mm = w.memory
         mm.get(dref).set_result(None)
-        if needs_deserialize:
+        v = mm.get_remote_shmem(dref)
+        if dref.shmem_ptr.needs_deserialize:
             mm.put(serialized = v, dref = dref)
         else:
             mm.put(value = v, dref = dref)
@@ -242,11 +258,10 @@ def handle_remote_put(worker, args):
 class RemotePutSerializer:
     @staticmethod
     def serialize(args):
-        dref, needs_deserialize, v = args
+        dref, v = args
         m = taskloaf.message_capnp.Message.new_message()
         m.init('remotePut')
         dref.encode_capnp(m.remotePut.dref)
-        m.remotePut.needsDeserialize = needs_deserialize
         m.remotePut.val = v
         return m
 
@@ -254,7 +269,6 @@ class RemotePutSerializer:
     def deserialize(w, m):
         return (
             DistributedRef.decode_capnp(w, m.remotePut.dref),
-            m.remotePut.needsDeserialize,
             m.remotePut.val
         )
 
@@ -263,6 +277,7 @@ def handle_remote_get(worker, args):
     source_addr = worker.cur_msg.sourceAddr
     def run(worker):
         needs_deserialize, v = worker.memory.get_serialized(dref)
-        args = [dref, needs_deserialize, v]
+        dref.shmem_ptr = worker.memory.get_shmem_ptr(dref)
+        args = [dref, bytes(0)]
         worker.send(source_addr, worker.protocol.REMOTEPUT, args)
     return run
