@@ -39,3 +39,15 @@ def loads(w, bytes_obj):
     with BytesIO(bytes_obj) as file:
         up = UnpicklerWithCtx(w, file)
         return up.load()
+
+class InPlaceByteWriter:
+    def __init__(self, memory, loc = 0):
+        self.memory = memory
+        self.loc = loc
+
+    def write(self, bytes):
+        n_bytes = len(bytes)
+        next_loc = self.loc + n_bytes
+        self.memory[self.loc:next_loc] = bytes
+        self.loc = next_loc
+

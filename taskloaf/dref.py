@@ -1,3 +1,15 @@
+class ShmemPtr:
+    def __init__(self, needs_deserialize, start, end):
+        self.needs_deserialize = needs_deserialize
+        self.start = start
+        self.end = end
+
+    def is_null(self):
+        return self.end == 0
+
+    def dereference(self, mem):
+        return mem[self.start:self.end]
+
 class DistributedRef:
     def __init__(self, worker, owner):
         self.worker = worker
@@ -6,7 +18,7 @@ class DistributedRef:
         self._id = worker.memory.get_new_id()
         self.gen = 0
         self.n_children = 0
-        self.shmem_ptr = 0
+        self.shmem_ptr = ShmemPtr(False, 0, 0)
 
     def index(self):
         return (self.creator, self._id)
@@ -20,7 +32,7 @@ class DistributedRef:
             _id = self._id,
             gen = self.gen + 1,
             n_children = 0,
-            shmem_ptr = 0
+            shmem_ptr = self.shmem_ptr
         )
 
     def __del__(self):
@@ -41,7 +53,9 @@ class DistributedRef:
         dest.creator = self.creator
         dest.id = self._id
         dest.gen = self.gen + 1
-        dest.shmemPtr = self.shmem_ptr
+        dest.shmemPtrNeedsDeserialize = self.shmem_ptr.needs_deserialize
+        dest.shmemPtrStart = self.shmem_ptr.start
+        dest.shmemPtrEnd = self.shmem_ptr.end
 
     @classmethod
     def decode_capnp(cls, worker, m):
@@ -50,7 +64,9 @@ class DistributedRef:
         dref.creator = m.creator
         dref._id = m.id
         dref.gen = m.gen
-        dref.shmem_ptr = m.shmemPtr
+        dref.shmem_ptr = ShmemPtr(
+            m.shmemPtrNeedsDeserialize, m.shmemPtrStart, m.shmemPtrEnd
+        )
         dref.n_children = 0
         dref.worker = worker
         return dref

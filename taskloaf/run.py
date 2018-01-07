@@ -5,7 +5,7 @@ import contextlib
 
 def add_plugins(worker):
     store = taskloaf.memory.SerializedMemoryStore(worker.addr, worker.exit_stack)
-    worker.memory = taskloaf.memory.MemoryManager(worker)
+    worker.memory = taskloaf.memory.MemoryManager(worker, store)
     taskloaf.promise.setup_protocol(worker)
     return worker
 

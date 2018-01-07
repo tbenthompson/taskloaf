@@ -6,9 +6,9 @@ import time
 
 # uvloop is faster!
 
-# import asyncio
-# import uvloop
-# asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+import asyncio
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 n_jobs = 10000
 job_size = 1000

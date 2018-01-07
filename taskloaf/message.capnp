@@ -18,7 +18,9 @@ struct DistributedRef {
     creator @1 :UInt32;
     id @2 :Int64;
     gen @3 :UInt32;
-    shmemPtr @4 :UInt64;
+    shmemPtrNeedsDeserialize @4 :Bool;
+    shmemPtrStart @5 :Int64;
+    shmemPtrEnd @6 :Int64;
 }
 
 struct DecRef {
