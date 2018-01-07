@@ -51,7 +51,6 @@ class Worker:
             ))
 
         if self.exception is not None:
-            # print('Free task experienced an exception, re-raising from addr =', self.addr)
             raise self.exception
         return self.result
 
@@ -80,7 +79,7 @@ class Worker:
             except Exception as e:
                 if self.exception is None:
                     self.exception = e
-                self.submit_work(self.addr, shutdown)
+                shutdown(self)
         return free_task_wrapper()
 
     def start_free_task(self, f, args):
