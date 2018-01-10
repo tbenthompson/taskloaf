@@ -1,12 +1,16 @@
 import taskloaf.worker
 import taskloaf.memory
 import taskloaf.promise
+import taskloaf.allocator
+import taskloaf.remote_get
 import contextlib
 
 def add_plugins(worker):
-    store = taskloaf.memory.SerializedMemoryStore(worker.addr, worker.exit_stack)
-    worker.memory = taskloaf.memory.MemoryManager(worker, store)
+    alloc = taskloaf.allocator.Allocator(worker.addr, worker.exit_stack)
+    worker.remote_shmem = taskloaf.memory.RemoteShmemRepo(worker.exit_stack)
+    worker.memory = taskloaf.memory.MemoryManager(worker, alloc)
     taskloaf.promise.setup_protocol(worker)
+    taskloaf.remote_get.setup_protocol(worker)
     return worker
 
 @contextlib.contextmanager

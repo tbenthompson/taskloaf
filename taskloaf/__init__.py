@@ -1,5 +1,5 @@
 from taskloaf.promise import task, when_all, Promise
-from taskloaf.memory import get
+from taskloaf.remote_get import get
 from taskloaf.run import run
 from taskloaf.cluster import cluster
 from taskloaf.local import localrun

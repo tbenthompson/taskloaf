@@ -8,6 +8,7 @@ from taskloaf.run import null_comm_worker
 from taskloaf.cluster import cluster
 from taskloaf.test_decorators import mpi_procs
 from taskloaf.mpi import mpiexisting
+from taskloaf.remote_get import get
 
 one_serialized = dumps(1)
 
@@ -79,9 +80,9 @@ def test_decref_local():
 
 def test_decref_encode():
     with null_comm_worker() as w:
-        b = MemoryManager.DecRefSerializer.serialize([1, 2, 3, 4]).to_bytes()
+        b = DecRefSerializer.serialize([1, 2, 3, 4]).to_bytes()
         m = taskloaf.message_capnp.Message.from_bytes(b)
-        creator, _id, gen, n_children = MemoryManager.DecRefSerializer.deserialize(w, m)
+        creator, _id, gen, n_children = DecRefSerializer.deserialize(w, m)
         assert(creator == 1)
         assert(_id == 2)
         assert(gen == 3)

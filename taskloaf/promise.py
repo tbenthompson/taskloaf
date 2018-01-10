@@ -2,7 +2,8 @@ import asyncio
 import capnp
 
 import taskloaf.serialize
-from taskloaf.memory import DistributedRef, DRefListSerializer, get
+from taskloaf.memory import DistributedRef
+from taskloaf.remote_get import get, DRefListSerializer
 
 def setup_protocol(worker):
     worker.protocol.add_msg_type(
