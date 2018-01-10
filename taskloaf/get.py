@@ -2,7 +2,7 @@ import asyncio
 import taskloaf.message_capnp
 from taskloaf.dref import DistributedRef
 
-async def get(worker, dref):
+async def remote_get(worker, dref):
     await asyncio.sleep(0) #TODO: should get yield control?
     mm = worker.memory
 

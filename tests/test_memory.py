@@ -8,7 +8,7 @@ from taskloaf.run import null_comm_worker
 from taskloaf.cluster import cluster
 from taskloaf.test_decorators import mpi_procs
 from taskloaf.mpi import mpiexisting
-from taskloaf.remote_get import get
+from taskloaf.get import remote_get
 
 one_serialized = dumps(1)
 
@@ -16,7 +16,7 @@ def dref_serialization_tester(sfnc, dfnc):
     with null_comm_worker() as w:
         mm = w.memory
         assert(mm.n_entries() == 0)
-        dref = mm.put(value = 1)
+        dref = put(w, value = 1)
         assert(mm.n_entries() > 0)
         dref_bytes = sfnc(dref)
         del dref
@@ -72,7 +72,7 @@ def test_put_get_delete():
 def test_decref_local():
     with null_comm_worker() as w:
         mm = w.memory
-        dref = mm.put(value = 1)
+        dref = put(w, value = 1)
         assert(len(mm.blocks.keys()) == 1)
         del dref
         gc.collect() # Force a GC collect to make sure that dref.__del__ is called
@@ -91,18 +91,24 @@ def test_decref_encode():
 def test_put_gives_shmem_ptr():
     with null_comm_worker() as w:
         memory = memoryview(bytes(10))
-        dref = w.memory.put(value = memory)
+        dref = put(w, value = memory)
         assert(not dref.shmem_ptr.needs_deserialize)
         assert(not dref.shmem_ptr.is_null())
 
-        dref = w.memory.put(serialized = memory)
+        dref = put(w, serialized = memory)
         assert(dref.shmem_ptr.needs_deserialize)
         assert(not dref.shmem_ptr.is_null())
 
+def test_alloc():
+    with null_comm_worker() as w:
+        dref = alloc(w, 16)
+        mem = get(w, dref)
+        assert(len(mem) == 16)
+
 def test_get_deserializes():
     with null_comm_worker() as w:
-        dref = w.memory.put(serialized = taskloaf.serialize.dumps(15))
-        assert(w.memory.get_local(dref) == 15)
+        dref = put(w, serialized = taskloaf.serialize.dumps(15))
+        assert(get(w, dref) == 15)
 
 @mpi_procs(2)
 def test_get():
@@ -110,13 +116,13 @@ def test_get():
         dref = put(w, value = 1)
         dref2 = put(w, value = one_serialized)
         dref3 = put(w, serialized = one_serialized)
-        assert(await get(w, dref) == 1)
-        assert(await get(w, dref2) == one_serialized)
-        assert(await get(w, dref3) == 1)
+        assert(await remote_get(w, dref) == 1)
+        assert(await remote_get(w, dref2) == one_serialized)
+        assert(await remote_get(w, dref3) == 1)
         async def g(w):
-            assert(await get(w, dref) == 1)
-            assert(await get(w, dref2) == one_serialized)
-            assert(await get(w, dref3) == 1)
+            assert(await remote_get(w, dref) == 1)
+            assert(await remote_get(w, dref2) == one_serialized)
+            assert(await remote_get(w, dref3) == 1)
             def h(w):
                 taskloaf.worker.shutdown(w)
             w.submit_work(0, h)
@@ -128,9 +134,9 @@ def test_get():
 @mpi_procs(2)
 def test_remote_double_get():
     async def f(w):
-        dref = w.memory.put(value = 1)
+        dref = put(w, value = 1)
         async def g(w):
-            assert(await get(w, dref) == 1)
+            assert(await remote_get(w, dref) == 1)
         t1 = taskloaf.task(w, g, to = 1)
         t2 = taskloaf.task(w, g, to = 1)
         await t1

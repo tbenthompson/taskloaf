@@ -3,7 +3,7 @@ import capnp
 
 import taskloaf.serialize
 from taskloaf.memory import DistributedRef
-from taskloaf.remote_get import get, DRefListSerializer
+from taskloaf.get import remote_get, DRefListSerializer
 
 def setup_protocol(worker):
     worker.protocol.add_msg_type(
@@ -35,7 +35,7 @@ def set_result_builder(worker, args):
         #TODO: Why were these lines necessary? I need to get some no-shmem
         # tests going so that I don't have to worry about designing something
         # that won't work distributed
-        # fut_val = await get(worker, args[1])
+        # fut_val = await remote_get(worker, args[1])
         # worker.memory.put(value = fut_val, dref = args[1])
         worker.memory.get_local(args[0])[0].set_result(args[1])
     return run
@@ -67,7 +67,7 @@ class Promise:
 
     def __await__(self):
         res_dref = yield from self.await_result_dref()
-        out = yield from get(self.worker, res_dref).__await__()
+        out = yield from remote_get(self.worker, res_dref).__await__()
         return out
 
     def await_result_dref(self):
@@ -111,12 +111,12 @@ def task_runner_builder(worker, data):
 
         f = data[1]
         if is_dref(f):
-            f = await get(worker, f)
+            f = await remote_get(worker, f)
 
         if len(data) > 2:
             args = data[2]
             if is_dref(args):
-                args = await get(worker, args)
+                args = await remote_get(worker, args)
             waiter = worker.wait_for_work(f, args)
         else:
             waiter = worker.wait_for_work(f)

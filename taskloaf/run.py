@@ -2,7 +2,7 @@ import taskloaf.worker
 import taskloaf.memory
 import taskloaf.promise
 import taskloaf.allocator
-import taskloaf.remote_get
+import taskloaf.get
 import contextlib
 
 def add_plugins(worker):
@@ -10,7 +10,7 @@ def add_plugins(worker):
     worker.remote_shmem = taskloaf.memory.RemoteShmemRepo(worker.exit_stack)
     worker.memory = taskloaf.memory.MemoryManager(worker, alloc)
     taskloaf.promise.setup_protocol(worker)
-    taskloaf.remote_get.setup_protocol(worker)
+    taskloaf.get.setup_protocol(worker)
     return worker
 
 @contextlib.contextmanager

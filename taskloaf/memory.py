@@ -10,6 +10,13 @@ from taskloaf.dref import DistributedRef, ShmemPtr
 def put(worker, *, value = None, serialized = None):
     return worker.memory.put(value = value, serialized = serialized)
 
+def get(worker, dref):
+    return worker.memory.get_local(dref)
+
+def alloc(worker, size):
+    return worker.memory.alloc(size)
+
+
 class RefCount:
     def __init__(self):
         self.gen_counts = [1]
@@ -30,6 +37,7 @@ class RefCount:
 def is_bytes(v):
     return isinstance(v, bytes) or isinstance(v, memoryview)
 
+#TODO: better name!
 @attr.s
 class Memory:
     has_value = attr.ib(default = False)
@@ -54,7 +62,7 @@ class Block:
 # the value that is "get" from the memory manager, even if the object must be
 # serialized and sent across the network.
 class MemoryManager:
-    def __init__(self, worker, alloc):
+    def __init__(self, worker, allocator):
         self.blocks = dict()
         self.worker = worker
         self.worker.protocol.add_msg_type(
@@ -63,7 +71,7 @@ class MemoryManager:
             handler = lambda w, x: lambda worker: worker.memory.dec_ref_owned(*x)
         )
         self.next_id = 0
-        self.alloc = alloc
+        self.allocator = allocator
 
     def n_entries(self):
         return len(self.blocks)
@@ -73,42 +81,51 @@ class MemoryManager:
         return self.next_id - 1
 
     def put(self, *, value = None, serialized = None, dref = None):
-        putter = self.put_owned
+        mem = self.existing_memory(value, serialized)
         if dref is None:
-            dref = DistributedRef(self.worker, self.worker.addr)
+            put_fnc = self.put_new
         elif dref.owner != self.worker.addr:
-            putter = self.put_remote
+            put_fnc = self.put_remote
+        else:
+            put_fnc = self.put_owned
 
-        putter(value, serialized, dref)
-        return dref
+        return put_fnc(mem, dref)
 
-    def make_memory(self, value, serialized):
+    def existing_memory(self, value, serialized):
         mem = Memory()
         if value is not None:
             mem.set_value(value)
             if is_bytes(value):
                 mem.set_serialized(ShmemPtr(
                     False,
-                    *self.alloc.store(memoryview(value))
+                    *self.allocator.store(memoryview(value))
                 ))
         elif serialized is not None:
-            mem.set_serialized(ShmemPtr(True, *self.alloc.store(memoryview(serialized))))
+            mem.set_serialized(ShmemPtr(True, *self.allocator.store(memoryview(serialized))))
         else:
             mem.set_value(None)
         return mem
 
-    def put_owned(self, value, serialized, dref):
-        mem = self.make_memory(value, serialized)
+    def put_new(self, mem, _):
+        dref = DistributedRef(self.worker, self.worker.addr)
+        return self.put_owned(mem, dref)
+
+    def put_owned(self, mem, dref):
         if mem.has_serialized:
             dref.shmem_ptr = mem.serialized
         self.blocks[dref.index()] = Block(memory = mem, ownership = RefCount())
+        return dref
 
-    def put_remote(self, value, serialized, dref):
-        mem = self.make_memory(value, serialized)
+    def put_remote(self, mem, dref):
         self.blocks[dref.index()] = Block(memory = mem, ownership = None)
+        return dref
 
-    # def alloc(self, size):
-    #     self.blocks[dref.index()] = OwnedMemory(None, None,
+    def alloc(self, size):
+        mem = Memory()
+        ptr = ShmemPtr(False, *self.allocator.alloc(size))
+        mem.set_value(ptr.dereference(self.allocator.mem))
+        mem.set_serialized(ptr)
+        return self.put_new(mem, None)
 
     def get_memory(self, dref):
         return self.blocks[dref.index()].memory
@@ -117,7 +134,7 @@ class MemoryManager:
         blk_mem = self.get_memory(dref)
         if not blk_mem.has_value:
             blk_mem.value = taskloaf.serialize.loads(
-                self.worker, blk_mem.serialized.dereference(self.alloc.mem)
+                self.worker, blk_mem.serialized.dereference(self.allocator.mem)
             )
 
     def get_local(self, dref):
@@ -130,7 +147,7 @@ class MemoryManager:
             serialized_mem = memoryview(taskloaf.serialize.dumps(blk_mem.value))
             blk_mem.serialized = ShmemPtr(
                 True,
-                *self.alloc.store(serialized_mem)
+                *self.allocator.store(serialized_mem)
             )
         return blk_mem.serialized
 

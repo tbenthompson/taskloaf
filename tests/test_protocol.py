@@ -1,6 +1,6 @@
 from taskloaf.protocol import *
 from taskloaf.memory import DistributedRef
-from taskloaf.remote_get import DRefListSerializer
+from taskloaf.get import DRefListSerializer
 from taskloaf.run import null_comm_worker
 
 def test_roundtrip_default():
