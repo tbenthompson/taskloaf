@@ -2,7 +2,7 @@ import asyncio
 import capnp
 
 import taskloaf.serialize
-from taskloaf.memory import DistributedRef, DRefListSerializer, remote_get
+from taskloaf.memory import DistributedRef, DRefListSerializer, get
 
 def setup_protocol(worker):
     worker.protocol.add_msg_type(
@@ -31,9 +31,12 @@ def await_builder(worker, args):
 
 def set_result_builder(worker, args):
     async def run(worker):
-        fut_val = await remote_get(worker, args[1])
-        worker.memory.put(value = fut_val, dref = args[1])
-        worker.memory.get(args[0])[0].set_result(args[1])
+        #TODO: Why were these lines necessary? I need to get some no-shmem
+        # tests going so that I don't have to worry about designing something
+        # that won't work distributed
+        # fut_val = await get(worker, args[1])
+        # worker.memory.put(value = fut_val, dref = args[1])
+        worker.memory.get_local(args[0])[0].set_result(args[1])
     return run
 
 class Promise:
@@ -57,19 +60,19 @@ class Promise:
             )
             if self.owner != here:
                 async def delete_after_triggered(worker):
-                    await worker.memory.get(self.dref)[0]
+                    await worker.memory.get_local(self.dref)[0]
                     worker.memory.delete(self.dref)
                 self.worker.run_work(delete_after_triggered)
 
     def __await__(self):
         res_dref = yield from self.await_result_dref()
-        out = yield from remote_get(self.worker, res_dref).__await__()
+        out = yield from get(self.worker, res_dref).__await__()
         return out
 
     def await_result_dref(self):
         here = self.worker.comm.addr
         self.ensure_future_exists()
-        pr_data = self.worker.memory.get(self.dref)
+        pr_data = self.worker.memory.get_local(self.dref)
         if here != self.owner and not pr_data[1]:
             pr_data[1] = True
             self.worker.send(self.owner, self.worker.protocol.AWAIT, [self.dref])
@@ -78,7 +81,7 @@ class Promise:
     def set_result(self, result):
         self.ensure_future_exists()
         res_dref = self.worker.memory.put(value = result)
-        self.worker.memory.get(self.dref)[0].set_result(res_dref)
+        self.worker.memory.get_local(self.dref)[0].set_result(res_dref)
 
     def then(self, f, to = None):
         if to is None:
@@ -107,12 +110,12 @@ def task_runner_builder(worker, data):
 
         f = data[1]
         if is_dref(f):
-            f = await remote_get(worker, f)
+            f = await get(worker, f)
 
         if len(data) > 2:
             args = data[2]
             if is_dref(args):
-                args = await remote_get(worker, args)
+                args = await get(worker, args)
             waiter = worker.wait_for_work(f, args)
         else:
             waiter = worker.wait_for_work(f)

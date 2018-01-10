@@ -1,9 +1,50 @@
 import os
+import attr
 import capnp
 import asyncio
 import taskloaf.message_capnp
 import taskloaf.shmem
 from taskloaf.dref import DistributedRef, ShmemPtr
+
+class SerializedMemoryStore:
+    def __init__(self, addr, exit_stack):
+        size = int(20e9)
+        filename = 'taskloaf' + str(addr)
+        try:
+            os.remove('/dev/shm/' + filename)
+        except FileNotFoundError:
+            pass
+        self.shmem_filepath = exit_stack.enter_context(
+            taskloaf.shmem.alloc_shmem(size, filename)
+        )
+        self.shmem = exit_stack.enter_context(
+            taskloaf.shmem.Shmem(self.shmem_filepath)
+        )
+        self.ptr = 0
+        self.addr = addr
+
+    def alloc(self, size):
+        old_ptr = self.ptr
+        next_ptr = self.ptr + size
+        self.ptr = next_ptr
+        return old_ptr, next_ptr
+
+    def store(self, memory):
+        size = memory.nbytes
+        start_ptr, end_ptr = self.alloc(size)
+        # print(self.addr, 'storing', size)
+        if end_ptr > len(self.shmem.mem):
+            raise Exception('out of memory!')
+        if size > 1e5:
+            with open(self.shmem_filepath, 'r+b') as f:
+                f.seek(start_ptr)
+                f.write(memory)
+        else:
+            self.shmem.mem[start_ptr:end_ptr] = memory
+        return start_ptr, end_ptr
+
+    def dereference(self, ptr):
+        return ptr.dereference(self.shmem.mem)
 
 class RefCount:
     def __init__(self):
@@ -25,78 +66,25 @@ class RefCount:
 def is_bytes(v):
     return isinstance(v, bytes) or isinstance(v, memoryview)
 
-class RemoteMemory:
-    def __init__(self, value, serialized, store):
-        self.store = store
-        if value is not None:
-            self.value = value
-            if is_bytes(self.value):
-                self.serialized = ShmemPtr(
-                    False,
-                    *self.store.store(memoryview(self.value))
-                )
-        elif serialized is not None:
-            self.serialized = ShmemPtr(True, *self.store.store(memoryview(serialized)))
-        else:
-            self.value = None
+@attr.s
+class Memory:
+    has_value = attr.ib(default = False)
+    value = attr.ib(default = None)
+    has_serialized = attr.ib(default = False)
+    serialized = attr.ib(default = None)
 
-    def has_serialized(self):
-        return hasattr(self, 'serialized')
+    def set_value(self, v):
+        self.has_value = True
+        self.value = v
 
-    def get_serialized(self):
-        if not self.has_serialized():
-            self.serialized = ShmemPtr(
-                True,
-                *self.store.store(memoryview(taskloaf.serialize.dumps(self.value)))
-            )
-        return (
-            self.serialized.needs_deserialize,
-            self.store.dereference(self.serialized)
-        )
+    def set_serialized(self, s):
+        self.has_serialized = True
+        self.serialized = s
 
-    def get_value(self, worker):
-        if not hasattr(self, 'value'):
-            self.value = taskloaf.serialize.loads(
-                worker, self.store.dereference(self.serialized)
-            )
-        return self.value
-
-class OwnedMemory(RemoteMemory):
-    def __init__(self, value, serialized, store):
-        self.refcount = RefCount()
-        super().__init__(value, serialized, store)
-
-class SerializedMemoryStore:
-    def __init__(self, addr, exit_stack):
-        size = int(2e8)
-        filename = 'taskloaf' + str(addr)
-        try:
-            os.remove('/dev/shm/' + filename)
-        except FileNotFoundError:
-            pass
-        self.shmem_filepath = exit_stack.enter_context(
-            taskloaf.shmem.alloc_shmem(size, filename)
-        )
-        self.shmem = exit_stack.enter_context(
-            taskloaf.shmem.Shmem(self.shmem_filepath)
-        )
-        self.ptr = 0
-
-    def store(self, memory):
-        size = memory.nbytes
-        old_ptr = self.ptr
-        next_ptr = self.ptr + size
-        if size > 1e5:
-            with open(self.shmem_filepath, 'r+b') as f:
-                f.seek(self.ptr)
-                f.write(memory)
-        else:
-            self.shmem.mem[self.ptr:next_ptr] = memory
-        self.ptr = next_ptr
-        return old_ptr, next_ptr
-
-    def dereference(self, ptr):
-        return ptr.dereference(self.shmem.mem)
+@attr.s
+class Block:
+    memory = attr.ib()
+    ownership = attr.ib()
 
 # The value that is "put" into the memory manager should always be the same as
 # the value that is "get" from the memory manager, even if the object must be
@@ -108,7 +96,7 @@ class MemoryManager:
         self.worker.protocol.add_msg_type(
             'DECREF',
             serializer = MemoryManager.DecRefSerializer,
-            handler = lambda w, x: lambda worker: worker.memory._dec_ref_owned(*x)
+            handler = lambda w, x: lambda worker: worker.memory.dec_ref_owned(*x)
         )
         self.worker.protocol.add_msg_type(
             'REMOTEGET',
@@ -124,41 +112,66 @@ class MemoryManager:
         self.store = store
         self.remote_shmem = dict()
 
+    def n_entries(self):
+        return len(self.blocks)
+
     def get_new_id(self):
         self.next_id += 1
         return self.next_id - 1
 
     def put(self, *, value = None, serialized = None, dref = None):
-        putter = self._put_owned
+        putter = self.put_owned
         if dref is None:
             dref = DistributedRef(self.worker, self.worker.addr)
         elif dref.owner != self.worker.addr:
-            putter = self._put_remote
+            putter = self.put_remote
 
         putter(value, serialized, dref)
         return dref
 
-    def _put_owned(self, value, serialized, dref):
-        mem = OwnedMemory(value, serialized, self.store)
-        if mem.has_serialized():
-            dref.shmem_ptr = mem.serialized
-        self.blocks[dref.index()] = mem
-
-    def _put_remote(self, value, serialized, dref):
-        self.blocks[dref.index()] = RemoteMemory(value, serialized, self.store)
-
-    def get(self, dref):
-        if dref.index() in self.blocks:
-            return self.blocks[dref.index()].get_value(dref.worker)
+    def make_memory(self, value, serialized):
+        mem = Memory()
+        if value is not None:
+            mem.set_value(value)
+            if is_bytes(value):
+                mem.set_serialized(ShmemPtr(
+                    False,
+                    *self.store.store(memoryview(value))
+                ))
+        elif serialized is not None:
+            mem.set_serialized(ShmemPtr(True, *self.store.store(memoryview(serialized))))
         else:
-            v = self.get_remote_shmem(dref)
-            if dref.shmem_ptr.needs_deserialize:
-                self.put(serialized = v, dref = dref)
-                return self.get(dref)
-            else:
-                return v
+            mem.set_value(None)
+        return mem
 
-    def get_remote_shmem(self, dref):
+    def put_owned(self, value, serialized, dref):
+        mem = self.make_memory(value, serialized)
+        if mem.has_serialized:
+            dref.shmem_ptr = mem.serialized
+        self.blocks[dref.index()] = Block(memory = mem, ownership = RefCount())
+
+    def put_remote(self, value, serialized, dref):
+        mem = self.make_memory(value, serialized)
+        self.blocks[dref.index()] = Block(memory = mem, ownership = None)
+
+    # def alloc(self, size):
+    #     self.blocks[dref.index()] = OwnedMemory(None, None,
+
+    def get_memory(self, dref):
+        return self.blocks[dref.index()].memory
+
+    def ensure_deserialized(self, dref):
+        blk_mem = self.get_memory(dref)
+        if not blk_mem.has_value:
+            blk_mem.value = taskloaf.serialize.loads(
+                self.worker, self.store.dereference(blk_mem.serialized)
+            )
+
+    def get_local(self, dref):
+        self.ensure_deserialized(dref)
+        return self.get_memory(dref).value
+
+    def get_shmem(self, dref):
         if dref.owner not in self.remote_shmem:
             exit_stack = self.worker.exit_stack
             self.remote_shmem[dref.owner] = exit_stack.enter_context(
@@ -168,25 +181,26 @@ class MemoryManager:
         return dref.shmem_ptr.dereference(shmem.mem)
 
     def get_serialized(self, dref):
-        return self.blocks[dref.index()].get_serialized()
-
-    def get_shmem_ptr(self, dref):
-        return self.blocks[dref.index()].serialized
+        blk_mem = self.get_memory(dref)
+        if not blk_mem.has_serialized:
+            serialized_mem = memoryview(taskloaf.serialize.dumps(blk_mem.value))
+            blk_mem.serialized = ShmemPtr(
+                True,
+                *self.store.store(serialized_mem)
+            )
+        return blk_mem.serialized
 
     def available(self, dref):
-        return (
-            dref.index() in self.blocks or
-            not dref.shmem_ptr.is_null()
-        )
+        return dref.index() in self.blocks
 
     def delete(self, dref):
         del self.blocks[dref.index()]
 
-    def _dec_ref_owned(self, creator, _id, gen, n_children):
+    def dec_ref_owned(self, creator, _id, gen, n_children):
         idx = (creator, _id)
-        mem = self.blocks[idx].refcount
-        mem.dec_ref(gen, n_children)
-        if not mem.alive():
+        refcount = self.blocks[idx].ownership
+        refcount.dec_ref(gen, n_children)
+        if not refcount.alive():
             del self.blocks[idx]
 
     def dec_ref(self, creator, _id, gen, n_children, owner):
@@ -196,7 +210,7 @@ class MemoryManager:
                 (creator, _id, gen, n_children)
             )
         else:
-            self._dec_ref_owned(creator, _id, gen, n_children)
+            self.dec_ref_owned(creator, _id, gen, n_children)
 
     class DecRefSerializer:
         @staticmethod
@@ -213,9 +227,6 @@ class MemoryManager:
         def deserialize(w, m):
             return m.decRef.creator, m.decRef.id, m.decRef.gen, m.decRef.nchildren
 
-    def n_entries(self):
-        return len(self.blocks)
-
 class DRefListSerializer:
     @staticmethod
     def serialize(drefs):
@@ -229,26 +240,38 @@ class DRefListSerializer:
     def deserialize(w, m):
         return [DistributedRef.decode_capnp(w, dr) for dr in m.drefList]
 
-async def remote_get(worker, dref):
+def put(worker, value = None, serialized = None):
+    return worker.memory.put(value = value, serialized = serialized)
+
+async def get(worker, dref):
+    await asyncio.sleep(0) #TODO: should get yield control?
     mm = worker.memory
 
-    if not mm.available(dref):
+    if mm.available(dref):
+        val = mm.get_local(dref)
+        if isinstance(val, asyncio.Future):
+            await val
+            return mm.get_local(dref)
+        return val
+    elif not dref.shmem_ptr.is_null():
+        v = mm.get_shmem(dref)
+        if dref.shmem_ptr.needs_deserialize:
+            mm.put(serialized = v, dref = dref)
+            return mm.get_local(dref)
+        else:
+            return v
+    else:
         mm.put(value = asyncio.Future(), dref = dref)
         worker.send(dref.owner, worker.protocol.REMOTEGET, [dref])
-
-    val = mm.get(dref)
-    if isinstance(val, asyncio.Future):
-        await val
-        return mm.get(dref)
-    else:
-        return val
+        await mm.get_local(dref)
+        return mm.get_local(dref)
 
 def handle_remote_put(worker, args):
     dref, v = args
     def run(w):
         mm = w.memory
-        mm.get(dref).set_result(None)
-        v = mm.get_remote_shmem(dref)
+        mm.get_local(dref).set_result(None)
+        v = mm.get_shmem(dref)
         if dref.shmem_ptr.needs_deserialize:
             mm.put(serialized = v, dref = dref)
         else:
@@ -276,8 +299,7 @@ def handle_remote_get(worker, args):
     dref = args[0]
     source_addr = worker.cur_msg.sourceAddr
     def run(worker):
-        needs_deserialize, v = worker.memory.get_serialized(dref)
-        dref.shmem_ptr = worker.memory.get_shmem_ptr(dref)
+        dref.shmem_ptr = worker.memory.get_serialized(dref)
         args = [dref, bytes(0)]
         worker.send(source_addr, worker.protocol.REMOTEPUT, args)
     return run

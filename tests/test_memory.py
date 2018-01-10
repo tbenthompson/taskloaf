@@ -64,7 +64,7 @@ def test_put_get_delete():
         dref = DistributedRef(w, w.addr + 1)
         mm.put(value = 1, dref = dref)
         assert(mm.available(dref))
-        assert(mm.get(dref) == 1)
+        assert(mm.get_local(dref) == 1)
         mm.delete(dref)
         assert(not mm.available(dref))
 
@@ -87,19 +87,35 @@ def test_decref_encode():
         assert(gen == 3)
         assert(n_children == 4)
 
+def test_put_gives_shmem_ptr():
+    with null_comm_worker() as w:
+        memory = memoryview(bytes(10))
+        dref = w.memory.put(value = memory)
+        assert(not dref.shmem_ptr.needs_deserialize)
+        assert(not dref.shmem_ptr.is_null())
+
+        dref = w.memory.put(serialized = memory)
+        assert(dref.shmem_ptr.needs_deserialize)
+        assert(not dref.shmem_ptr.is_null())
+
+def test_get_deserializes():
+    with null_comm_worker() as w:
+        dref = w.memory.put(serialized = taskloaf.serialize.dumps(15))
+        assert(w.memory.get_local(dref) == 15)
+
 @mpi_procs(2)
-def test_remote_get():
+def test_get():
     async def f(w):
-        dref = w.memory.put(value = 1)
-        dref2 = w.memory.put(value = one_serialized)
-        dref3 = w.memory.put(serialized = one_serialized)
-        assert(await remote_get(w, dref) == 1)
-        assert(await remote_get(w, dref2) == one_serialized)
-        assert(await remote_get(w, dref3) == 1)
+        dref = put(w, value = 1)
+        dref2 = put(w, value = one_serialized)
+        dref3 = put(w, serialized = one_serialized)
+        assert(await get(w, dref) == 1)
+        assert(await get(w, dref2) == one_serialized)
+        assert(await get(w, dref3) == 1)
         async def g(w):
-            assert(await remote_get(w, dref) == 1)
-            assert(await remote_get(w, dref2) == one_serialized)
-            assert(await remote_get(w, dref3) == 1)
+            assert(await get(w, dref) == 1)
+            assert(await get(w, dref2) == one_serialized)
+            assert(await get(w, dref3) == 1)
             def h(w):
                 taskloaf.worker.shutdown(w)
             w.submit_work(0, h)
@@ -113,7 +129,7 @@ def test_remote_double_get():
     async def f(w):
         dref = w.memory.put(value = 1)
         async def g(w):
-            assert(await remote_get(w, dref) == 1)
+            assert(await get(w, dref) == 1)
         t1 = taskloaf.task(w, g, to = 1)
         t2 = taskloaf.task(w, g, to = 1)
         await t1
