@@ -91,7 +91,7 @@ class Promise:
 
         async def wait_to_start(worker):
             v = await self
-            task(worker, lambda worker, v=v: f(worker, v), out_pr = out_pr)
+            task(worker, f, v, out_pr = out_pr)
         self.worker.submit_work(self.owner, wait_to_start)
         return out_pr
 
@@ -129,7 +129,7 @@ def is_dref(v):
 def ensure_dref_if_remote(worker, v, to):
     if worker.addr == to or is_dref(v):
         return v
-    return worker.memory.put(value = v)
+    return worker.memory.put(value = v, eager_alloc = 2)
 
 # BAD OLD COMMENT?
 # f and args can be provided in two forms:

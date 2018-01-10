@@ -23,7 +23,10 @@ async def remote_get(worker, dref):
         mm.put(value = asyncio.Future(), dref = dref)
         worker.send(dref.owner, worker.protocol.REMOTEGET, [dref])
         await mm.get_local(dref)
-        return mm.get_local(dref)
+        out = mm.get_local(dref)
+        if worker.addr == 1:
+            print(dref.shmem_ptr, out)
+        return out
 
 def setup_protocol(worker):
     worker.protocol.add_msg_type(

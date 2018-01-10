@@ -7,8 +7,8 @@ import taskloaf.shmem
 from taskloaf.dref import DistributedRef, ShmemPtr
 
 #TODO: this is the user facing api!
-def put(worker, *, value = None, serialized = None):
-    return worker.memory.put(value = value, serialized = serialized)
+def put(worker, *, value = None, serialized = None, eager_alloc = 0):
+    return worker.memory.put(value = value, serialized = serialized, eager_alloc = eager_alloc)
 
 def get(worker, dref):
     return worker.memory.get_local(dref)
@@ -80,8 +80,8 @@ class MemoryManager:
         self.next_id += 1
         return self.next_id - 1
 
-    def put(self, *, value = None, serialized = None, dref = None):
-        mem = self.existing_memory(value, serialized)
+    def put(self, *, value = None, serialized = None, dref = None, eager_alloc = 0):
+        mem = self.existing_memory(value, serialized, eager_alloc)
         if dref is None:
             put_fnc = self.put_new
         elif dref.owner != self.worker.addr:
@@ -91,15 +91,14 @@ class MemoryManager:
 
         return put_fnc(mem, dref)
 
-    def existing_memory(self, value, serialized):
+    def existing_memory(self, value, serialized, eager_alloc):
         mem = Memory()
         if value is not None:
             mem.set_value(value)
-            if is_bytes(value):
-                mem.set_serialized(ShmemPtr(
-                    False,
-                    *self.allocator.store(memoryview(value))
-                ))
+            if eager_alloc >= 1 and is_bytes(value):
+                self.serialize_bytes(mem)
+            elif eager_alloc >= 2:
+                self.serialize_pickle(mem)
         elif serialized is not None:
             mem.set_serialized(ShmemPtr(True, *self.allocator.store(memoryview(serialized))))
         else:
@@ -144,12 +143,25 @@ class MemoryManager:
     def get_serialized(self, dref):
         blk_mem = self.get_memory(dref)
         if not blk_mem.has_serialized:
-            serialized_mem = memoryview(taskloaf.serialize.dumps(blk_mem.value))
-            blk_mem.serialized = ShmemPtr(
-                True,
-                *self.allocator.store(serialized_mem)
-            )
+            if is_bytes(blk_mem.value):
+                self.serialize_bytes(blk_mem)
+            else:
+                self.serialize_pickle(blk_mem)
         return blk_mem.serialized
+
+    def serialize_bytes(self, blk_mem):
+        blk_mem.set_serialized(ShmemPtr(
+            False,
+            *self.allocator.store(memoryview(blk_mem.value))
+        ))
+        blk_mem.set_value(blk_mem.serialized.dereference(self.allocator.mem))
+
+    def serialize_pickle(self, blk_mem):
+        serialized_mem = memoryview(taskloaf.serialize.dumps(blk_mem.value))
+        blk_mem.set_serialized(ShmemPtr(
+            True,
+            *self.allocator.store(serialized_mem)
+        ))
 
     def available(self, dref):
         return dref.index() in self.blocks

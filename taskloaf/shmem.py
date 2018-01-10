@@ -15,11 +15,14 @@ class Shmem:
 
     def __enter__(self):
         self.file = open(self.filepath, 'r+b')
-        self.mem = memoryview(mmap_full_file(self.file.fileno()))
+        self.mmap = mmap_full_file(self.file.fileno())
+        self.mem = memoryview(self.mmap)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.file.close()
+        # del self.mem
+        # self.mmap.close()
 
 # Note: File descriptors vs filepaths
 # After creating a shared memory block, we need to be able to reference that

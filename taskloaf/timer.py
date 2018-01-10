@@ -6,7 +6,7 @@ def ignore_args(*args, **kwargs):
 class Timer(object):
     def __init__(self, output_fnc = print):
         if output_fnc is None:
-            self.output_fnc = ignore_args
+            output_fnc = ignore_args
         self.output_fnc = output_fnc
         self.restart()
 

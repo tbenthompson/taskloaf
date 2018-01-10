@@ -88,10 +88,10 @@ def test_decref_encode():
         assert(gen == 3)
         assert(n_children == 4)
 
-def test_put_gives_shmem_ptr():
+def test_eager_put_gives_shmem_ptr():
     with null_comm_worker() as w:
         memory = memoryview(bytes(10))
-        dref = put(w, value = memory)
+        dref = put(w, value = memory, eager_alloc = True)
         assert(not dref.shmem_ptr.needs_deserialize)
         assert(not dref.shmem_ptr.is_null())
 
@@ -103,7 +103,9 @@ def test_alloc():
     with null_comm_worker() as w:
         dref = alloc(w, 16)
         mem = get(w, dref)
+        mem[1] = 2
         assert(len(mem) == 16)
+        assert(w.remote_shmem.get(dref)[1] == 2)
 
 def test_get_deserializes():
     with null_comm_worker() as w:
