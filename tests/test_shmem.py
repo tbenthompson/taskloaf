@@ -12,7 +12,7 @@ def sum_shmem(filepath):
 
 def test_shmem():
     A = np.random.rand(100)
-    with alloc_shmem(A.nbytes) as filepath:
+    with alloc_shmem(A.nbytes, 'test') as filepath:
         with Shmem(filepath) as sm:
             sm.mem[:] = A.data.cast('B')
             out = multiprocessing.Pool(1).map(sum_shmem, [sm.filepath])[0]
@@ -24,7 +24,7 @@ def shmem_zeros(filepath):
 
 def test_shmem_edit():
     A = np.random.rand(100)
-    with alloc_shmem(A.nbytes) as filepath:
+    with alloc_shmem(A.nbytes, 'test') as filepath:
         with Shmem(filepath) as sm:
             sm.mem[:] = A.data.cast('B')
             out = multiprocessing.Pool(1).map(shmem_zeros, [sm.filepath])[0]
@@ -43,6 +43,9 @@ memory
 
 Also, note that the lazy nature of python garbage collection means that munmap
 is called at unexpected times and cause some problems with benchmarking.
+
+LATER: i THINK THAT ALL THESE WOES WERE CAUSED ALMOST ENTIRELY BY THE LACK OF
+USING HUGE PAGES
 """
 def benchmark_shmem():
     t = Timer()

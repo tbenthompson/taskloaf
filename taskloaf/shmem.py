@@ -15,14 +15,26 @@ class Shmem:
 
     def __enter__(self):
         self.file = open(self.filepath, 'r+b')
+        self.size = get_size_from_fd(self.file.fileno())
         self.mmap = mmap_full_file(self.file.fileno())
-        self.mem = memoryview(self.mmap)
+
+        # This is some crooked trickery to create a memoryview from the mmap
+        # without mmap knowing about it so that the mmap can be closed without
+        # tracking its references
+        import numpy as np
+        import ctypes
+        temp_np = np.frombuffer(self.mmap, dtype = np.uint8)
+        ptr = temp_np.ctypes.data
+        del temp_np
+        ptrc = ctypes.cast(ptr, ctypes.POINTER(ctypes.c_byte))
+        new_array = np.ctypeslib.as_array(ptrc,shape=(self.size,))
+        self.mem = memoryview(new_array.data.cast('B'))
+
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.file.close()
-        # del self.mem
-        # self.mmap.close()
+        self.mmap.close()
 
 # Note: File descriptors vs filepaths
 # After creating a shared memory block, we need to be able to reference that
@@ -36,25 +48,18 @@ class Shmem:
 # disadvantage that the file will remain on the filesystem if the process dies
 # without running the corresponding clean up code.
 
-def init_shmem_file(filepath, obj):
+def init_shmem_file(filepath, size):
     with open(filepath, 'w+b') as f:
-        if type(obj) is int:
-            # Create a sparse file of the proper size.
-            f.seek(obj - 1)
-            f.write(bytes(1))
-            f.seek(0)
-        else:
-            f.write(obj)
-            f.seek(0)
+        os.ftruncate(f.fileno(), size)
 
 @contextlib.contextmanager
-def alloc_shmem(obj, filename = None):
-    if filename is None:
-        filename = str(uuid.uuid4())
-    filepath = os.path.join('/dev/shm', filename)
+def alloc_shmem(size, filepath):
     assert(not os.path.exists(filepath))
     try:
-        init_shmem_file(filepath, obj)
+        init_shmem_file(filepath, size)
         yield filepath
     finally:
-        os.remove(filepath)
+        try:
+            os.remove(filepath)
+        except FileNotFoundError:
+            pass

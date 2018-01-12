@@ -2,13 +2,14 @@
 <%
 setup_pybind11(cfg)
 cfg['compiler_args'] += [
-    '-std=c++11', '-O3', '-Wall', '-Werror', '-fopenmp', '-UNDEBUG',
+    '-std=c++11', '-Ofast', '-Wall', '-Werror', '-fopenmp', '-UNDEBUG',
     '-D_hypot=hypot'
 ]
 cfg['linker_args'] += ['-fopenmp']
 %>
 */
 
+#include <cmath>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
@@ -35,10 +36,6 @@ void coomv(NPArray<I> rows, NPArray<I> cols,
     }
 }
 
-#define is_aligned(POINTER, BYTE_COUNT) \
-    (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
-#include <iostream>
-
 template <class I, class F>
 void csrmv(NPArray<I> indptr, NPArray<I> indices,
     NPArray<F> data, NPArray<F> x, NPArray<F> y, bool openmp) 
@@ -49,23 +46,7 @@ void csrmv(NPArray<I> indptr, NPArray<I> indices,
     F* Ax = as_ptr<F>(data);
     F* Xx = as_ptr<F>(x);
     F* Yx = as_ptr<F>(y);
-    std::cout << "4-byte x aligned: " << is_aligned(Xx, 4) << std::endl;
-    std::cout << "4-byte y aligned: " << is_aligned(Yx, 4) << std::endl;
-    std::cout << "4-byte indptr aligned: " << is_aligned(Ap, 4) << std::endl;
-    std::cout << "4-byte indices aligned: " << is_aligned(Aj, 4) << std::endl;
-    std::cout << "4-byte data aligned: " << is_aligned(Ax, 4) << std::endl;
 
-    std::cout << "8-byte x aligned: " << is_aligned(Xx, 8) << std::endl;
-    std::cout << "8-byte y aligned: " << is_aligned(Yx, 8) << std::endl;
-    std::cout << "8-byte indptr aligned: " << is_aligned(Ap, 8) << std::endl;
-    std::cout << "8-byte indices aligned: " << is_aligned(Aj, 8) << std::endl;
-    std::cout << "8-byte data aligned: " << is_aligned(Ax, 8) << std::endl;
-
-    std::cout << "16-byte x aligned: " << is_aligned(Xx, 16) << std::endl;
-    std::cout << "16-byte y aligned: " << is_aligned(Yx, 16) << std::endl;
-    std::cout << "16-byte indptr aligned: " << is_aligned(Ap, 16) << std::endl;
-    std::cout << "16-byte indices aligned: " << is_aligned(Aj, 16) << std::endl;
-    std::cout << "16-byte data aligned: " << is_aligned(Ax, 16) << std::endl;
 #pragma omp parallel for if(openmp)
     for (I i = 0; i < n_row; i++){
         F sum = 0.0;//Yx[i];

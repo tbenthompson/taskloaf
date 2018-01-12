@@ -59,6 +59,16 @@ def test_refcount_alive():
     rc.dec_ref(1, 1)
     assert(rc.alive())
 
+def test_alloc_creation():
+    from contextlib import ExitStack
+    import taskloaf.allocator
+    for i in range(10):
+        # os.system('hugeadm --explain')
+        with ExitStack() as es:
+            a = taskloaf.allocator.Allocator(0, es)
+            # del a.mem
+
+
 def test_put_get_delete():
     with null_comm_worker() as w:
         mm = w.memory
@@ -99,7 +109,7 @@ def test_eager_put_gives_shmem_ptr():
         assert(dref.shmem_ptr.needs_deserialize)
         assert(not dref.shmem_ptr.is_null())
 
-def test_alloc():
+def test_alloc_no_put():
     with null_comm_worker() as w:
         dref = alloc(w, 16)
         mem = get(w, dref)

@@ -199,16 +199,3 @@ class DecRefSerializer:
     @staticmethod
     def deserialize(w, m):
         return m.decRef.creator, m.decRef.id, m.decRef.gen, m.decRef.nchildren
-
-class RemoteShmemRepo:
-    def __init__(self, exit_stack):
-        self.exit_stack = exit_stack
-        self.remotes = dict()
-
-    def get(self, dref):
-        if dref.owner not in self.remotes:
-            self.remotes[dref.owner] = self.exit_stack.enter_context(
-                taskloaf.shmem.Shmem('/dev/shm/taskloaf' + str(dref.owner))
-            )
-        shmem = self.remotes[dref.owner]
-        return dref.shmem_ptr.dereference(shmem.mem)

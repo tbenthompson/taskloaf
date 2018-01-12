@@ -24,8 +24,8 @@ async def remote_get(worker, dref):
         worker.send(dref.owner, worker.protocol.REMOTEGET, [dref])
         await mm.get_local(dref)
         out = mm.get_local(dref)
-        if worker.addr == 1:
-            print(dref.shmem_ptr, out)
+        # if worker.addr == 1:
+        #     print(dref.shmem_ptr, out)
         return out
 
 def setup_protocol(worker):

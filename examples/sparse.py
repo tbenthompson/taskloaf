@@ -33,8 +33,12 @@ def put_fnc(w, f):
     assert(len(f_bytes) < 5e4)
     return tsk.put(w,serialized = f_bytes)
 
+# def distorted_linspace(a, b, n):
+#     split = int(np.floor((b - a) * 0.2)) + a
+#     return np.array([0,split] + np.linspace(split, b, n - 1)[1:].tolist())
+
 async def map_helper(w, f, N_low, N_high, core_range, *args):
-    t = tsk.Timer()#None)
+    t = tsk.Timer(None)
     n_chunks = len(core_range)
     chunk_bounds = np.linspace(N_low, N_high, n_chunks + 1).astype(np.int32)
     out_chunks = [
@@ -62,15 +66,18 @@ async def super_chunk(w, args):
         *remaining_args
     )
 
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
 async def map(w, f_dref, N, *args, n_super_chunks = 8):
     if not hasattr(w, 'super_dref'):
         w.super_dref = put_fnc(w, super_chunk)
     if n_super_chunks == 1:
         return await super_chunk(w, [0, 1, 1, f_dref, N] + [list(args)])
-    return await map_helper(
+    return flatten(await map_helper(
         w, w.super_dref, 0, n_super_chunks, range(n_super_chunks),
         n_super_chunks, f_dref, N, args
-    )
+    ))
 
 async def submit(w):
     t = tsk.Timer()
@@ -81,9 +88,12 @@ async def submit(w):
     t.report('build csr')
     v = np.random.rand(nrows)
     t.report('gen v')
-    correct = np.empty(A.shape[0])
-    _sparse.csrmv(A.indptr, A.indices, A.data, v, correct, True)
-    t.report('serial1')
+    correct = v.copy() #np.empty(A.shape[0])
+    for i in range(100):
+        v[:] = correct
+        t.report('copy')
+        _sparse.csrmv(A.indptr, A.indices, A.data, v, correct, True)
+        t.report('csrmv')
 
     data_dref = tsk.put(w, value = A.data.data.cast('B'), eager_alloc = 1)
     indptr_dref = tsk.put(w, value = A.indptr.data.cast('B'), eager_alloc = 1)
@@ -91,12 +101,14 @@ async def submit(w):
     v_dref = tsk.put(w, value = v.data.cast('B'), eager_alloc = 1)
     t.report('put matrix')
 
+    print('total bytes', A.data.nbytes + A.indptr.nbytes + A.indices.nbytes + v.nbytes * 2)
+
 
     async def dot_chunk(w, args):
         t = tsk.Timer(None)
 
         start_row, end_row, out_dref = args
-        # print(w.addr, 'to start', time.time() - st)
+        # print(start_row, end_row)
 
         v_buf = await tsk.remote_get(w, v_dref)
         out_buf = await tsk.remote_get(w, out_dref)
@@ -110,15 +122,7 @@ async def submit(w):
         data = np.frombuffer(data_buf, dtype = np.float64)
         out = np.frombuffer(out_buf, dtype = np.float64)
 
-        #TODO: Why does copying speed this up? Alignment?
-        # v = v.copy()
-        # indptr = indptr.copy()
-        # indices = indices.copy()
-        # data = data.copy()
-        # out = out.copy()
-
         t.report(str(w.addr) + ' setup')
-        t.output_fnc = print
 
         inner_chunk_size = int(1e9)
         for i in range(0, indptr.shape[0], inner_chunk_size):
@@ -141,68 +145,89 @@ async def submit(w):
 
     n_super_chunks = int(np.floor(np.sqrt(n_cores)))
     async with tsk.Profiler(w, range(1)):
-        for i in range(5):
+        for i in range(50):
             await map(w, dot_chunk_dref, nrows, out_dref, n_super_chunks = n_super_chunks)
+            t.report('dot')
 
-    np.testing.assert_almost_equal(out, correct)
-    t.report('check')
+    # np.testing.assert_almost_equal(out, correct)
+    # t.report('check')
 
 async def submit2(w):
     t = tsk.Timer()
-    nrows = int(1e8)
+    nrows = int(5e7)
+    n_super_chunks = int(np.floor(np.sqrt(n_cores)))
 
-    A = make_test_matrix(nrows, 1)
-    t.report('build csr')
+    # A = make_test_matrix(nrows, 1)
+    # t.report('build csr')
+    # v = np.random.rand(nrows)
+    # t.report('gen v')
+    # correct = np.empty(A.shape[0])
+    # _sparse.csrmv(A.indptr, A.indices, A.data, v, correct, True)
+    # t.report('serial1')
+
+    # v_dref = w.memory.put(value = v.data.cast('B'), eager_alloc = 1)
+    # data_dref = w.memory.put(value = A.data.data.cast('B'), eager_alloc = 1)
+    # indptr_dref = w.memory.put(value = A.indptr.data.cast('B'), eager_alloc = 1)
+    # indices_dref = w.memory.put(value = A.indices.data.cast('B'), eager_alloc = 1)
+    # t.report('put matrix')
+
+    # async def build_local_matrix(w, args):
+    #     t = tsk.Timer(output_fnc = lambda x: None)
+    #     start_row, end_row = args
+
+    #     data_buf = await tsk.remote_get(w, data_dref)
+    #     indptr_buf = await tsk.remote_get(w, indptr_dref)
+    #     indices_buf = await tsk.remote_get(w, indices_dref)
+
+    #     indptr = np.frombuffer(indptr_buf, dtype = np.int32)[start_row:end_row+1].copy()
+    #     indices = np.frombuffer(indices_buf, dtype = np.int32)[indptr[0]:indptr[-1]].copy()
+    #     data = np.frombuffer(data_buf, dtype = np.float64)[indptr[0]:indptr[-1]].copy()
+    #     indptr -= indptr[0]
+
+    #     out = np.empty(end_row - start_row)
+
+    #     matrix = (indptr, indices, data, out)
+    #     matrix_dref = tsk.put(w, value = matrix)
+
+    #     v_buf = await tsk.remote_get(w, v_dref)
+    #     v = np.frombuffer(v_buf, dtype = np.float64).copy()
+    #     v_dref_out = tsk.put(w, value = v)
+    #     t.report(str(w.addr) + ' distribute')
+
+    #     return (v_dref_out, matrix_dref)
+    # build_dref = put_fnc(w, build_local_matrix)
+
+    # def rand_vec(w, args):
+    #     start_row, end_row = args
+    #     v_dref = tsk.put(w, value = np.random.rand(end_row - start_row).data.cast('B'), eager_alloc = 1)
+    #     return v_dref
+    # v_chunks = await map(w, rand_vec, nrows, n_super_chunks = n_super_chunks)
+
     v = np.random.rand(nrows)
-    t.report('gen v')
-    correct = A.dot(v)
-    t.report('serial')
-    print('')
-
-    n_chunks = n_cores
-    chunk_bounds = np.linspace(0, nrows, n_chunks + 1).astype(np.int32)
     v_dref = w.memory.put(value = v.data.cast('B'), eager_alloc = 1)
-    data_dref = w.memory.put(value = A.data.data.cast('B'), eager_alloc = 1)
-    indptr_dref = w.memory.put(value = A.indptr.data.cast('B'), eager_alloc = 1)
-    indices_dref = w.memory.put(value = A.indices.data.cast('B'), eager_alloc = 1)
-    t.report('put matrix')
+    t.report('gen v')
 
-    async def build_local_matrix(w, args):
-        t = tsk.Timer(output_fnc = lambda x: None)
+    async def build_matrix(w, args):
         start_row, end_row = args
-
-        data_buf = await tsk.remote_get(w, data_dref)
-        indptr_buf = await tsk.remote_get(w, indptr_dref)
-        indices_buf = await tsk.remote_get(w, indices_dref)
-
-        indptr = np.frombuffer(indptr_buf, dtype = np.int32)[start_row:end_row+1].copy()
-        indices = np.frombuffer(indices_buf, dtype = np.int32)[indptr[0]:indptr[-1]].copy()
-        data = np.frombuffer(data_buf, dtype = np.float64)[indptr[0]:indptr[-1]].copy()
-        indptr -= indptr[0]
-
+        A = make_test_matrix(end_row - start_row, 1)
         out = np.empty(end_row - start_row)
 
-        matrix = (indptr, indices, data, out)
+        matrix = (A.indptr, A.indices, A.data, out)
         matrix_dref = tsk.put(w, value = matrix)
 
+        # v_dref_out = v_dref
+        # vs = []
+        # for vc in v_chunks:
+        #     vs.append(np.frombuffer(await tsk.remote_get(w, vc), dtype = np.float64))
+        # v = np.concatenate(vs)
         v_buf = await tsk.remote_get(w, v_dref)
         v = np.frombuffer(v_buf, dtype = np.float64).copy()
         v_dref_out = tsk.put(w, value = v)
-        t.report(str(w.addr) + ' distribute')
 
         return (v_dref_out, matrix_dref)
-    build_dref = put_fnc(w, build_local_matrix)
+    build_dref = put_fnc(w, build_matrix)
 
-    matrix_chunks = [
-        tsk.task(
-            w, build_dref,
-            [chunk_bounds[i], chunk_bounds[i + 1]],
-            to = i
-        )
-        for i in range(n_chunks)
-    ]
-    for i in range(n_chunks):
-        matrix_chunks[i] = await matrix_chunks[i]
+    matrix_chunks = await map(w, build_dref, nrows, n_super_chunks = n_super_chunks)
     t.report('distribute matrix')
 
     async def dot(w, args):
@@ -213,10 +238,12 @@ async def submit2(w):
         assert(iend == istart + 1)
         # st, i = args
         v_dref, matrix_dref = matrix_chunks[istart]
-        print(w.addr, 'took', time.time() - st, 'to launch')
+        # print(w.addr, 'took', time.time() - st, 'to launch')
 
         indptr, indices, data, out = w.memory.get_local(matrix_dref)
         v = w.memory.get_local(v_dref)
+        # v_buf = await tsk.remote_get(w, v_dref)
+        # v = np.frombuffer(v_buf, dtype = np.float64)
 
         inner_chunk_size = int(1e9)
         t.report(str(w.addr) + ' setup')
@@ -235,16 +262,17 @@ async def submit2(w):
     dot_dref = put_fnc(w, dot)
 
     # await run_dot()
-    n_super_chunks = 1#int(np.floor(np.sqrt(n_cores)))
-    async with tsk.Profiler(w, range(1)):
-        for i in range(5):
+    async with tsk.Profiler(w, range(0)):
+        t.report('put/startprof')
+        for i in range(4):
             print('')
             print('')
             print('')
-            await map(w, dot_dref, n_chunks, time.time(), n_super_chunks = n_super_chunks)
+            await map(w, dot_dref, len(matrix_chunks), time.time(), n_super_chunks = n_super_chunks)
+            t.report('dot')
 
-tsk.cluster(n_cores, submit)
-# tsk.cluster(n_cores, submit2)
+# tsk.cluster(n_cores, submit)
+tsk.cluster(n_cores, submit2)
 
 
 
