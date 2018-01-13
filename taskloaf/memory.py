@@ -81,7 +81,7 @@ class MemoryManager:
         return self.next_id - 1
 
     def put(self, *, value = None, serialized = None, dref = None, eager_alloc = 0):
-        mem = self.existing_memory(value, serialized, eager_alloc)
+        mem = self._existing_memory(value, serialized, eager_alloc)
         if dref is None:
             put_fnc = self.put_new
         elif dref.owner != self.worker.addr:
@@ -91,7 +91,7 @@ class MemoryManager:
 
         return put_fnc(mem, dref)
 
-    def existing_memory(self, value, serialized, eager_alloc):
+    def _existing_memory(self, value, serialized, eager_alloc):
         mem = Memory()
         if value is not None:
             mem.set_value(value)

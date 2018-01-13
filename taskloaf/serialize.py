@@ -5,17 +5,16 @@ from io import BytesIO
 import taskloaf.worker
 
 marker = 'taskloaf.worker'
+def persistent_id(self, obj):
+    if isinstance(obj, taskloaf.worker.Worker):
+        return marker
+    return None
+
 class CloudPicklerWithCtx(cloudpickle.CloudPickler):
-    def persistent_id(self, obj):
-        if isinstance(obj, taskloaf.worker.Worker):
-            return marker
-        return None
+    persistent_id = persistent_id
 
 class PicklerWithCtx(pickle.Pickler):
-    def persistent_id(self, obj):
-        if isinstance(obj, taskloaf.worker.Worker):
-            return marker
-        return None
+    persistent_id = persistent_id
 
 class UnpicklerWithCtx(pickle.Unpickler):
     def __init__(self, w, file):

@@ -273,27 +273,3 @@ async def submit2(w):
 
 # tsk.cluster(n_cores, submit)
 tsk.cluster(n_cores, submit2)
-
-
-
-
-#TODO: Add another special case for returning a dref?
-# out_dref = tsk.alloc(w, 8 * nrows)
-# out_mem = w.memory.get_local(out_dref)
-# out = np.frombuffer(out_mem, dtype = np.float64)
-# out[:] = 0
-# # out = np.zeros(nrows)
-# t.report(str(w.addr) + ' setup')
-# print('inner chunks:', data.shape[0] / inner_chunk_size)
-# for i in range(0, data.shape[0], inner_chunk_size):
-#     _sparse.coomv(
-#         rows[i:(i + inner_chunk_size)],
-#         cols[i:(i + inner_chunk_size)],
-#         data[i:(i + inner_chunk_size)],
-#         v,
-#         out
-#     )
-#     await asyncio.sleep(0)
-# t.report(str(w.addr) + ' dot')
-# # return out.data.cast('B')
-# return out_dref

@@ -131,7 +131,6 @@ def ensure_dref_if_remote(worker, v, to):
         return v
     return worker.memory.put(value = v, eager_alloc = 2)
 
-# BAD OLD COMMENT?
 # f and args can be provided in two forms:
 # -- a python object (f should be callable or awaitable)
 # -- a dref to a serialized object in the memory manager

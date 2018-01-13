@@ -2,8 +2,8 @@ import os
 import taskloaf.shmem
 import math
 
-# shm_root = '/dev/shm'
-shm_root = '/mnt/hugepages'
+shm_root = '/dev/shm'
+# shm_root = '/mnt/hugepages'
 def get_shmem_filepath(addr):
     return os.path.join(shm_root, 'taskloaf') + str(addr)
 
