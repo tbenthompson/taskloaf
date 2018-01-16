@@ -3,8 +3,6 @@ import time
 import multiprocessing
 import asyncio
 
-from taskloaf.serialize import loads, dumps
-
 class LocalComm:
     def __init__(self, local_queues, addr):
         self.local_queues = local_queues

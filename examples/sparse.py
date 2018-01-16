@@ -29,9 +29,7 @@ def make_test_matrix(nrows, nnzperrow):
     return A
 
 def put_fnc(w, f):
-    f_bytes = tsk.serialize.dumps(f)
-    assert(len(f_bytes) < 5e4)
-    return tsk.put(w,serialized = f_bytes)
+    return tsk.put(w, value = f, eager_alloc = 2)
 
 # def distorted_linspace(a, b, n):
 #     split = int(np.floor((b - a) * 0.2)) + a
