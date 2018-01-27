@@ -20,7 +20,10 @@ class Shmem:
 
         # This is some crooked trickery to create a memoryview from the mmap
         # without mmap knowing about it so that the mmap can be closed without
-        # tracking its references
+        # tracking its references (this WILL cause seg faults if there are
+        # existing references to the mmap segment when it's deleted)
+        # TODO: An alternative might be to call gc.collect before
+        # self.mmap.close
         import numpy as np
         import ctypes
         temp_np = np.frombuffer(self.mmap, dtype = np.uint8)

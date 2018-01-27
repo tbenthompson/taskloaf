@@ -18,31 +18,30 @@ class StartMsg:
     def __init__(self, n_items):
         self.n_items = n_items
 
-import cppimport.import_hook
-import taskloaf.cppworker
-MPIComm = taskloaf.cppworker.MPIComm
-# class MPIComm:
-#     default_comm = MPI.COMM_WORLD
-#
-#     # multi part messages can be done with tags.
-#     def __init__(self, comm = None):
-#         if comm is None:
-#             comm = MPIComm.default_comm
-#         self.comm = comm
-#         self.addr = rank(self.comm)
-#
-#     def send(self, to_addr, data):
-#         print(self.addr, len(data))
-#         self.comm.Isend(data.obj, dest = to_addr)
-#
-#     def recv(self):
-#         s = MPI.Status()
-#         msg_exists = self.comm.iprobe(status = s)
-#         if not msg_exists:
-#             return None
-#         out = memoryview(bytearray(s.count))
-#         self.comm.Recv(out, source = s.source)
-#         return out
+# import cppimport.import_hook
+# import taskloaf.cppworker
+# MPIComm = taskloaf.cppworker.MPIComm
+class MPIComm:
+    default_comm = MPI.COMM_WORLD
+
+    # multi part messages can be done with tags.
+    def __init__(self, comm = None):
+        if comm is None:
+            comm = MPIComm.default_comm
+        self.comm = comm
+        self.addr = rank(self.comm)
+
+    def send(self, to_addr, data):
+        self.comm.Isend(data.obj, dest = to_addr)
+
+    def recv(self):
+        s = MPI.Status()
+        msg_exists = self.comm.iprobe(status = s)
+        if not msg_exists:
+            return None
+        out = memoryview(bytearray(s.count))
+        self.comm.Recv(out, source = s.source)
+        return out
 
 def mpirun(n_workers, f):
     # D = os.path.dirname(inspect.stack()[-1].filename)

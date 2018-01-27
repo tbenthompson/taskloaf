@@ -13,8 +13,8 @@ def put(worker, *, value = None, serialized = None, eager_alloc = 0):
 def get(worker, dref):
     return worker.memory.get_local(dref)
 
-def alloc(worker, size):
-    return worker.memory.alloc(size)
+def alloc(worker, nbytes):
+    return worker.memory.alloc(nbytes)
 
 
 class RefCount:

@@ -10,8 +10,8 @@ import asyncio
 import uvloop
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
-n_jobs = 10000
-job_size = 1000
+n_jobs = 100
+job_size = 100000
 def invert(w, A):
     Ainv = np.linalg.inv(A)
     return None
