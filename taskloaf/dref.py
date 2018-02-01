@@ -2,6 +2,7 @@ import attr
 
 @attr.s
 class ShmemPtr:
+    #TODO: Move this into taskloaf.memory.Memory and set it in serialize_bytes
     needs_deserialize = attr.ib()
     start = attr.ib()
     end = attr.ib()

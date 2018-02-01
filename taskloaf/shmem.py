@@ -9,6 +9,15 @@ def get_size_from_fd(fd):
 def mmap_full_file(fd):
     return mmap.mmap(fd, get_size_from_fd(fd))
 
+page4kb = 2 ** 12
+page2MB = 2 ** 21
+page1GB = 2 ** 30
+
+def roundup_to_multiple(n, alignment):
+    # alignment must be a power of 2
+    mask = alignment - 1
+    return (n + mask) & ~mask
+
 class Shmem:
     def __init__(self, filepath):
         self.filepath = filepath
