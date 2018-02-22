@@ -37,33 +37,49 @@ class RefCount:
 def is_bytes(v):
     return isinstance(v, bytes) or isinstance(v, memoryview)
 
-#TODO: better name!
-@attr.s
-class Memory:
-    has_value = attr.ib(default = False)
-    value = attr.ib(default = None)
-    has_serialized = attr.ib(default = False)
-    serialized = attr.ib(default = None)
+# TODO: Separate the responsibilities? Currently MemoryManager has two responsibilities:
+# 1) create/tracking reference counted objects
+# 2) deciding when to serialize and deserialize objects.
+# 3) caching accessed objects
+# This feels weird and is hard to program nicely... what if an object requires custom deserialization?
+# maybe there's a better approach where memorymanager only deals in already-serialized objects?
+# but that has the downside that sometimes objects that don't need to be serialized get serialized.
+# hiding the decision of whether or not to serialize from the user sounds ideal...
+# on the other hand, that's not a feature that I'm currently using.
+#
+# an alternate design: this system only deals with the reference counting and we can scrub out all the serialization code.
+# then on top of this: a MaybeSerializedDistributedRef can be created that contains a pointer to the value. the serialization rules for such a dref would be identical to the serialization rules for a normal dref. when a maybeserializeddref is serialized, then the underlying object would also be serialized, along with the deserialization function
+# or... put could return a dref with the object stored in place requiring no interaction with the memory manager at all. then, once that dref is copied somewhere, the object would be put into the memory manager. this may be my favorite option. "single-owner-optimization"... or put differently, it's a unique_ptr to the dref shared_ptr, but I want both to behave the same way... since this event occurs on the sender side, the serialized blob can be allocated without any extra communication and I can get rid of the ugly eager_alloc hack.
 
-    def set_value(self, v):
-        self.has_value = True
-        self.value = v
+# add a level of indirection in DistributedRef with "impl"?
+# also use UniqueRef in some of the internals? essentially when a UniqueRef is serialized, the original reference is destroyed, so that there is always only one reference to the memory. when a reference hits __del__, the original data is remotely freed. when the data is copied to another worker, the original data is immediately freed and the uniqueref is updated to point to the new memory location. this functioning properly relies on a mechanism to prevent copying the reference in the vulnerable period while it is serialized already...
+# perhaps there should be some explicitness to the "move" operation for a uniqueref? also disable copying!
 
-    def set_serialized(self, s):
-        self.has_serialized = True
-        self.serialized = s
+# both schemes require a way to deal with custom serialization/deserialization, this is partially represented at the moment by the "needs_deserialize" flag, which is a completely silly hack...
+# _taskloaf_serialize and _taskloaf_deserialize monkeypatched into classes that need to have custom serialization?
 
-@attr.s
-class Block:
-    memory = attr.ib()
-    ownership = attr.ib()
+# should there be a way to pre-allocate certain shared objects on all the machines? essentially the distributed version of a "constant". this could be useful for sharing (de)serialization functions and other functions/data needed by the whole cluster. easier than having some scatter phase that wastes start up time on the task.
+
+# At what level should I specify the serialization/deserialization functions?
+# -- system
+# -- as method of the class
+# -- as methods of the object
+# -- as methods separately passed to "put"
+# I think allowing access to raw, uncontrolled buffers via "alloc" restricts my options somewhat.
+# Actually, I think the status quo is the best option. taskloaf uses cloudpickle, but the user can use their own serialization if they want.
+
+#
+# class Transformer:
+#     pass
 
 # The value that is "put" into the memory manager should always be the same as
 # the value that is "get" from the memory manager, even if the object must be
 # serialized and sent across the network.
 class MemoryManager:
     def __init__(self, worker, allocator):
-        self.blocks = dict()
+        self.local_entries = dict()
+        self.serialized_entries = dict()
+        self.entries = dict()
         self.worker = worker
         self.worker.protocol.add_msg_type(
             'DECREF',
@@ -74,7 +90,7 @@ class MemoryManager:
         self.allocator = allocator
 
     def n_entries(self):
-        return len(self.blocks)
+        return len(self.entries)
 
     def get_new_id(self):
         self.next_id += 1
@@ -112,22 +128,22 @@ class MemoryManager:
     def put_owned(self, mem, dref):
         if mem.has_serialized:
             dref.shmem_ptr = mem.serialized
-        self.blocks[dref.index()] = Block(memory = mem, ownership = RefCount())
+        self.entries[dref.index()] = Block(memory = mem, ownership = RefCount())
         return dref
 
     def put_remote(self, mem, dref):
-        self.blocks[dref.index()] = Block(memory = mem, ownership = None)
+        self.entries[dref.index()] = Block(memory = mem, ownership = None)
         return dref
 
     def alloc(self, size):
         mem = Memory()
-        ptr = ShmemPtr(False, *self.allocator.alloc(size))
+        ptr = ShmemPtr(False, *self.allocator.malloc(size))
         mem.set_value(ptr.dereference(self.allocator.mem))
         mem.set_serialized(ptr)
         return self.put_new(mem, None)
 
     def get_memory(self, dref):
-        return self.blocks[dref.index()].memory
+        return self.entries[dref.index()].memory
 
     def ensure_deserialized(self, dref):
         blk_mem = self.get_memory(dref)
@@ -164,17 +180,17 @@ class MemoryManager:
         ))
 
     def available(self, dref):
-        return dref.index() in self.blocks
+        return dref.index() in self.entries
 
     def delete(self, dref):
-        del self.blocks[dref.index()]
+        del self.entries[dref.index()]
 
     def dec_ref_owned(self, creator, _id, gen, n_children):
         idx = (creator, _id)
-        refcount = self.blocks[idx].ownership
+        refcount = self.entries[idx].ownership
         refcount.dec_ref(gen, n_children)
         if not refcount.alive():
-            del self.blocks[idx]
+            del self.entries[idx]
 
     def dec_ref(self, creator, _id, gen, n_children, owner):
         if owner != self.worker.addr:

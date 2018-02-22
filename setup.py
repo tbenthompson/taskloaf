@@ -9,7 +9,7 @@ except (IOError, ImportError):
 setup(
     packages = ['taskloaf'],
 
-    install_requires = ['uvloop', 'cloudpickle', 'mpi4py', 'pycapnp],
+    install_requires = ['uvloop', 'cloudpickle', 'mpi4py', 'pycapnp'],
     zip_safe = False,
     entry_points = {},
 

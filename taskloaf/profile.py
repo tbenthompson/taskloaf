@@ -1,7 +1,7 @@
 import taskloaf as tsk
-import pyinstrument
 
 def start_profiler(w):
+    import pyinstrument
     profiler = pyinstrument.Profiler()
     profiler.start()
     return profiler

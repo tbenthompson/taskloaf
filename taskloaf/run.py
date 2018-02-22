@@ -3,12 +3,21 @@ import taskloaf.memory
 import taskloaf.promise
 import taskloaf.allocator
 import taskloaf.get
+import taskloaf.refcounting
 import contextlib
 
 def add_plugins(worker):
-    alloc = taskloaf.allocator.Allocator(worker.addr, worker.exit_stack)
-    worker.remote_shmem = taskloaf.allocator.RemoteShmemRepo(worker.exit_stack)
-    worker.memory = taskloaf.memory.MemoryManager(worker, alloc)
+    block_root_path = '/dev/shm/taskloaf_' + str(worker.addr) + '_'
+    block_manager = worker.exit_stack.enter_context(contextlib.closing(
+        taskloaf.allocator.BlockManager(block_root_path)
+    ))
+    worker.allocator = worker.exit_stack.enter_context(contextlib.closing(
+        taskloaf.allocator.ShmemAllocator(block_manager)
+    ))
+    worker.ref_manager = taskloaf.refcounting.RefManager(worker)
+    worker.object_cache = dict()
+    # worker.remote_shmem = taskloaf.allocator.RemoteShmemRepo(worker.exit_stack)
+    # worker.memory = taskloaf.memory.MemoryManager(worker, alloc)
     taskloaf.promise.setup_protocol(worker)
     taskloaf.get.setup_protocol(worker)
     return worker

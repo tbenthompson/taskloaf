@@ -83,10 +83,10 @@ def test_decref_local():
     with null_comm_worker() as w:
         mm = w.memory
         dref = put(w, value = 1)
-        assert(len(mm.blocks.keys()) == 1)
+        assert(len(mm.entries.keys()) == 1)
         del dref
         gc.collect() # Force a GC collect to make sure that dref.__del__ is called
-        assert(len(mm.blocks.keys()) == 0)
+        assert(len(mm.entries.keys()) == 0)
 
 def test_decref_encode():
     with null_comm_worker() as w:
