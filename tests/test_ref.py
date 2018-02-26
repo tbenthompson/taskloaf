@@ -64,6 +64,10 @@ def ref_serialization_tester(w, sfnc, dfnc):
     del gcr
     assert(len(w.ref_manager.entries) == 1)
     gcr2 = dfnc(w, ref_bytes)
+    assert(syncawait(gcr2.get()) == 10)
+    del w.object_cache[gcr2.key()]
+    assert(syncawait(gcr2.get()) == 10)
+
     del gcr2
     gc.collect()
     assert(len(w.ref_manager.entries) == 0)
@@ -104,5 +108,6 @@ def test_get():
             w.submit_work(0, h)
         w.submit_work(1, g)
         while True:
-            await asyncio.sleep(0)
+            print("HI")
+            await asyncio.sleep(0.5)
     cluster(2, f)

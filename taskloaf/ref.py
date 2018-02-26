@@ -1,5 +1,6 @@
 import asyncio
 import taskloaf.serialize
+import taskloaf.allocator
 
 def put(worker, obj):
     return Ref(worker, obj)
@@ -143,13 +144,15 @@ class GCRef:
         ref._id = m.id
         ref.gen = m.gen
         ref.deserialize = m.deserialize
-        ref.ptr = None #TODO
+        ref.ptr = taskloaf.allocator.Ptr(
+            start = m.ptr.start,
+            end = m.ptr.end,
+            block = worker.remote_shmem.get_block(ref.owner, m.ptr.blockIdx)
+        )
         ref.n_children = 0
         ref.worker = worker
         return ref
 
-    def __getstate__(self):
-        raise Exception()
 
 def setup_protocol(worker):
     worker.protocol.add_msg_type(
@@ -163,14 +166,15 @@ class GCRefListMsg:
     @staticmethod
     def serialize(refs):
         msg = taskloaf.message_capnp.Message.new_message()
-        msg.init('refList', len(refs))
+        msg.init('arbitrary')
+        msg.arbitrary.init('refList', len(refs))
         for i in range(len(refs)):
-            refs[i].encode_capnp(msg.refList[i])
+            refs[i].encode_capnp(msg.arbitrary.refList[i])
         return msg
 
     @staticmethod
     def deserialize(worker, msg):
-        return [GCRef.decode_capnp(worker, ref) for ref in msg.refList]
+        return [GCRef.decode_capnp(worker, ref) for ref in msg.arbitrary.refList]
 
 class RemotePutMsg:
     @staticmethod

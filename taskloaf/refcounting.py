@@ -48,7 +48,7 @@ class RefManager:
         self.worker.protocol.add_msg_type(
             'DECREF',
             type = DecRefMsg,
-            handler = lambda w, x: lambda worker: worker.memory.dec_ref_owned(*x)
+            handler = lambda worker, x: lambda worker: worker.memory.dec_ref_owned(*x)
         )
 
     def dec_ref_owned(self, _id, gen, n_children):

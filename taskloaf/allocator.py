@@ -5,7 +5,7 @@ from math import log, ceil
 
 import attr
 
-import taskloaf.shmem as shmem
+import taskloaf.shmem
 
 def get_memory_used():
     import os
@@ -22,26 +22,50 @@ class Ptr:
     def deref(self):
         return self.block.shmem.mem[self.start:self.end]
 
-
 class MemoryBlock:
-    def __init__(self, filepath, idx, size):
+    def __init__(self, filepath, idx, shmem, _close):
         self.filepath = filepath
         self.idx = idx
-        self.size = size
-        with ExitStack() as es:
-            es.enter_context(shmem.alloc_shmem(
-                self.size, self.filepath
-            ))
-            self.shmem = es.enter_context(shmem.Shmem(self.filepath))
-            self._close = es.pop_all().close
+        self.shmem = shmem
+        self.size = shmem.size
+        self._close = _close
 
     def close(self, *args, **kwargs):
         out = self._close(*args, **kwargs)
         del self.shmem
 
+def alloc_memory_block(filepath, idx, size):
+    with ExitStack() as es:
+        es.enter_context(taskloaf.shmem.alloc_shmem(
+            size, filepath
+        ))
+        shmem = es.enter_context(taskloaf.shmem.Shmem(filepath))
+        return MemoryBlock(filepath, idx, shmem, es.pop_all().close)
+
+def load_memory_block(filepath, idx):
+    with ExitStack() as es:
+        shmem = es.enter_context(taskloaf.shmem.Shmem(filepath))
+        return MemoryBlock(filepath, idx, shmem, es.pop_all().close)
+
+class RemoteShmemRepo:
+    def __init__(self, block_root_path):
+        self.block_root_path = block_root_path
+        self.blocks = dict()
+
+    def get_block(self, owner, block_idx):
+        key = (owner, block_idx)
+        if key not in self.blocks:
+            filepath = self.block_root_path + str(owner) + '_' + str(block_idx)
+            self.blocks[key] = load_memory_block(filepath, block_idx)
+        return self.blocks[key]
+
+    def close(self):
+        for k, v in self.blocks.items():
+            v.close()
+        self.blocks.clear()
 
 class BlockManager:
-    def __init__(self, root_path, page_size = shmem.page4kb):
+    def __init__(self, root_path, page_size = taskloaf.shmem.page4kb):
         self.root_path = root_path
         self.page_size = page_size
         self.idx = 0
@@ -53,7 +77,7 @@ class BlockManager:
     def new_block(self, size):
         idx = self.idx
         self.idx += 1
-        block = MemoryBlock(self.get_path(idx), idx, size)
+        block = alloc_memory_block(self.get_path(idx), idx, size)
         self.blocks[idx] = block
         return block
 
@@ -116,7 +140,9 @@ class Pool:
             block_size = block_manager.page_size
         self.block_manager = block_manager
         self.chunk_size = chunk_size
-        self.block_size = shmem.roundup_to_multiple(block_size, block_manager.page_size)
+        self.block_size = taskloaf.shmem.roundup_to_multiple(
+            block_size, block_manager.page_size
+        )
         assert(self.chunk_size <= self.block_size)
 
         self.blocks = dict()
@@ -186,7 +212,7 @@ class ShmemAllocator:
             return self.pool_malloc(nbytes)
 
     def mmap_malloc(self, nbytes):
-        full_nbytes = shmem.roundup_to_multiple(
+        full_nbytes = taskloaf.shmem.roundup_to_multiple(
             nbytes, self.block_manager.page_size
         )
         block = self.block_manager.new_block(full_nbytes)

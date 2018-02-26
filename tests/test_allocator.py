@@ -6,7 +6,7 @@ import numpy as np
 
 from taskloaf.allocator import *
 
-block_manager = BlockManager('/dev/shm/pool', shmem.page4kb)
+block_manager = BlockManager('/dev/shm/pool', taskloaf.shmem.page4kb)
 
 def check_ptr(ptr):
     x = np.frombuffer(ptr.deref())
@@ -35,6 +35,13 @@ def test_pool_block():
         pb.free(ptr2)
         pb.free(ptr3)
         assert(pb.empty())
+
+def test_reload_block():
+    block = block_manager.new_block(80)
+    np.frombuffer(block.shmem.mem)[:] = np.arange(10)
+    with closing(load_memory_block(block.filepath, block.idx)) as block2:
+        np.testing.assert_almost_equal(np.frombuffer(block2.shmem.mem), np.arange(10))
+    block_manager.free_block(block)
 
 def test_pool():
     with closing(Pool(block_manager, 2 ** 11)) as p:
@@ -115,8 +122,8 @@ def benchmark():
     from taskloaf.timer import Timer
     import gc
     t = Timer()
-    block_manager = BlockManager('/dev/shm/pool', shmem.page4kb)
-    # block_manager = BlockManager('/mnt/hugepages/pool', shmem.page2MB)
+    block_manager = BlockManager('/dev/shm/pool', taskloaf.shmem.page4kb)
+    # block_manager = BlockManager('/mnt/hugepages/pool', taskloaf.shmem.page2MB)
     ratio_malloc = 0.99
     with closing(ShmemAllocator(block_manager, block_size_exponent = 20)) as a:
         start_mem = get_memory_used()

@@ -6,16 +6,19 @@ import taskloaf.ref
 import contextlib
 
 def add_plugins(worker):
-    block_root_path = '/dev/shm/taskloaf_' + str(worker.addr) + '_'
+    block_root_path = '/dev/shm/taskloaf_'
+    local_root_path = block_root_path + str(worker.addr)
+    worker.remote_shmem = worker.exit_stack.enter_context(contextlib.closing(
+        taskloaf.allocator.RemoteShmemRepo(block_root_path)
+    ))
     block_manager = worker.exit_stack.enter_context(contextlib.closing(
-        taskloaf.allocator.BlockManager(block_root_path)
+        taskloaf.allocator.BlockManager(local_root_path)
     ))
     worker.allocator = worker.exit_stack.enter_context(contextlib.closing(
         taskloaf.allocator.ShmemAllocator(block_manager)
     ))
     worker.ref_manager = taskloaf.refcounting.RefManager(worker)
     worker.object_cache = dict()
-    # worker.remote_shmem = taskloaf.allocator.RemoteShmemRepo(worker.exit_stack)
     taskloaf.ref.setup_protocol(worker)
     taskloaf.promise.setup_protocol(worker)
     return worker

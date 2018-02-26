@@ -63,15 +63,9 @@ class Worker:
     def addr(self):
         return self.comm.addr
 
-    def schedule_work_here(self, type_code, args):
-        self.work.append(self.protocol.handle(self, type_code, args))
-
     def send(self, to, type_code, objs):
-        if self.addr == to:
-            self.schedule_work_here(type_code, objs)
-        else:
-            data = self.protocol.encode(self, type_code, objs)
-            self.comm.send(to, data)
+        data = self.protocol.encode(self, type_code, objs)
+        self.comm.send(to, data)
 
     def submit_work(self, to, f):
         self.send(to, self.protocol.WORK, [f])
@@ -117,7 +111,7 @@ class Worker:
         if msg is not None:
             m, args = self.protocol.decode(self, memoryview(msg))
             self.cur_msg = m
-            self.schedule_work_here(m.typeCode, args)
+            self.work.append(self.protocol.handle(self, m.typeCode, args))
             self.cur_msg = None
 
     async def poll_loop(self):
