@@ -2,25 +2,25 @@ import asyncio
 import capnp
 
 import taskloaf.serialize
-from taskloaf.memory import DistributedRef
-from taskloaf.get import remote_get, DRefListSerializer
+from taskloaf.ref import GCRefListMsg
 
 def setup_protocol(worker):
-    worker.protocol.add_msg_type(
-        'TASK',
-        serializer = DRefListSerializer,
-        handler = task_runner_builder
-    )
-    worker.protocol.add_msg_type(
-        'SETRESULT',
-        serializer = DRefListSerializer,
-        handler = set_result_builder
-    )
-    worker.protocol.add_msg_type(
-        'AWAIT',
-        serializer = DRefListSerializer,
-        handler = await_builder
-    )
+    pass
+    # worker.protocol.add_msg_type(
+    #     'TASK',
+    #     serializer = DRefListSerializer,
+    #     handler = task_runner_builder
+    # )
+    # worker.protocol.add_msg_type(
+    #     'SETRESULT',
+    #     serializer = DRefListSerializer,
+    #     handler = set_result_builder
+    # )
+    # worker.protocol.add_msg_type(
+    #     'AWAIT',
+    #     serializer = DRefListSerializer,
+    #     handler = await_builder
+    # )
 
 def await_builder(worker, args):
     pr_dref = args[0]

@@ -1,9 +1,8 @@
 import taskloaf.worker
-import taskloaf.memory
 import taskloaf.promise
 import taskloaf.allocator
-import taskloaf.get
 import taskloaf.refcounting
+import taskloaf.ref
 import contextlib
 
 def add_plugins(worker):
@@ -17,9 +16,8 @@ def add_plugins(worker):
     worker.ref_manager = taskloaf.refcounting.RefManager(worker)
     worker.object_cache = dict()
     # worker.remote_shmem = taskloaf.allocator.RemoteShmemRepo(worker.exit_stack)
-    # worker.memory = taskloaf.memory.MemoryManager(worker, alloc)
+    taskloaf.ref.setup_protocol(worker)
     taskloaf.promise.setup_protocol(worker)
-    taskloaf.get.setup_protocol(worker)
     return worker
 
 @contextlib.contextmanager

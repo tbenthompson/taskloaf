@@ -13,33 +13,33 @@
 # (creator, _id) tuple.
 
 struct ShmemPtr {
-    needsDeserialize @0 :Bool;
-    start @1 :Int64;
-    end @2 :Int64;
+    start @0 :Int64;
+    end @1 :Int64;
+    blockIdx @2 :Int64;
 }
 
-struct DistributedRef {
+struct GCRef {
     owner @0 :UInt32;
-    creator @1 :UInt32;
-    id @2 :Int64;
-    gen @3 :UInt32;
-    shmemPtr @4 :ShmemPtr;
+    id @1 :Int64;
+    gen @2 :UInt32;
+    deserialize @3 :Bool;
+    ptr @4 :ShmemPtr;
 }
 
 struct DecRef {
-    creator @0 :Int64;
-    id @1 :Int64;
-    gen @2 :Int64;
-    nchildren @3 :Int64;
+    id @0 :Int64;
+    gen @1 :Int64;
+    nchildren @2 :Int64;
 }
 
 struct RemotePut {
-    dref @0 :DistributedRef;
-    val @1 :Data;
+    dref @0 :GCRef;
+    val @1 :Arbitrary;
 }
 
 struct Arbitrary {
-    bytes @0 :Data;
+    refList @0 :List(GCRef);
+    bytes @1 :Data;
 }
 
 # Unions are probably kind of slow, but...
@@ -51,9 +51,8 @@ struct Message {
     typeCode @0 :Int64;
     sourceAddr @1 :Int64;
     union {
-        drefList @2 :List(DistributedRef);
+        decRef @2 :DecRef;
         remotePut @3 :RemotePut;
-        decRef @4 :DecRef;
-        arbitrary @5 :Arbitrary;
+        arbitrary @4 :Arbitrary;
     }
 }

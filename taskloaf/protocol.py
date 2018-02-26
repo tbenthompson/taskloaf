@@ -1,9 +1,8 @@
 import capnp
 import taskloaf.message_capnp
-import taskloaf.memory
 import taskloaf.serialize
 
-class CloudPickleSerializer:
+class CloudPickleMsg:
     @staticmethod
     def serialize(args):
         m = taskloaf.message_capnp.Message.new_message()
@@ -20,12 +19,12 @@ class Protocol:
         self.msg_types = []
 
     def add_msg_type(self, name, *,
-            serializer = CloudPickleSerializer,
+            type = CloudPickleMsg,
             handler = None):
 
         type_code = len(self.msg_types)
         setattr(self, name, type_code)
-        self.msg_types.append((serializer, handler, name))
+        self.msg_types.append((type, handler, name))
         return type_code
 
     def encode(self, worker, type_code, *args):

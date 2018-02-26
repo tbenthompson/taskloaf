@@ -154,11 +154,3 @@ def test_remote_double_get():
         await t1
         await t2
     cluster(2, f)
-
-from taskloaf.serialize import InPlaceByteWriter
-def test_inplace():
-    m = bytearray(13)
-    bw = InPlaceByteWriter(memoryview(m))
-    import pickle
-    pickle.dump('abc', bw)
-    assert(m == pickle.dumps('abc'))
