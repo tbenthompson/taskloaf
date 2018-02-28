@@ -7,12 +7,12 @@ class CloudPickleMsg:
     def serialize(args):
         m = taskloaf.message_capnp.Message.new_message()
         m.init('arbitrary')
-        m.arbitrary.bytes = taskloaf.serialize.dumps(args)
+        m.arbitrary.blob = taskloaf.serialize.dumps(args)
         return m
 
     @staticmethod
     def deserialize(w, m):
-        return taskloaf.serialize.loads(w, m.arbitrary.bytes)
+        return taskloaf.serialize.loads(w, m.arbitrary.blob)
 
 class Protocol:
     def __init__(self):
@@ -40,7 +40,7 @@ class Protocol:
         return m, deserialize(worker, m)
 
     def handle(self, worker, type_code, x):
-        return self.msg_types[type_code][1](worker, x)
+        self.msg_types[type_code][1](worker, x)
 
     def get_name(self, type_code):
         return self.msg_types[type_code][2]

@@ -26,7 +26,10 @@ class Worker:
         self.st = time.time()
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
-        self.protocol.add_msg_type('WORK', handler = lambda w, x: x[0])
+
+        def handle_new_work(w, x):
+            w.work.append(x[0])
+        self.protocol.add_msg_type('WORK', handler = handle_new_work)
         self.exception = None
         self.next_id = 0
 
@@ -68,7 +71,10 @@ class Worker:
         self.comm.send(to, data)
 
     def submit_work(self, to, f):
-        self.send(to, self.protocol.WORK, [f])
+        if to == self.addr:
+            self.work.append(f)
+        else:
+            self.send(to, self.protocol.WORK, [f])
 
     def make_free_task(self, f, args):
         async def free_task_wrapper():
@@ -111,7 +117,7 @@ class Worker:
         if msg is not None:
             m, args = self.protocol.decode(self, memoryview(msg))
             self.cur_msg = m
-            self.work.append(self.protocol.handle(self, m.typeCode, args))
+            self.protocol.handle(self, m.typeCode, args)
             self.cur_msg = None
 
     async def poll_loop(self):

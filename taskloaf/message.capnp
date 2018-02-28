@@ -4,13 +4,6 @@
 # might be valuable because it would remove some of the serialization and all
 # of the deserialization costs. This is likely only useful in a future C++
 # implementation of taskloaf internals.
-#
-# Whether to include the shmem_ptr in the DistributedRef python object itself
-# is a tough question. Should I allow it to be allow when a dref is created
-# referring to a remote location that doesn't exist yet? Null pointers are
-# generally an undesirable thing. But, having null shmem_ptrs is probably okay
-# since the user can fall back to referring to the memory location using the
-# (creator, _id) tuple.
 
 struct ShmemPtr {
     start @0 :Int64;
@@ -33,13 +26,13 @@ struct DecRef {
 }
 
 struct RemotePut {
-    dref @0 :GCRef;
+    ref @0 :GCRef;
     val @1 :Arbitrary;
 }
 
 struct Arbitrary {
     refList @0 :List(GCRef);
-    bytes @1 :Data;
+    blob @1 :Data;
 }
 
 # Unions are probably kind of slow, but...

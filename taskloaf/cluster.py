@@ -20,10 +20,8 @@ def cluster(n_workers, coro, runner = mpiexisting):
             try:
                 add_plugins(worker)
                 result = worker.start(setup)
-                killall(worker, n_workers)
                 return result
             except Exception as e:
-                killall(worker, n_workers)
                 raise e
 
     return runner(n_workers, wrap_start_coro)

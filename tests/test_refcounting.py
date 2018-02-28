@@ -1,5 +1,5 @@
 from taskloaf.refcounting import *
-from test_ref import w
+from fixtures import w
 
 def test_refcount_simple():
     rc = RefCount()

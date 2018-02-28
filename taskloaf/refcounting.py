@@ -48,13 +48,16 @@ class RefManager:
         self.worker.protocol.add_msg_type(
             'DECREF',
             type = DecRefMsg,
-            handler = lambda worker, x: lambda worker: worker.memory.dec_ref_owned(*x)
+            handler = lambda worker, x: worker.ref_manager.dec_ref_owned(*x)
         )
 
     def dec_ref_owned(self, _id, gen, n_children):
+        print('decref', _id, gen, n_children)
         refcount = self.entries[_id]
         refcount.dec_ref(gen, n_children)
+        print('cur state', _id, refcount.gen_counts)
         if not refcount.alive():
+            print('delete', _id, gen, n_children)
             del self.entries[_id]
 
     def dec_ref(self, _id, gen, n_children, owner):

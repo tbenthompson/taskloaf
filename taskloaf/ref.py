@@ -79,7 +79,6 @@ class GCRef:
         self.deserialize = deserialize
 
     async def get(self):
-        local = False
         if self.key() in self.worker.object_cache:
             val = self.worker.object_cache[self.key()]
             if isinstance(val, asyncio.Future):
@@ -116,6 +115,7 @@ class GCRef:
         return out
 
     def __del__(self):
+        print('__del__', self._id, self.gen, self.n_children)
         self.worker.ref_manager.dec_ref(
             self._id, self.gen, self.n_children,
             owner = self.owner
@@ -126,7 +126,7 @@ class GCRef:
     # but is hard to avoid without adding a whole lot more synchronization and
     # tracking. It would be worth adding some tools to check that memory isn't
     # being leaked. Maybe a global counter of number of encoded and decoded
-    # drefs (those #s should be equal).
+    # refs (those #s should be equal).
     def encode_capnp(self, dest):
         self.n_children += 1
         dest.owner = self.owner
@@ -179,18 +179,18 @@ class GCRefListMsg:
 class RemotePutMsg:
     @staticmethod
     def serialize(args):
-        dref, v = args
+        ref, v = args
         m = taskloaf.message_capnp.Message.new_message()
         m.init('remotePut')
-        dref.encode_capnp(m.remotePut.dref)
-        m.remotePut.val = v
+        ref.encode_capnp(m.remotePut.ref)
+        m.remotePut.val.blob = bytes(v)
         return m
 
     @staticmethod
     def deserialize(w, m):
         return (
-            DistributedRef.decode_capnp(w, m.remotePut.dref),
-            m.remotePut.val
+            GCRef.decode_capnp(w, m.remotePut.ref),
+            m.remotePut.val.blob
         )
 
 def handle_remote_get(worker, args):
@@ -199,8 +199,6 @@ def handle_remote_get(worker, args):
         worker.protocol.REMOTEPUT,
         [args[0], args[0].ptr.deref()]
     )
-    return lambda: None
 
 def handle_remote_put(worker, args):
     args[0]._remote_put(args[1])
-    return lambda: None

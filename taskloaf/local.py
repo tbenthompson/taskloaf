@@ -36,6 +36,9 @@ def localrun(n_workers, f):
 def localstart(f, i, qs):
     # I removed this core pinning because it creates some noise and isn't worth
     # it for the low efficiency multiprocessing comm anyway. Use MPI!
+    # and in the future, rather than using taskset, use the cross-platform
+    # psutil.cpu_affinity([i])
+    #
     # if pin:
     #     os.system("taskset -p -c %d %d" % ((i % os.cpu_count()), os.getpid()))
     c = LocalComm(qs, i)

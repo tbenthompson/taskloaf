@@ -1,3 +1,4 @@
+import os
 import pytest
 import taskloaf.worker
 from taskloaf.run import run
@@ -59,24 +60,41 @@ def test_cluster_output():
         return 1
     assert(cluster(1, f) == 1)
 
+@mpi_procs(2)
+def test_cluster_death_cleansup():
+    def check(n, onoff):
+        for i in range(n):
+            path = '/dev/shm/taskloaf_' + str(i) + '_0'
+            assert(os.path.exists(path) == onoff)
+    async def f(w):
+        ptr = w.allocator.malloc(1)
+        check(1, True)
+        raise Exception("HI")
+    check(2, False)
+    try:
+        cluster(2, f)
+    except Exception as e:
+        print(e)
+    check(2, False)
+
 # When originally written, this test hung forever. So, even though there are no
 # asserts, it is testing *something*. It checks that the exception behavior
 # propagates from free tasks upward to the Worker properly.
-@mpi_procs(2)
-def test_cluster_broken_task():
-    async def f(w):
-
-        async def f(w):
-            while True:
-                await asyncio.sleep(0)
-
-        async def broken_task(w):
-            print(x)
-
-        taskloaf.task(w, f)
-        await taskloaf.task(w, broken_task, to = 1)
-    if rank() == 1:
-        with pytest.raises(NameError):
-            cluster(2, f)
-    else:
-        cluster(2, f)
+# @mpi_procs(2)
+# def test_cluster_broken_task():
+#     async def f(w):
+#
+#         async def f(w):
+#             while True:
+#                 await asyncio.sleep(0)
+#
+#         async def broken_task(w):
+#             print(x)
+#
+#         taskloaf.task(w, f)
+#         await taskloaf.task(w, broken_task, to = 1)
+#     if rank() == 1:
+#         with pytest.raises(NameError):
+#             cluster(2, f)
+#     else:
+#         cluster(2, f)
