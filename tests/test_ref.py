@@ -85,12 +85,31 @@ def test_alloc(w):
     assert(len(syncawait(ref.get())) == 100)
 
 async def wait_to_die():
-    for i in range(25):
+    for i in range(250):
         await asyncio.sleep(0.01)
 
 @mpi_procs(2)
+def test_submit_ref_work():
+    async def f(w):
+        ref = put(w, 1)
+        assert(ref._id == 0)
+        async def g(w):
+            assert(ref._id == 0)
+            async def h(w):
+                print("SHUTDOWN")
+                await taskloaf.worker.shutdown(w)
+            print("SUBMIT TO 0")
+            submit_ref_work(w, 0, h)
+        print("SUBMIT TO 1")
+        submit_ref_work(w, 1, g)
+        print("HI!")
+        await wait_to_die()
+        print("BYE!")
+    cluster(2, f)
+
+@mpi_procs(2)
 def test_get():
-    one_serialized = taskloaf.serialize.dumps(1)
+    one_serialized = pickle.dumps(1)
     async def f(w):
         ref = put(w, 1)
         ref2 = alloc(w, len(one_serialized))
@@ -99,21 +118,25 @@ def test_get():
         assert(await ref.get() == 1)
         assert(await ref2.get() == one_serialized)
         async def g(w):
+            print('start g!')
             assert(await ref.get() == 1)
             assert(ref.key() in w.object_cache)
             assert(await ref2.get() == one_serialized)
             assert(ref2.key() in w.object_cache)
 
-            v1 = asyncio.ensure_future(ref._remote_get())
+            v1 = w.start_free_task(ref._remote_get())
             await asyncio.sleep(0)
             assert(isinstance(w.object_cache[ref.key()], asyncio.Future))
             assert(await ref.get() == 1)
             assert(isinstance(w.object_cache[ref.key()], int))
             assert(await v1 == 1)
-            def h(w):
-                taskloaf.worker.shutdown(w)
-            w.submit_work(0, h)
-        w.submit_work(1, g)
+            async def h(w):
+                print("SHUTDOWN 0")
+                await taskloaf.worker.shutdown(w)
+            print("submit shutdown to 0")
+            submit_ref_work(w, 0, h)
+        print('submit g to 1')
+        submit_ref_work(w, 1, g)
         await wait_to_die()
     cluster(2, f)
 
@@ -125,14 +148,14 @@ def test_remote_double_get():
             assert(await ref.get() == 1)
             v1 = ref._remote_get()
             assert(await v1 == 1)
-            def h(w):
+            async def h(w):
                 if not hasattr(w, 'x'):
                     w.x = 0
                 else:
-                    taskloaf.worker.shutdown(w)
-            w.submit_work(0, h)
-        w.submit_work(1, g)
-        w.submit_work(1, g)
+                    await taskloaf.worker.shutdown(w)
+            submit_ref_work(0, h)
+        submit_ref_work(w, 1, g)
+        submit_ref_work(w, 1, g)
         await wait_to_die()
     cluster(2, f)
 
@@ -148,30 +171,30 @@ def test_put_delete_ref(w):
     assert(len(w.ref_manager.entries) == 0)
 
 # @mpi_procs(3)
-def test_multiuse_msgs():
-    """
-    Here, ref is deserialized multiple times on different workers.
-    But, ref is only serialized (and the child count incremented)
-    once on the main worker.
-    So, the ref count will be 2 while there will be 3 live references.
-    """
-    async def f(w):
-        ref = put(w, 1)
-        print('refid', ref._id)
-        async def fnc():
-            print('fnc')
-            assert(await ref.get() == 1)
-        ref_fnc = put(w, fnc)
-        print('ref_fnc id', ref_fnc._id)
-        async def g(w):
-            await (await ref_fnc.get())()
-        w.submit_work(1, g)
-        w.submit_work(2, g)
-        w.submit_work(1, taskloaf.worker.shutdown)
-        w.submit_work(2, taskloaf.worker.shutdown)
-        del ref
-        await wait_to_die()
-    cluster(3, f)
+# def test_multiuse_msgs():
+#     """
+#     Here, ref is deserialized multiple times on different workers.
+#     But, ref is only serialized (and the child count incremented)
+#     once on the main worker.
+#     So, the ref count will be 2 while there will be 3 live references.
+#     """
+#     async def f(w):
+#         ref = put(w, 1)
+#         print('refid', ref._id)
+#         async def fnc():
+#             print('fnc')
+#             assert(await ref.get() == 1)
+#         ref_fnc = put(w, fnc)
+#         print('ref_fnc id', ref_fnc._id)
+#         async def g(w):
+#             await (await ref_fnc.get())()
+#         w.submit_work(1, g)
+#         w.submit_work(2, g)
+#         w.submit_work(1, taskloaf.worker.shutdown)
+#         w.submit_work(2, taskloaf.worker.shutdown)
+#         del ref
+#         await wait_to_die()
+#     cluster(3, f)
 
 if __name__ == "__main__":
     test_multiuse_msgs()

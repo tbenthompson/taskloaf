@@ -7,7 +7,6 @@ class CloudPickleMsg:
     @staticmethod
     def serialize(args):
         msg = taskloaf.message_capnp.Message.new_message()
-        msg.init('arbitrary')
         msg.arbitrary = cloudpickle.dumps(args)
         return msg
 

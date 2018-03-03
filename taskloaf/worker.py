@@ -16,9 +16,12 @@ class NullComm:
     def recv(self):
         return None
 
-def shutdown(w):
+async def shutdown(w):
     for t in asyncio.Task.all_tasks():
         t.cancel()
+    await asyncio.sleep(0)
+    for t in asyncio.Task.all_tasks():
+        await t
 
 class Worker:
     def __init__(self, comm):
@@ -46,22 +49,12 @@ class Worker:
 
     def start(self, coro):
         self.ioloop = asyncio.get_event_loop()
-
-        async def coro_wrapper(w):
-            self.result = await coro(w)
-
-        self.result = None
         with suppress(CancelledError):
             self.ioloop.run_until_complete(asyncio.gather(
-                self.poll_loop(),
-                self.work_loop(),
-                self.make_free_task(coro_wrapper, [])
+                self.make_async_work(self.poll_loop),
+                self.make_async_work(self.work_loop),
+                self.make_async_work(coro)
             ))
-
-        if self.exception is not None:
-            print("WHOA1")
-            raise self.exception
-        return self.result
 
     @property
     def addr(self):
@@ -77,41 +70,35 @@ class Worker:
         else:
             self.send(to, self.protocol.WORK, [f])
 
-    def make_free_task(self, f, args):
-        async def free_task_wrapper():
-            try:
-                with suppress(CancelledError):
-                    return await f(self, *args)
-            except Exception as e:
-                if self.exception is None:
-                    self.exception = e
-                shutdown(self)
-        return free_task_wrapper()
+    def make_async_work(self, f, *args):
+        async def async_work_wrapper():
+            with suppress(CancelledError):
+                return await f(self, *args)
+        return async_work_wrapper()
 
-    def start_free_task(self, f, args):
-        return asyncio.ensure_future(self.make_free_task(f, args))
+    def start_async_work(self, f, *args):
+        return asyncio.ensure_future(self.make_async_work(f, *args))
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
-            self.start_free_task(f, args)
+            self.start_async_work(f, *args)
         else:
             f(self, *args)
 
     async def wait_for_work(self, f, *args):
+        out = f(self, *args)
         if asyncio.iscoroutinefunction(f):
-            return await self.start_free_task(f, args)
-        else:
-            return f(self, *args)
+            out = await out
+        return out
 
     async def run_in_thread(self, sync_f):
         return (await self.ioloop.run_in_executor(None, sync_f))
 
-    async def work_loop(self):
-        with suppress(CancelledError):
-            while True:
-                if len(self.work) > 0:
-                    self.run_work(self.work.pop())
-                await asyncio.sleep(0)
+    async def work_loop(self, _):
+        while True:
+            if len(self.work) > 0:
+                self.run_work(self.work.pop())
+            await asyncio.sleep(0)
 
     def poll(self):
         msg = self.comm.recv()
@@ -121,8 +108,7 @@ class Worker:
             self.protocol.handle(self, m.typeCode, args)
             self.cur_msg = None
 
-    async def poll_loop(self):
-        with suppress(CancelledError):
-            while True:
-                self.poll()
-                await asyncio.sleep(0)
+    async def poll_loop(self, _):
+        while True:
+            self.poll()
+            await asyncio.sleep(0)

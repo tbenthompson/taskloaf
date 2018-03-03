@@ -68,3 +68,26 @@ def test_when_all():
         ]).then(lambda w, x: sum(x), to = 1)
         assert(y == 15)
     cluster(2, f)
+
+# When originally written, this test hung forever. So, even though there are no
+# asserts, it is testing *something*. It checks that the exception behavior
+# propagates from free tasks upward to the Worker properly.
+# @mpi_procs(2)
+# def test_cluster_broken_task():
+#     async def f(w):
+#
+#         async def f(w):
+#             while True:
+#                 await asyncio.sleep(0)
+#
+#         async def broken_task(w):
+#             print(x)
+#
+#         taskloaf.task(w, f)
+#         await taskloaf.task(w, broken_task, to = 1)
+#     if rank() == 1:
+#         with pytest.raises(NameError):
+#             cluster(2, f)
+#     else:
+#         cluster(2, f)
+

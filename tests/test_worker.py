@@ -5,7 +5,7 @@ from taskloaf.run import run
 
 def test_shutdown():
     async def f(w):
-        taskloaf.worker.shutdown(w)
+        await taskloaf.worker.shutdown(w)
     with taskloaf.worker.Worker(taskloaf.worker.NullComm()) as w:
         w.start(f)
 
@@ -43,17 +43,18 @@ def test_remote_work():
     async def f(w):
         if w.addr != 0:
             return
-        def g(w):
+        async def g(w):
             assert(w.addr == 1)
-            def h(w):
+            async def h(w):
                 assert(w.addr == 0)
-                taskloaf.worker.shutdown(w)
+                await taskloaf.worker.shutdown(w)
             w.submit_work(0, h)
-            taskloaf.worker.shutdown(w)
+            await taskloaf.worker.shutdown(w)
         w.submit_work(1, g)
         while True:
             await asyncio.sleep(0)
-    taskloaf.worker.Worker(MPIComm()).start(f)
+    cluster(2, f)
+    # taskloaf.worker.Worker(MPIComm()).start(f)
 
 def test_cluster_output():
     async def f(w):
@@ -69,35 +70,10 @@ def test_cluster_death_cleansup():
     async def f(w):
         ptr = w.allocator.malloc(1)
         check(1, True)
-        raise Exception("HI")
+        raise Exception("HI!")
     check(2, False)
     try:
         cluster(2, f)
-    except Exception as e:
-        print(e)
+    except:
+        pass
     check(2, False)
-
-# When originally written, this test hung forever. So, even though there are no
-# asserts, it is testing *something*. It checks that the exception behavior
-# propagates from free tasks upward to the Worker properly.
-# @mpi_procs(2)
-# def test_cluster_broken_task():
-#     async def f(w):
-#
-#         async def f(w):
-#             while True:
-#                 await asyncio.sleep(0)
-#
-#         async def broken_task(w):
-#             print(x)
-#
-#         taskloaf.task(w, f)
-#         await taskloaf.task(w, broken_task, to = 1)
-#     if rank() == 1:
-#         with pytest.raises(NameError):
-#             cluster(2, f)
-#     else:
-#         cluster(2, f)
-
-if __name__ == "__main__":
-    test_remote_work()

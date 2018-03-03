@@ -12,6 +12,29 @@ def alloc(worker, nbytes):
         []
     )
 
+def submit_ref_work(worker, to, f):
+    ref = put(worker, f).convert()
+    worker.send(to, worker.protocol.REFWORK, [ref])
+
+def setup_protocol(worker):
+    worker.protocol.add_msg_type(
+        'REMOTEGET', type = GCRefListMsg, handler = handle_remote_get
+    )
+    worker.protocol.add_msg_type(
+        'REMOTEPUT', type = RemotePutMsg, handler = handle_remote_put
+    )
+    worker.protocol.add_msg_type(
+        'REFWORK', type = GCRefListMsg, handler = handle_ref_work
+    )
+
+def handle_ref_work(worker, args):
+    print("HANDLER!")
+    f_ref = args[0]
+    async def run_me(worker):
+        f = await f_ref.get()
+        await worker.wait_for_work(f)
+    worker.start_async_work(run_me)
+
 """
 This class barely needs to do anything because python already uses reference
 counting for GC. It just needs to make sure that once it is serialized, all
@@ -157,14 +180,6 @@ class GCRef:
         ]
         return ref
 
-
-def setup_protocol(worker):
-    worker.protocol.add_msg_type(
-        'REMOTEGET', type = GCRefListMsg, handler = handle_remote_get
-    )
-    worker.protocol.add_msg_type(
-        'REMOTEPUT', type = RemotePutMsg, handler = handle_remote_put
-    )
 
 class GCRefListMsg:
     @staticmethod
