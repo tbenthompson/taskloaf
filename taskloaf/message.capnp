@@ -17,6 +17,7 @@ struct GCRef {
     gen @2 :UInt32;
     deserialize @3 :Bool;
     ptr @4 :ShmemPtr;
+    refList @5 :List(GCRef);
 }
 
 struct DecRef {
@@ -27,12 +28,7 @@ struct DecRef {
 
 struct RemotePut {
     ref @0 :GCRef;
-    val @1 :Arbitrary;
-}
-
-struct Arbitrary {
-    refList @0 :List(GCRef);
-    blob @1 :Data;
+    val @1 :Data;
 }
 
 # Unions are probably kind of slow, but...
@@ -46,6 +42,7 @@ struct Message {
     union {
         decRef @2 :DecRef;
         remotePut @3 :RemotePut;
-        arbitrary @4 :Arbitrary;
+        refList @4 :List(GCRef);
+        arbitrary @5 :Data;
     }
 }

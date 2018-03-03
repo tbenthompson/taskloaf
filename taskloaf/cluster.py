@@ -22,6 +22,7 @@ def cluster(n_workers, coro, runner = mpiexisting):
                 result = worker.start(setup)
                 return result
             except Exception as e:
+                print("WHOA")
                 raise e
 
     return runner(n_workers, wrap_start_coro)

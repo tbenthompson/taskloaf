@@ -22,6 +22,19 @@ class Ptr:
     def deref(self):
         return self.block.shmem.mem[self.start:self.end]
 
+    def encode_capnp(self, msg):
+        msg.start = self.start
+        msg.end = self.end
+        msg.blockIdx = self.block.idx
+
+    @classmethod
+    def decode_capnp(self, worker, owner, msg):
+        return Ptr(
+            start = msg.start,
+            end = msg.end,
+            block = worker.remote_shmem.get_block(owner, msg.blockIdx)
+        )
+
 class MemoryBlock:
     def __init__(self, filepath, idx, shmem, _close):
         self.filepath = filepath

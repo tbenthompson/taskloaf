@@ -98,3 +98,6 @@ def test_cluster_death_cleansup():
 #             cluster(2, f)
 #     else:
 #         cluster(2, f)
+
+if __name__ == "__main__":
+    test_remote_work()

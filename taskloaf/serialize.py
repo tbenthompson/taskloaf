@@ -6,58 +6,40 @@ import taskloaf.ref
 
 marker = 'taskloaf.worker'
 
-class BlobWithRefs:
-    def __init__(self):
-        self.refs = []
-        self.blob = None
-
 class CloudPicklerWithCtx(cloudpickle.CloudPickler):
+    def __init__(self, file):
+        super().__init__(file)
+        self.refs = []
+
     def persistent_id(self, obj):
         if isinstance(obj, taskloaf.ref.Ref):
             obj = obj.convert()
         if isinstance(obj, taskloaf.ref.GCRef):
-            #TODO: move to ref.py
-            obj.n_children += 1
-            return ('taskloaf_ref', (obj.owner, obj._id, obj.gen + 1, obj.deserialize, obj.ptr.start, obj.ptr.end, obj.ptr.block.idx))
+            self.refs.append(obj)
+            return ('taskloaf_ref', len(self.refs) - 1)
         return None
     persistent_id = persistent_id
 
 class UnpicklerWithCtx(pickle.Unpickler):
-    def __init__(self, worker, file):
+    def __init__(self, worker, refs, file):
         super().__init__(file)
+        self.refs = refs
         self.worker = worker
 
     def persistent_load(self, pid):
-        type_tag, data = pid
+        type_tag, ref_idx = pid
         if type_tag == 'taskloaf_ref':
-            #TODO: move to ref.py
-            ref = taskloaf.ref.GCRef.__new__(taskloaf.ref.GCRef)
-            ref.owner = data[0]
-            ref._id = data[1]
-            ref.gen = data[2]
-            ref.deserialize = data[3]
-            ref.n_children = 0
-            ref.worker = self.worker
-            ref.ptr = taskloaf.allocator.Ptr(
-                start = data[4],
-                end = data[5],
-                block = self.worker.remote_shmem.get_block(ref.owner, data[6])
-            )
-            return ref
+            return self.refs[ref_idx]
         else:
             raise pickle.UnpicklingError("unsupported persistent object")
 
 def dumps(obj):
-    # out = MsgWithRefs()
     with BytesIO() as file:
-        # cp = CloudPicklerWithCtx(out, file)
         cp = CloudPicklerWithCtx(file)
         cp.dump(obj)
-        return file.getvalue()
-        # out.blob = file.getvalue()
-    # return out
+        return cp.refs, file.getvalue()
 
-def loads(w, bytes_obj):
+def loads(w, refs, bytes_obj):
     with BytesIO(bytes_obj) as file:
-        up = UnpicklerWithCtx(w, file)
+        up = UnpicklerWithCtx(w, refs, file)
         return up.load()

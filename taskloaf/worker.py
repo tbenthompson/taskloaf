@@ -59,6 +59,7 @@ class Worker:
             ))
 
         if self.exception is not None:
+            print("WHOA1")
             raise self.exception
         return self.result
 

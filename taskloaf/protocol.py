@@ -1,18 +1,19 @@
 import capnp
+import cloudpickle
 import taskloaf.message_capnp
-import taskloaf.serialize
+import taskloaf.ref
 
 class CloudPickleMsg:
     @staticmethod
     def serialize(args):
-        m = taskloaf.message_capnp.Message.new_message()
-        m.init('arbitrary')
-        m.arbitrary.blob = taskloaf.serialize.dumps(args)
-        return m
+        msg = taskloaf.message_capnp.Message.new_message()
+        msg.init('arbitrary')
+        msg.arbitrary = cloudpickle.dumps(args)
+        return msg
 
     @staticmethod
-    def deserialize(w, m):
-        return taskloaf.serialize.loads(w, m.arbitrary.blob)
+    def deserialize(worker, msg):
+        return cloudpickle.loads(msg.arbitrary)
 
 class Protocol:
     def __init__(self):

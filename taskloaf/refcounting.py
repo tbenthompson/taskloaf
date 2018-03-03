@@ -42,6 +42,11 @@ class RefCount:
         return False
 
 class RefManager:
+    @attr.s
+    class Entry:
+        refcount = attr.ib()
+        ptr = attr.ib()
+
     def __init__(self, worker):
         self.worker = worker
         self.entries = dict()
@@ -53,12 +58,18 @@ class RefManager:
 
     def dec_ref_owned(self, _id, gen, n_children):
         print('decref', _id, gen, n_children)
-        refcount = self.entries[_id]
+        refcount = self.entries[_id].refcount
         refcount.dec_ref(gen, n_children)
         print('cur state', _id, refcount.gen_counts)
         if not refcount.alive():
             print('delete', _id, gen, n_children)
-            del self.entries[_id]
+            self.delete(_id)
+
+    def delete(self, _id):
+        key = (self.worker.addr, _id)
+        del self.worker.object_cache[key]
+        self.worker.allocator.free(self.entries[_id].ptr)
+        del self.entries[_id]
 
     def dec_ref(self, _id, gen, n_children, owner):
         if owner != self.worker.addr:
@@ -69,8 +80,8 @@ class RefManager:
         else:
             self.dec_ref_owned(_id, gen, n_children)
 
-    def new_ref(self, _id):
-        self.entries[_id] = RefCount()
+    def new_ref(self, _id, ptr):
+        self.entries[_id] = RefManager.Entry(refcount = RefCount(), ptr = ptr)
 
 class DecRefMsg:
     @staticmethod

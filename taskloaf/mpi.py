@@ -53,7 +53,7 @@ def mpirun(n_workers, f):
 
 def mpistart(f, i):
     c = MPIComm()
-    return loads(None, f)(c)
+    return loads(None, [], f)(c)
 
 def mpiexisting(n_workers, f):
     n_mpi_procs = MPI.COMM_WORLD.Get_size()

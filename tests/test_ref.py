@@ -22,15 +22,19 @@ def test_gcref_get(w):
     assert(syncawait(gcr.get()) == [12,3,4])
 
 def test_gcref_delete(w):
-    assert(len(w.ref_manager.entries) == 0)
+    def check_norefs(v):
+        assert(w.allocator.empty() == v)
+        assert((len(w.ref_manager.entries) == 0) == v)
+
+    check_norefs(True)
     r = Ref(w, 10)
-    assert(len(w.ref_manager.entries) == 0)
+    check_norefs(True)
     gcr = r.convert()
-    assert(len(w.ref_manager.entries) == 1)
+    check_norefs(False)
     del r
-    assert(len(w.ref_manager.entries) == 1)
+    check_norefs(False)
     del gcr
-    assert(len(w.ref_manager.entries) == 0)
+    check_norefs(True)
 
 def test_ref_conversion_caching(w):
     r = Ref(w, [12,3,4])
@@ -66,19 +70,14 @@ def ref_serialization_tester(w, sfnc, dfnc):
     del gcr2
     gc.collect()
     assert(len(w.ref_manager.entries) == 0)
-
-def test_ref_pickle_delete(w):
-    from taskloaf.serialize import dumps, loads
-    ref_serialization_tester(w, dumps, loads)
+    assert(len(w.object_cache) == 0)
 
 def test_ref_encode_capnp(w):
     def serialize(ref):
-        m = taskloaf.message_capnp.GCRef.new_message()
-        ref.encode_capnp(m)
-        return m.to_bytes()
+        return GCRefListMsg.serialize([ref]).to_bytes()
     def deserialize(w, ref_b):
-        m = taskloaf.message_capnp.GCRef.from_bytes(ref_b)
-        return GCRef.decode_capnp(w, m)
+        m = taskloaf.message_capnp.Message.from_bytes(ref_b)
+        return GCRefListMsg.deserialize(w, m)[0]
     ref_serialization_tester(w, serialize, deserialize)
 
 def test_alloc(w):
@@ -137,7 +136,18 @@ def test_remote_double_get():
         await wait_to_die()
     cluster(2, f)
 
-@mpi_procs(3)
+def test_put_delete_ref(w):
+    def f():
+        ref = put(w, 1)
+        gcref = ref.convert()
+        ref2 = put(w, gcref)
+        gcref2 = ref2.convert()
+        del ref, gcref, ref2, gcref2
+        import gc; gc.collect()
+    f()
+    assert(len(w.ref_manager.entries) == 0)
+
+# @mpi_procs(3)
 def test_multiuse_msgs():
     """
     Here, ref is deserialized multiple times on different workers.

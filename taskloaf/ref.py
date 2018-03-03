@@ -8,7 +8,8 @@ def put(worker, obj):
 def alloc(worker, nbytes):
     return first_gcref(
         worker, worker.get_new_id(),
-        worker.allocator.malloc(nbytes), False
+        worker.allocator.malloc(nbytes), False,
+        []
     )
 
 """
@@ -40,12 +41,12 @@ class Ref:
             return self._new_ref()
 
     def _new_ref(self):
-        deserialize, serialized_obj = serialize_if_needed(self.obj)
+        deserialize, ref_list, serialized_obj = serialize_if_needed(self.obj)
         nbytes = len(serialized_obj)
         ptr = self.worker.allocator.malloc(nbytes)
         ptr.deref()[:] = serialized_obj
         self.worker.object_cache[(self.worker.addr, self._id)] = self.obj
-        self.gcref = first_gcref(self.worker, self._id, ptr, deserialize)
+        self.gcref = first_gcref(self.worker, self._id, ptr, deserialize, ref_list)
         return self.gcref
 
 def is_bytes(v):
@@ -53,13 +54,14 @@ def is_bytes(v):
 
 def serialize_if_needed(obj):
     if is_bytes(obj):
-        return False, obj
+        return False, [], obj
     else:
-        return True, taskloaf.serialize.dumps(obj)
+        ref_list, blob = taskloaf.serialize.dumps(obj)
+        return True, ref_list, blob
 
-def first_gcref(worker, _id, ptr, deserialize):
-    ref = GCRef(worker, _id, ptr, deserialize)
-    worker.ref_manager.new_ref(_id)
+def first_gcref(worker, _id, ptr, deserialize, ref_list):
+    ref = GCRef(worker, _id, ptr, deserialize, ref_list)
+    worker.ref_manager.new_ref(_id, ptr)
     return ref
 
 """
@@ -69,7 +71,7 @@ It seems like we're recording two indexes to the data:
 This isn't strictly necessary, but has some advantages.
 """
 class GCRef:
-    def __init__(self, worker, _id, ptr, deserialize):
+    def __init__(self, worker, _id, ptr, deserialize, ref_list):
         self.worker = worker
         self.owner = worker.addr
         self._id = _id
@@ -77,6 +79,7 @@ class GCRef:
         self.n_children = 0
         self.ptr = ptr
         self.deserialize = deserialize
+        self.ref_list = ref_list
 
     async def get(self):
         if self.key() in self.worker.object_cache:
@@ -108,7 +111,7 @@ class GCRef:
 
     def _deserialize_and_store(self, buf):
         if self.deserialize:
-            out = taskloaf.serialize.loads(self.worker, buf)
+            out = taskloaf.serialize.loads(self.worker, self.ref_list, buf)
         else:
             out = buf
         self.worker.object_cache[self.key()] = out
@@ -127,30 +130,31 @@ class GCRef:
     # tracking. It would be worth adding some tools to check that memory isn't
     # being leaked. Maybe a global counter of number of encoded and decoded
     # refs (those #s should be equal).
-    def encode_capnp(self, dest):
+    def encode_capnp(self, msg):
         self.n_children += 1
-        dest.owner = self.owner
-        dest.id = self._id
-        dest.gen = self.gen + 1
-        dest.deserialize = self.deserialize
-        dest.ptr.start = self.ptr.start
-        dest.ptr.end = self.ptr.end
-        dest.ptr.blockIdx = self.ptr.block.idx
+        msg.owner = self.owner
+        msg.id = self._id
+        msg.gen = self.gen + 1
+        msg.deserialize = self.deserialize
+        self.ptr.encode_capnp(msg.ptr)
+        msg.init('refList', len(self.ref_list))
+        for i in range(len(self.ref_list)):
+            self.ref_list[i].encode_capnp(msg.refList[i])
 
     @classmethod
-    def decode_capnp(cls, worker, m):
+    def decode_capnp(cls, worker, msg):
         ref = GCRef.__new__(GCRef)
-        ref.owner = m.owner
-        ref._id = m.id
-        ref.gen = m.gen
-        ref.deserialize = m.deserialize
-        ref.ptr = taskloaf.allocator.Ptr(
-            start = m.ptr.start,
-            end = m.ptr.end,
-            block = worker.remote_shmem.get_block(ref.owner, m.ptr.blockIdx)
-        )
+        ref.owner = msg.owner
+        ref._id = msg.id
+        ref.gen = msg.gen
+        ref.deserialize = msg.deserialize
+        ref.ptr = taskloaf.allocator.Ptr.decode_capnp(worker, ref.owner, msg.ptr)
         ref.n_children = 0
         ref.worker = worker
+        ref.ref_list = [
+            GCRef.decode_capnp(worker, child_ref)
+            for child_ref in msg.refList
+        ]
         return ref
 
 
@@ -166,15 +170,14 @@ class GCRefListMsg:
     @staticmethod
     def serialize(refs):
         msg = taskloaf.message_capnp.Message.new_message()
-        msg.init('arbitrary')
-        msg.arbitrary.init('refList', len(refs))
+        msg.init('refList', len(refs))
         for i in range(len(refs)):
-            refs[i].encode_capnp(msg.arbitrary.refList[i])
+            refs[i].encode_capnp(msg.refList[i])
         return msg
 
     @staticmethod
     def deserialize(worker, msg):
-        return [GCRef.decode_capnp(worker, ref) for ref in msg.arbitrary.refList]
+        return [GCRef.decode_capnp(worker, ref) for ref in msg.refList]
 
 class RemotePutMsg:
     @staticmethod
@@ -187,10 +190,10 @@ class RemotePutMsg:
         return m
 
     @staticmethod
-    def deserialize(w, m):
+    def deserialize(worker, msg):
         return (
-            GCRef.decode_capnp(w, m.remotePut.ref),
-            m.remotePut.val.blob
+            GCRef.decode_capnp(w, msg.remotePut.ref),
+            msg.remotePut.val.blob
         )
 
 def handle_remote_get(worker, args):
