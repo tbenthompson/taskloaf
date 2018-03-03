@@ -1,10 +1,10 @@
 import os
 import sys
+import cloudpickle
 from mpi4py import MPI
 from mpi4py.futures import MPIPoolExecutor
 
 import taskloaf.worker
-from taskloaf.serialize import dumps, loads
 
 def rank(comm = MPI.COMM_WORLD):
     return comm.Get_rank()
@@ -44,12 +44,12 @@ class MPIComm:
 def mpirun(n_workers, f):
     mpi_args = dict(max_workers = n_workers)#, path = [])
     with MPIPoolExecutor(**mpi_args) as p:
-        out = p.starmap(mpistart, zip([dumps(f)] * n_workers, range(n_workers)))
+        out = p.starmap(mpistart, zip([cloudpickle.dumps(f)] * n_workers, range(n_workers)))
         return next(out)
 
 def mpistart(f, i):
     c = MPIComm()
-    return loads(None, [], f)(c)
+    return cloudpickle.loads(None, [], f)(c)
 
 def mpiexisting(n_workers, f, die_on_exception = True):
     orig_sys_except = sys.excepthook

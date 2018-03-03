@@ -45,7 +45,7 @@ def test_remote_work():
             return
         async def g(w):
             assert(w.addr == 1)
-            async def h(w):
+            def h(w):
                 assert(w.addr == 0)
                 taskloaf.worker.shutdown(w)
             w.submit_work(0, h)

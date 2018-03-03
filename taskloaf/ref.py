@@ -28,7 +28,6 @@ def setup_protocol(worker):
     )
 
 def handle_ref_work(worker, args):
-    print("HANDLER!")
     f_ref = args[0]
     async def run_me(worker):
         f = await f_ref.get()
@@ -201,14 +200,14 @@ class RemotePutMsg:
         m = taskloaf.message_capnp.Message.new_message()
         m.init('remotePut')
         ref.encode_capnp(m.remotePut.ref)
-        m.remotePut.val.blob = bytes(v)
+        m.remotePut.val = bytes(v)
         return m
 
     @staticmethod
     def deserialize(worker, msg):
         return (
-            GCRef.decode_capnp(w, msg.remotePut.ref),
-            msg.remotePut.val.blob
+            GCRef.decode_capnp(worker, msg.remotePut.ref),
+            msg.remotePut.val
         )
 
 def handle_remote_get(worker, args):
