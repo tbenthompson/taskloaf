@@ -34,8 +34,10 @@ def null_comm_worker():
 
 def run(coro):
     async def wrapper(worker):
-        worker.result = await coro(worker)
-        await taskloaf.worker.shutdown(worker)
+        try:
+            worker.result = await coro(worker)
+        finally:
+            taskloaf.worker.shutdown(worker)
 
     with null_comm_worker() as worker:
         worker.start(wrapper)

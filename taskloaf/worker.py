@@ -1,6 +1,5 @@
 import time
 import asyncio
-from concurrent.futures import CancelledError
 from contextlib import suppress, ExitStack
 
 import taskloaf.protocol
@@ -16,12 +15,20 @@ class NullComm:
     def recv(self):
         return None
 
-async def shutdown(w):
-    for t in asyncio.Task.all_tasks():
-        t.cancel()
-    await asyncio.sleep(0)
-    for t in asyncio.Task.all_tasks():
-        await t
+# async def shutdown_helper(w):
+#     for t in asyncio.Task.all_tasks():
+#         if t == asyncio.Task.current_task():
+#             continue
+#         t.cancel()
+#     for t in asyncio.Task.all_tasks():
+#         if t == asyncio.Task.current_task():
+#             continue
+#         with suppress(CancelledError):
+#             await t
+#     asyncio.Task.current_task().cancel()
+
+def shutdown(w):
+    w.stop = True
 
 class Worker:
     def __init__(self, comm):
@@ -35,6 +42,7 @@ class Worker:
         self.protocol.add_msg_type('WORK', handler = handle_new_work)
         self.exception = None
         self.next_id = 0
+        self.stop = False
 
     def get_new_id(self):
         self.next_id += 1
@@ -48,13 +56,22 @@ class Worker:
         self.exit_stack.close()
 
     def start(self, coro):
+        main_task = asyncio.ensure_future(coro(self))
         self.ioloop = asyncio.get_event_loop()
-        with suppress(CancelledError):
-            self.ioloop.run_until_complete(asyncio.gather(
-                self.make_async_work(self.poll_loop),
-                self.make_async_work(self.work_loop),
-                self.make_async_work(coro)
-            ))
+        self.ioloop.run_until_complete(asyncio.gather(
+            self.poll_loop(), self.work_loop(),
+        ))
+
+        pending = asyncio.Task.all_tasks()
+        for task in pending:
+            task.cancel()
+            # Now we should await task to execute it's cancellation.
+            # Cancelled task raises asyncio.CancelledError that we can suppress:
+            with suppress(asyncio.CancelledError):
+                self.ioloop.run_until_complete(task)
+
+        if not main_task.cancelled() and main_task.exception():
+            raise main_task.exception()
 
     @property
     def addr(self):
@@ -70,14 +87,8 @@ class Worker:
         else:
             self.send(to, self.protocol.WORK, [f])
 
-    def make_async_work(self, f, *args):
-        async def async_work_wrapper():
-            with suppress(CancelledError):
-                return await f(self, *args)
-        return async_work_wrapper()
-
     def start_async_work(self, f, *args):
-        return asyncio.ensure_future(self.make_async_work(f, *args))
+        return asyncio.ensure_future(f(self, *args))
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
@@ -94,8 +105,8 @@ class Worker:
     async def run_in_thread(self, sync_f):
         return (await self.ioloop.run_in_executor(None, sync_f))
 
-    async def work_loop(self, _):
-        while True:
+    async def work_loop(self):
+        while not self.stop:
             if len(self.work) > 0:
                 self.run_work(self.work.pop())
             await asyncio.sleep(0)
@@ -108,7 +119,7 @@ class Worker:
             self.protocol.handle(self, m.typeCode, args)
             self.cur_msg = None
 
-    async def poll_loop(self, _):
-        while True:
+    async def poll_loop(self):
+        while not self.stop:
             self.poll()
             await asyncio.sleep(0)
