@@ -140,7 +140,7 @@ class GCRef:
         return out
 
     def __del__(self):
-        print('__del__', self._id, self.gen, self.n_children)
+        self.worker.log.info('__del__', 'addr=', self.worker.addr, ' id=', self._id, ' gen=', self.gen, ' n_children=', self.n_children)
         self.worker.ref_manager.dec_ref(
             self._id, self.gen, self.n_children,
             owner = self.owner

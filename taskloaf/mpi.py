@@ -9,13 +9,6 @@ import taskloaf.worker
 def rank(comm = MPI.COMM_WORLD):
     return comm.Get_rank()
 
-def max_tag(comm = MPI.COMM_WORLD):
-    return comm.Get_attr(MPI.TAG_UB)
-
-class StartMsg:
-    def __init__(self, n_items):
-        self.n_items = n_items
-
 # import cppimport.import_hook
 # import taskloaf.cppworker
 # MPIComm = taskloaf.cppworker.MPIComm
@@ -40,6 +33,9 @@ class MPIComm:
         out = memoryview(bytearray(s.count))
         self.comm.Recv(out, source = s.source)
         return out
+
+    def barrier(self):
+        self.comm.Barrier()
 
 def mpirun(n_workers, f):
     mpi_args = dict(max_workers = n_workers)#, path = [])
@@ -66,6 +62,9 @@ def mpiexisting(n_workers, f, die_on_exception = True):
             'There are only %s MPI processes but %s were requested' % (n_mpi_procs, n_workers)
         )
     c = MPIComm()
-    out = f(c) if c.addr < n_workers else None
+    try:
+        out = f(c) if c.addr < n_workers else None
+    except KeyboardInterrupt:
+        MPI.COMM_WORLD.Abort()
     sys.excepthook = orig_sys_except
     return out

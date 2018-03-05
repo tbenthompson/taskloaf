@@ -85,7 +85,7 @@ def test_alloc(w):
     assert(len(syncawait(ref.get())) == 100)
 
 async def wait_to_die():
-    for i in range(250):
+    for i in range(2500):
         await asyncio.sleep(0.01)
 
 @mpi_procs(2)
@@ -111,7 +111,6 @@ def test_get():
         assert(await ref.get() == 1)
         assert(await ref2.get() == one_serialized)
         async def g(w):
-            print('start g!')
             assert(await ref.get() == 1)
             assert(ref.key() in w.object_cache)
             assert(await ref2.get() == one_serialized)
@@ -123,9 +122,7 @@ def test_get():
             assert(await ref.get() == 1)
             assert(isinstance(w.object_cache[ref.key()], int))
             assert(await v1 == 1)
-            print("submit shutdown to 0")
             submit_ref_work(w, 0, taskloaf.worker.shutdown)
-        print('submit g to 1')
         submit_ref_work(w, 1, g)
         await wait_to_die()
     cluster(2, f)
@@ -169,19 +166,33 @@ def test_multiuse_msgs():
     So, the ref count will be 2 while there will be 3 live references.
     """
     async def f(w):
-        ref = put(w, 1)
-        print('refid', ref._id)
         async def fnc():
-            print('fnc')
-            assert(await ref.get() == 1)
-        ref_fnc = put(w, fnc)
-        print('ref_fnc id', ref_fnc._id)
+            v = await fnc.ref.get()
+            assert(v == 1)
+            del fnc.ref
+        fnc.ref = put(w, 1)
+        w.finished = False
         async def g(w):
-            await (await ref_fnc.get())()
+            fnc = await g.ref_fnc.get()
+            await fnc()
+            del fnc, g.ref_fnc
+            def h(w):
+                w.finished = True
+            w.submit_work(0, h)
+            w.object_cache.clear()
+            import gc; gc.collect()
+        g.ref_fnc = put(w, fnc)
         submit_ref_work(w, 1, g)
         submit_ref_work(w, 2, g)
-        submit_ref_work(w, 1, taskloaf.worker.shutdown)
-        submit_ref_work(w, 2, taskloaf.worker.shutdown)
-        del ref
-        await wait_to_die()
+        w.submit_work(1, taskloaf.worker.shutdown)
+        w.submit_work(2, taskloaf.worker.shutdown)
+        del fnc.ref, g.ref_fnc
+        while not w.finished:
+            await asyncio.sleep(0)
+        for i in range(20):
+            if not w.allocator.empty():
+                await asyncio.sleep(0.1)
+                continue
+                return
+        assert(w.allocator.empty())
     cluster(3, f)

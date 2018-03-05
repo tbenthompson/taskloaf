@@ -55,14 +55,19 @@ class RefManager:
             type = DecRefMsg,
             handler = lambda worker, x: worker.ref_manager.dec_ref_owned(*x)
         )
+        class Log:
+            def info(self, *args, **kwargs):
+                pass
+                # print(*args, **kwargs)
+        self.worker.log = Log()
 
     def dec_ref_owned(self, _id, gen, n_children):
-        print('decref', _id, gen, n_children)
+        self.worker.log.info('decref', _id, gen, n_children)
         refcount = self.entries[_id].refcount
         refcount.dec_ref(gen, n_children)
-        print('cur state', _id, refcount.gen_counts)
+        self.worker.log.info('cur state', _id, refcount.gen_counts)
         if not refcount.alive():
-            print('delete', _id, gen, n_children)
+            self.worker.log.info('delete', _id, gen, n_children)
             self.delete(_id)
 
     def delete(self, _id):

@@ -17,11 +17,11 @@ def pytest_runtest_protocol(item, nextitem):
         return True
 
     if rank >= n_procs:
-        new_comm = MPI.COMM_WORLD.Split()
+        new_comm = MPI.COMM_WORLD.Split(color = 0)
         MPI.COMM_WORLD.Barrier()
         return True
     else:
-        new_comm = MPI.COMM_WORLD.Split()
+        new_comm = MPI.COMM_WORLD.Split(color = 1)
         MPIComm.default_comm = new_comm
         res = _pytest.runner.pytest_runtest_protocol(item, nextitem)
         MPI.COMM_WORLD.Barrier()

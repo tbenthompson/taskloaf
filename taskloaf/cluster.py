@@ -24,5 +24,7 @@ def cluster(n_workers, coro, runner = mpiexisting):
             except:
                 killall(worker, n_workers)
                 raise
+            finally:
+                c.barrier()
 
     return runner(n_workers, wrap_start_coro)
