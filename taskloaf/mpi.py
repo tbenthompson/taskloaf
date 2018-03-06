@@ -15,7 +15,7 @@ def rank(comm = MPI.COMM_WORLD):
 class MPIComm:
     default_comm = MPI.COMM_WORLD
 
-    # multi part messages can be done with tags.
+    # TODO: multi part messages can be done with tags.
     def __init__(self, comm = None):
         if comm is None:
             comm = MPIComm.default_comm
@@ -23,6 +23,7 @@ class MPIComm:
         self.addr = rank(self.comm)
 
     def send(self, to_addr, data):
+        #TODO: data.obj here is incorrect
         self.comm.Isend(data.obj, dest = to_addr)
 
     def recv(self):
@@ -45,7 +46,7 @@ def mpirun(n_workers, f):
 
 def mpistart(f, i):
     c = MPIComm()
-    return cloudpickle.loads(None, [], f)(c)
+    return cloudpickle.loads(f)(c)
 
 def mpiexisting(n_workers, f, die_on_exception = True):
     orig_sys_except = sys.excepthook
@@ -62,9 +63,6 @@ def mpiexisting(n_workers, f, die_on_exception = True):
             'There are only %s MPI processes but %s were requested' % (n_mpi_procs, n_workers)
         )
     c = MPIComm()
-    try:
-        out = f(c) if c.addr < n_workers else None
-    except KeyboardInterrupt:
-        MPI.COMM_WORLD.Abort()
+    out = f(c) if c.addr < n_workers else None
     sys.excepthook = orig_sys_except
     return out

@@ -24,7 +24,10 @@ def localrun(n_workers, f):
     try:
         qs = [multiprocessing.Queue() for i in range(n_workers + 1)]
         args = [(f, i, qs) for i in range(n_workers)]
-        ps = [multiprocessing.Process(target = localstart, args = args[i]) for i in range(n_workers)]
+        ps = [
+            multiprocessing.Process(target = localstart, args = args[i])
+            for i in range(n_workers)
+        ]
         for p in ps:
             p.start()
         return qs[-1].get()

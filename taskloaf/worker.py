@@ -15,20 +15,12 @@ class NullComm:
     def recv(self):
         return None
 
-# async def shutdown_helper(w):
-#     for t in asyncio.Task.all_tasks():
-#         if t == asyncio.Task.current_task():
-#             continue
-#         t.cancel()
-#     for t in asyncio.Task.all_tasks():
-#         if t == asyncio.Task.current_task():
-#             continue
-#         with suppress(CancelledError):
-#             await t
-#     asyncio.Task.current_task().cancel()
-
 def shutdown(w):
     w.stop = True
+
+def shutdown_all(worker, addrs):
+    for a in addrs:
+        worker.submit_work(a, shutdown)
 
 class Worker:
     def __init__(self, comm):

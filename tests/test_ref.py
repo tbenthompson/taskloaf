@@ -189,10 +189,9 @@ def test_multiuse_msgs():
         del fnc.ref, g.ref_fnc
         while not w.finished:
             await asyncio.sleep(0)
-        for i in range(20):
+        for i in range(200):
             if not w.allocator.empty():
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.01)
                 continue
-                return
         assert(w.allocator.empty())
     cluster(3, f)
