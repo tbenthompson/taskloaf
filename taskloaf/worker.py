@@ -18,10 +18,6 @@ class NullComm:
 def shutdown(w):
     w.stop = True
 
-def shutdown_all(worker, addrs):
-    for a in addrs:
-        worker.submit_work(a, shutdown)
-
 class Worker:
     def __init__(self, comm):
         self.comm = comm
@@ -35,6 +31,10 @@ class Worker:
         self.exception = None
         self.next_id = 0
         self.stop = False
+
+    def shutdown_all(self, addrs):
+        for a in addrs:
+            self.submit_work(a, shutdown)
 
     def get_new_id(self):
         self.next_id += 1

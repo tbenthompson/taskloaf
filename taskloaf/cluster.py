@@ -9,7 +9,7 @@ def cluster(n_workers, coro, runner = mpiexisting):
                 try:
                     worker.result = await coro(worker)
                 finally:
-                    shutdown_all(worker, range(n_workers))
+                    worker.shutdown_all(range(n_workers))
 
         with taskloaf.worker.Worker(c) as worker:
             add_plugins(worker)
@@ -18,7 +18,7 @@ def cluster(n_workers, coro, runner = mpiexisting):
                 worker.start(setup)
                 return worker.result
             except:
-                shutdown_all(worker, range(n_workers))
+                worker.shutdown_all(range(n_workers))
                 raise
             finally:
                 c.barrier()
