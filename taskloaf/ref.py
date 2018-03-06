@@ -104,7 +104,7 @@ class GCRef:
         self.ref_list = ref_list
 
     async def get(self):
-        self.ensure_ref_list_deserialized()
+        self._ensure_ref_list_deserialized()
         if self.key() in self.worker.object_cache:
             val = self.worker.object_cache[self.key()]
             if isinstance(val, asyncio.Future):
@@ -134,6 +134,7 @@ class GCRef:
 
     def _deserialize_and_store(self, buf):
         if self.deserialize:
+            assert(isinstance(self.ref_list, list))
             out = taskloaf.serialize.loads(self.worker, self.ref_list, buf)
         else:
             out = buf
@@ -147,7 +148,7 @@ class GCRef:
             owner = self.owner
         )
 
-    def ensure_ref_list_deserialized(self):
+    def _ensure_ref_list_deserialized(self):
         if isinstance(self.ref_list, list):
             return
         self.ref_list = [
@@ -155,6 +156,13 @@ class GCRef:
             for child_ref in self.ref_list
         ]
 
+    def encode_reflist(self, msg):
+        msg.init('refList', len(self.ref_list))
+        if isinstance(self.ref_list, list):
+            for i in range(len(self.ref_list)):
+                self.ref_list[i].encode_capnp(msg.refList[i])
+        else:
+            msg.refList = self.ref_list
 
     # TODO: After encoding or pickling, the __del__ call will only happen if
     # the object is decoded properly and nothing bad happens. This is scary,
@@ -169,12 +177,7 @@ class GCRef:
         msg.gen = self.gen + 1
         msg.deserialize = self.deserialize
         self.ptr.encode_capnp(msg.ptr)
-        msg.init('refList', len(self.ref_list))
-        if isinstance(self.ref_list, list):
-            for i in range(len(self.ref_list)):
-                self.ref_list[i].encode_capnp(msg.refList[i])
-        else:
-            msg.refList = self.ref_list
+        self.encode_reflist(msg)
 
     @classmethod
     def decode_capnp(cls, worker, msg, child = False):
@@ -188,7 +191,7 @@ class GCRef:
         ref.worker = worker
         ref.ref_list = msg.refList
         if not child:
-            ref.ensure_ref_list_deserialized()
+            ref._ensure_ref_list_deserialized()
         return ref
 
 
