@@ -87,23 +87,26 @@ class ZMQComm:
 
 def zmqrun(n_workers, f):
     try:
+        q = multiprocessing.Queue()
         hosts = [('tcp://127.0.0.1:%s', (5755 + 2 * i)) for i in range(n_workers)]
         ps = [
             multiprocessing.Process(
                 target = zmqstart,
-                args = (cloudpickle.dumps(f), i, hosts)
+                args = (cloudpickle.dumps(f), i, hosts, q)
             ) for i in range(n_workers)
         ]
         for p in ps:
             p.start()
+        return q.get()
     finally:
         for p in ps:
             p.join()
 
-def zmqstart(f, i, hosts):
+def zmqstart(f, i, hosts, q):
     n_cpus = psutil.cpu_count()
     psutil.Process().cpu_affinity([i % n_cpus])
     c = ZMQComm(i, hosts)
     out = cloudpickle.loads(f)(c)
     c.close()
-    return out
+    if i == 0:
+        q.put(out)

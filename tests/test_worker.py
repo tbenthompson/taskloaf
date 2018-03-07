@@ -1,6 +1,10 @@
 import os
 import pytest
+import asyncio
 import taskloaf.worker
+from taskloaf.cluster import cluster
+from taskloaf.mpi import mpiexisting, MPIComm, rank
+from taskloaf.test_decorators import mpi_procs
 from taskloaf.run import run
 
 if __name__ == "__main__":
@@ -37,10 +41,6 @@ def test_run_output():
         return 1
     assert(run(f) == 1)
 
-from taskloaf.cluster import cluster
-from taskloaf.mpi import mpiexisting, MPIComm, rank
-from taskloaf.test_decorators import mpi_procs
-import asyncio
 @mpi_procs(2)
 def test_remote_work():
     async def f(w):
@@ -56,8 +56,7 @@ def test_remote_work():
         w.submit_work(1, g)
         while True:
             await asyncio.sleep(0)
-    cluster(2, f)
-    # taskloaf.worker.Worker(MPIComm()).start(f)
+    cluster(2, f, runner = mpiexisting)
 
 def test_cluster_output():
     async def f(w):
@@ -78,7 +77,7 @@ def test_cluster_death_cleansup():
         raise FunnyException()
     check(2, False)
     try:
-        cluster(2, f)
+        cluster(2, f, runner = mpiexisting)
     except FunnyException:
         pass
     import gc; gc.collect()

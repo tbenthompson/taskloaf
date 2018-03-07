@@ -24,7 +24,7 @@ class MPIComm:
 
     def send(self, to_addr, data):
         #TODO: data.obj here is incorrect
-        self.comm.Isend(data.obj, dest = to_addr)
+        self.comm.Isend(data, dest = to_addr)
 
     def recv(self):
         s = MPI.Status()

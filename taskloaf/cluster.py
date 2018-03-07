@@ -1,8 +1,9 @@
 import taskloaf.worker
 from taskloaf.mpi import mpiexisting
+from taskloaf.zmq import zmqrun
 from taskloaf.run import add_plugins
 
-def cluster(n_workers, coro, runner = mpiexisting):
+def cluster(n_workers, coro, runner = zmqrun):
     def wrap_start_coro(c):
         async def setup(worker):
             if worker.comm.addr == 0:

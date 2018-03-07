@@ -4,8 +4,6 @@ from io import BytesIO
 
 import taskloaf.ref
 
-marker = 'taskloaf.worker'
-
 class CloudPicklerWithCtx(cloudpickle.CloudPickler):
     def __init__(self, file):
         super().__init__(file)
@@ -21,10 +19,9 @@ class CloudPicklerWithCtx(cloudpickle.CloudPickler):
     persistent_id = persistent_id
 
 class UnpicklerWithCtx(pickle.Unpickler):
-    def __init__(self, worker, refs, file):
+    def __init__(self, refs, file):
         super().__init__(file)
         self.refs = refs
-        self.worker = worker
 
     def persistent_load(self, pid):
         type_tag, ref_idx = pid
@@ -39,7 +36,7 @@ def dumps(obj):
         cp.dump(obj)
         return cp.refs, file.getvalue()
 
-def loads(w, refs, bytes_obj):
+def loads(refs, bytes_obj):
     with BytesIO(bytes_obj) as file:
-        up = UnpicklerWithCtx(w, refs, file)
+        up = UnpicklerWithCtx(refs, file)
         return up.load()

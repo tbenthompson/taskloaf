@@ -2,7 +2,6 @@ import gc
 import pickle
 import pytest
 import asyncio
-from taskloaf.test_decorators import mpi_procs
 from taskloaf.cluster import cluster
 from taskloaf.ref import *
 from fixtures import w
@@ -88,7 +87,6 @@ async def wait_to_die():
     for i in range(2500):
         await asyncio.sleep(0.01)
 
-@mpi_procs(2)
 def test_submit_ref_work():
     async def f(w):
         ref = put(w, 1)
@@ -100,7 +98,6 @@ def test_submit_ref_work():
         await wait_to_die()
     cluster(2, f)
 
-@mpi_procs(2)
 def test_get():
     one_serialized = pickle.dumps(1)
     async def f(w):
@@ -127,7 +124,6 @@ def test_get():
         await wait_to_die()
     cluster(2, f)
 
-@mpi_procs(2)
 def test_remote_double_get():
     async def f(w):
         ref = put(w, 1)
@@ -157,7 +153,6 @@ def test_put_delete_ref(w):
     f()
     assert(len(w.ref_manager.entries) == 0)
 
-@mpi_procs(3)
 def test_multiuse_msgs():
     """
     Here, ref is deserialized multiple times on different workers.

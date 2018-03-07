@@ -135,7 +135,7 @@ class GCRef:
     def _deserialize_and_store(self, buf):
         if self.deserialize:
             assert(isinstance(self.ref_list, list))
-            out = taskloaf.serialize.loads(self.worker, self.ref_list, buf)
+            out = taskloaf.serialize.loads(self.ref_list, buf)
         else:
             out = buf
         self.worker.object_cache[self.key()] = out

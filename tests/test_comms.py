@@ -60,20 +60,29 @@ def test_zmq():
         c.barrier()
     zmqrun(n_workers, f)
 
-# @mpi_procs(2)
-def test_data_send():
-    def f(c):
-        if c.addr == 0:
-            c.send(1, cloudpickle.dumps(123))
-        if c.addr == 1:
-            wait_for(c, 123)
-    zmqrun(2, f)
+def data_send(c):
+    if c.addr == 0:
+        c.send(1, cloudpickle.dumps(123))
+    if c.addr == 1:
+        wait_for(c, 123)
 
-def test_fnc_send():
-    def f(c):
-        if c.addr == 0:
-            x = 13
-            c.send(1, cloudpickle.dumps(lambda: x ** 2))
-        if c.addr == 1:
-            wait_for(c, 169, lambda x: x())
-    zmqrun(2, f)
+def fnc_send(c):
+    if c.addr == 0:
+        x = 13
+        c.send(1, cloudpickle.dumps(lambda: x ** 2))
+    if c.addr == 1:
+        wait_for(c, 169, lambda x: x())
+
+def test_zmq_data_send():
+    zmqrun(2, data_send)
+
+def test_zmq_fnc_send():
+    zmqrun(2, fnc_send)
+
+@mpi_procs(2)
+def test_zmq_data_send():
+    data_send(MPIComm())
+
+@mpi_procs(2)
+def test_zmq_fnc_send():
+    fnc_send(MPIComm())

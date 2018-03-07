@@ -53,8 +53,9 @@ class Worker:
         self.exit_stack.close()
 
     def start(self, coro):
-        main_task = asyncio.ensure_future(coro(self))
+        main_task = self.start_async_work(coro)
         self.ioloop = asyncio.get_event_loop()
+        self.log.info('starting worker ioloop')
         self.ioloop.run_until_complete(asyncio.gather(
             self.poll_loop(), self.work_loop(),
         ))
@@ -79,6 +80,7 @@ class Worker:
         self.comm.send(to, data)
 
     def submit_work(self, to, f):
+        self.log.debug('submit_work', to = to, f = f)
         if to == self.addr:
             self.work.append(f)
         else:
@@ -89,9 +91,9 @@ class Worker:
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
-            self.start_async_work(f, *args)
+            return self.start_async_work(f, *args)
         else:
-            f(self, *args)
+            return f(self, *args)
 
     async def wait_for_work(self, f, *args):
         out = f(self, *args)
