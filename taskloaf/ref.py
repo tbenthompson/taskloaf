@@ -142,7 +142,10 @@ class GCRef:
         return out
 
     def __del__(self):
-        self.worker.log.info('__del__', 'addr=', self.worker.addr, ' id=', self._id, ' gen=', self.gen, ' n_children=', self.n_children)
+        self.worker.log.debug(
+            '__del__', _id = self._id, gen = self.gen,
+            n_children = self.n_children
+        )
         self.worker.ref_manager.dec_ref(
             self._id, self.gen, self.n_children,
             owner = self.owner
@@ -171,6 +174,10 @@ class GCRef:
     # being leaked. Maybe a global counter of number of encoded and decoded
     # refs (those #s should be equal).
     def encode_capnp(self, msg):
+        self.worker.log.debug(
+            'copy', _id = self._id, n_children = self.n_children,
+            gen = self.gen, owner = self.owner
+        )
         self.n_children += 1
         msg.owner = self.owner
         msg.id = self._id

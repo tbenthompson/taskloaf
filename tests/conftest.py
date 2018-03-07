@@ -1,3 +1,5 @@
+import sys
+import logging
 from mpi4py import MPI
 import _pytest.runner
 
@@ -26,3 +28,15 @@ def pytest_runtest_protocol(item, nextitem):
         res = _pytest.runner.pytest_runtest_protocol(item, nextitem)
         MPI.COMM_WORLD.Barrier()
         return res
+
+def pytest_addoption(parser):
+    parser.addoption('--shouldlog', action='store_true', help='display logging')
+
+def pytest_configure(config):
+    if config.getoption('--shouldlog'):
+        logging.basicConfig(
+            format = '[%(relativeCreated)d:%(levelname)s:%(name)s] %(message)s',
+            stream = sys.stdout,
+            level = logging.DEBUG,
+            datefmt='%j:%H:%M:%S'
+        )

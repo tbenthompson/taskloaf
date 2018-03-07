@@ -3,6 +3,9 @@ import pytest
 import taskloaf.worker
 from taskloaf.run import run
 
+if __name__ == "__main__":
+    test_log()
+
 def test_shutdown():
     async def f(w):
         taskloaf.worker.shutdown(w)

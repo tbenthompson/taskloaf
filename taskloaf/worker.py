@@ -1,5 +1,7 @@
 import time
 import asyncio
+import logging
+import structlog
 from contextlib import suppress, ExitStack
 
 import taskloaf.protocol
@@ -21,9 +23,12 @@ def shutdown(w):
 class Worker:
     def __init__(self, comm):
         self.comm = comm
-        self.st = time.time()
+        self.init_time = time.time()
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
+
+        log_name = 'taskloaf.worker' + str(self.addr)
+        self.log = structlog.wrap_logger(logging.getLogger(log_name))
 
         def handle_new_work(w, x):
             w.work.append(x[0])
