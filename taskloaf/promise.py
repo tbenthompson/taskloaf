@@ -2,9 +2,10 @@ import asyncio
 import capnp
 
 import taskloaf.serialize
-from taskloaf.ref import GCRefListMsg
+from taskloaf.ref import is_ref, GCRefListMsg
 
-def setup_protocol(worker):
+def setup_plugin(worker):
+    worker.promises = dict()
     pass
     # worker.protocol.add_msg_type(
     #     'TASK',
@@ -41,8 +42,11 @@ def set_result_builder(worker, args):
     return run
 
 class Promise:
-    def __init__(self, dref):
-        self.dref = dref
+    def __init__(self, worker, owner):
+        self.worker = worker
+        self.owner = owner
+        self.creator = self.worker.addr
+        self._id = self.worker.get_new_id()
 
     @property
     def worker(self):
@@ -123,30 +127,28 @@ def task_runner_builder(worker, data):
         _unwrap_promise(out_pr, await waiter)
     return task_runner
 
-def is_dref(v):
-    return isinstance(v, DistributedRef)
-
 def ensure_dref_if_remote(worker, v, to):
-    if worker.addr == to or is_dref(v):
+    if worker.addr == to or is_ref(v):
         return v
-    return worker.memory.put(value = v, eager_alloc = 2)
+    return put(worker, v)
 
 # f and args can be provided in two forms:
 # -- a python object (f should be callable or awaitable)
 # -- a dref to a serialized object in the memory manager
 # if f is a function and the task is being run locally, f is never serialized, but when the task is being run remotely, f is entered into the
-def task(worker, f, args = None, to = None, out_pr = None):
-    if out_pr is None:
-        if to is None:
-            to = worker.comm.addr
-        out_pr = Promise(DistributedRef(worker, to))
+def task(worker, f, *args, *, to = None, out_pr = None):
+    # if out_pr is None:
+    #     if to is None:
+    #         to = worker.comm.addr
+    #     out_pr = Promise(DistributedRef(worker, to))
+    out_pr = Promise(worker, to)
 
     task_objs = [
-        out_pr.dref,
+        out_pr,
         ensure_dref_if_remote(worker, f, to)
     ]
-    if args is not None:
-        task_objs.append(ensure_dref_if_remote(worker, args, to))
+    for a in args:
+        task_objs.append(ensure_dref_if_remote(worker, a, to))
     worker.send(out_pr.owner, worker.protocol.TASK, task_objs)
 
     return out_pr

@@ -16,7 +16,10 @@ def submit_ref_work(worker, to, f):
     ref = put(worker, f).convert()
     worker.send(to, worker.protocol.REFWORK, [ref])
 
-def setup_protocol(worker):
+def setup_plugin(worker):
+    assert(hasattr(worker, 'allocator'))
+    worker.ref_manager = taskloaf.refcounting.RefManager(worker)
+    worker.object_cache = dict()
     worker.protocol.add_msg_type(
         'REMOTEGET', type = GCRefListMsg, handler = handle_remote_get
     )
@@ -33,6 +36,9 @@ def handle_ref_work(worker, args):
         f = await f_ref.get()
         await worker.wait_for_work(f)
     worker.start_async_work(run_me)
+
+def is_ref(x):
+    return isinstance(x, Ref) or isinstance(x, GCRef)
 
 """
 This class barely needs to do anything because python already uses reference
@@ -141,11 +147,14 @@ class GCRef:
         self.worker.object_cache[self.key()] = out
         return out
 
-    def __del__(self):
+    def log(self, text):
         self.worker.log.debug(
-            '__del__', _id = self._id, gen = self.gen,
-            n_children = self.n_children
+            text, _id = self._id, n_children = self.n_children,
+            gen = self.gen, owner = self.owner
         )
+
+    def __del__(self):
+        self.log_ref('del ref')
         self.worker.ref_manager.dec_ref(
             self._id, self.gen, self.n_children,
             owner = self.owner
@@ -167,17 +176,13 @@ class GCRef:
         else:
             msg.refList = self.ref_list
 
-    # TODO: After encoding or pickling, the __del__ call will only happen if
+    # After encoding or pickling, the __del__ call will only happen if
     # the object is decoded properly and nothing bad happens. This is scary,
     # but is hard to avoid without adding a whole lot more synchronization and
-    # tracking. It would be worth adding some tools to check that memory isn't
-    # being leaked. Maybe a global counter of number of encoded and decoded
-    # refs (those #s should be equal).
+    # tracking. Using the log statements, checking whether encodes and decodes
+    # are paired should be possible.
     def encode_capnp(self, msg):
-        self.worker.log.debug(
-            'copy', _id = self._id, n_children = self.n_children,
-            gen = self.gen, owner = self.owner
-        )
+        self.log('encode ref')
         self.n_children += 1
         msg.owner = self.owner
         msg.id = self._id
@@ -196,6 +201,8 @@ class GCRef:
         ref.ptr = taskloaf.allocator.Ptr.decode_capnp(worker, ref.owner, msg.ptr)
         ref.n_children = 0
         ref.worker = worker
+        ref.log('decode ref')
+
         ref.ref_list = msg.refList
         if not child:
             ref._ensure_ref_list_deserialized()
