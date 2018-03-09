@@ -63,22 +63,25 @@ def test_cluster_output():
         return 1
     assert(cluster(1, f) == 1)
 
+class FunnyException(Exception):
+    pass
+
 @mpi_procs(2)
 def test_cluster_death_cleansup():
     def check(n, onoff):
         for i in range(n):
             path = '/dev/shm/taskloaf_' + str(i) + '_0'
             assert(os.path.exists(path) == onoff)
-    class FunnyException(Exception):
-        pass
     async def f(w):
         ptr = w.allocator.malloc(1)
         check(1, True)
         raise FunnyException()
     check(2, False)
+    raises = False
     try:
         cluster(2, f, runner = mpiexisting)
-    except FunnyException:
-        pass
+    except FunnyException as e:
+        raises = True
+    assert(rank() == 1 or raises)
     import gc; gc.collect()
     check(2, False)

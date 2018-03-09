@@ -33,10 +33,12 @@ def pytest_addoption(parser):
     parser.addoption('--shouldlog', action='store_true', help='display logging')
 
 def pytest_configure(config):
+    level = logging.ERROR
     if config.getoption('--shouldlog'):
-        logging.basicConfig(
-            format = '[%(relativeCreated)d:%(levelname)s:%(name)s] %(message)s',
-            stream = sys.stdout,
-            level = logging.DEBUG,
-            datefmt='%j:%H:%M:%S'
-        )
+        level = logging.DEBUG
+    logging.basicConfig(
+        format = '[%(relativeCreated)d:%(levelname)s:%(name)s] %(message)s',
+        stream = sys.stdout,
+        level = level,
+        datefmt='%j:%H:%M:%S'
+    )

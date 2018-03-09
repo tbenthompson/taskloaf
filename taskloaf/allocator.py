@@ -45,7 +45,7 @@ class Ptr:
         return Ptr(
             start = msg.start,
             end = msg.end,
-            block = worker.remote_shmem.get_block(owner, msg.blockIdx)
+            block = deserialize_block(worker, owner, msg.blockIdx)
         )
 
 class MemoryBlock:
@@ -89,6 +89,9 @@ class RemoteShmemRepo:
         for k, v in self.blocks.items():
             v.close()
         self.blocks.clear()
+
+def deserialize_block(worker, owner, block_idx):
+    return worker.remote_shmem.get_block(owner, block_idx)
 
 class BlockManager:
     def __init__(self, root_path, page_size = taskloaf.shmem.page4kb):

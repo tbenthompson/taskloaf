@@ -7,6 +7,7 @@ import contextlib
 
 def add_plugins(worker):
     taskloaf.allocator.setup_plugin(worker)
+    taskloaf.refcounting.setup_plugin(worker)
     taskloaf.ref.setup_plugin(worker)
     taskloaf.promise.setup_plugin(worker)
     return worker

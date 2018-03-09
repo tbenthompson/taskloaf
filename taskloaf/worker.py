@@ -1,6 +1,7 @@
 import time
 import asyncio
 import logging
+import traceback
 import structlog
 from contextlib import suppress, ExitStack
 
@@ -53,7 +54,7 @@ class Worker:
         self.exit_stack.close()
 
     def start(self, coro):
-        main_task = self.start_async_work(coro)
+        main_task = asyncio.ensure_future(coro(self))
         self.ioloop = asyncio.get_event_loop()
         self.log.info('starting worker ioloop')
         self.ioloop.run_until_complete(asyncio.gather(
@@ -87,13 +88,20 @@ class Worker:
             self.send(to, self.protocol.WORK, [f])
 
     def start_async_work(self, f, *args):
-        return asyncio.ensure_future(f(self, *args))
+        async def wrapper(w):
+            try:
+                await f(w, *args)
+            except asyncio.CancelledError:
+                self.log.warning('async work cancelled', exc_info = True)
+            except Exception as e:
+                self.log.exception('async work failed with unhandled exception')
+        return asyncio.ensure_future(wrapper(self))
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
-            return self.start_async_work(f, *args)
+            self.start_async_work(f, *args)
         else:
-            return f(self, *args)
+            f(self, *args)
 
     async def wait_for_work(self, f, *args):
         out = f(self, *args)

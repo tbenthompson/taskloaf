@@ -2,16 +2,43 @@ import asyncio
 import capnp
 
 import taskloaf.serialize
-from taskloaf.ref import is_ref, GCRefListMsg
+import taskloaf.refcounting
+from taskloaf.ref import put, is_ref
+
+class TaskMsg:
+    @staticmethod
+    def serialize(args):
+        pr = args[0]
+        objrefs = args[1:]
+
+        m = taskloaf.message_capnp.Message.new_message()
+        m.init('task')
+
+        pr.encode_capnp(m.task.promise)
+
+        m.task.init('objrefs', len(objrefs))
+        for i, ref in enumerate(objrefs):
+            ref.encode_capnp(m.task.objrefs[i])
+        return m
+
+    @staticmethod
+    def deserialize(worker, msg):
+        out = [
+            Promise.decode_capnp(worker, msg.task.promise)
+        ]
+        for i in range(len(msg.task.objrefs)):
+            out.append(taskloaf.ref.ObjectRef.decode_capnp(
+                worker, msg.task.objrefs[i]
+            ))
+        return out
 
 def setup_plugin(worker):
     worker.promises = dict()
-    pass
-    # worker.protocol.add_msg_type(
-    #     'TASK',
-    #     serializer = DRefListSerializer,
-    #     handler = task_runner_builder
-    # )
+    worker.protocol.add_msg_type(
+        'TASK',
+        type = TaskMsg,
+        handler = task_handler
+    )
     # worker.protocol.add_msg_type(
     #     'SETRESULT',
     #     serializer = DRefListSerializer,
@@ -42,116 +69,160 @@ def set_result_builder(worker, args):
     return run
 
 class Promise:
-    def __init__(self, worker, owner):
-        self.worker = worker
-        self.owner = owner
-        self.creator = self.worker.addr
-        self._id = self.worker.get_new_id()
+    def __init__(self, worker, running_on):
+        def on_delete(_id):
+            del worker.promises[_id]
+        self.ref = taskloaf.refcounting.Ref(worker, on_delete)
+        self.running_on = running_on
+        worker.promises[self.ref._id] = asyncio.Future()
 
-    @property
-    def worker(self):
-        return self.dref.worker
+    def encode_capnp(self, msg):
+        self.ref.encode_capnp(msg.ref)
+        msg.runningOn = self.running_on
 
-    @property
-    def owner(self):
-        return self.dref.owner
-
-    def ensure_future_exists(self):
-        if not self.worker.memory.available(self.dref):
-            here = self.worker.comm.addr
-            self.worker.memory.put(
-                value = [asyncio.Future(), False],
-                dref = self.dref
-            )
-            if self.owner != here:
-                async def delete_after_triggered(worker):
-                    await worker.memory.get_local(self.dref)[0]
-                    worker.memory.delete(self.dref)
-                self.worker.run_work(delete_after_triggered)
-
-    def __await__(self):
-        res_dref = yield from self.await_result_dref()
-        out = yield from remote_get(self.worker, res_dref).__await__()
+    @classmethod
+    def decode_capnp(cls, worker, msg):
+        out = Promise.__new__(Promise)
+        out.ref = taskloaf.refcounting.Ref.decode_capnp(worker, msg.ref)
+        out.running_on = msg.runningOn
         return out
 
-    def await_result_dref(self):
-        here = self.worker.comm.addr
-        self.ensure_future_exists()
-        pr_data = self.worker.memory.get_local(self.dref)
-        if here != self.owner and not pr_data[1]:
-            pr_data[1] = True
-            self.worker.send(self.owner, self.worker.protocol.AWAIT, [self.dref])
-        return pr_data[0]
+    # def ensure_future_exists(self):
+    #     if not self.worker.memory.available(self.dref):
+    #         here = self.worker.comm.addr
+    #         self.worker.memory.put(
+    #             value = [asyncio.Future(), False],
+    #             dref = self.dref
+    #         )
+    #         if self.owner != here:
+    #             async def delete_after_triggered(worker):
+    #                 await worker.memory.get_local(self.dref)[0]
+    #                 worker.memory.delete(self.dref)
+    #             self.worker.run_work(delete_after_triggered)
+
+    def _get_future(self):
+        return self.ref.worker.promises[self.ref._id]
+
+    def __await__(self):
+        if self.ref.worker.addr == self.running_on:
+            result_ref = yield from self._get_future().__await__()
+            out = yield from result_ref.get().__await__()
+            return out
+        # else:
+        #     self.worker.promises[self.ref._id]
+        #     self.worker.send(self.
+        # future = yield from self.await_ref.get().__await__()
+        # result_ref = yield from future
+        # out = yield from result_ref.get().__await__()
+        # return out
+        # res_dref = yield from self.await_result_dref()
+        # out = yield from remote_get(self.worker, res_dref).__await__()
+        # return out
+
+    # def await_result_dref(self):
+        # here = self.worker.comm.addr
+        # if here == self.owner:
+        #     self. ref =
+        # self.ensure_future_exists()
+        # pr_data = self.worker.memory.get_local(self.dref)
+        # if here != self.owner and not pr_data[1]:
+        #     pr_data[1] = True
+        #     self.worker.send(self.owner, self.worker.protocol.AWAIT, [self.dref])
+        # return pr_data[0]
 
     def set_result(self, result):
-        self.ensure_future_exists()
-        res_dref = self.worker.memory.put(value = result)
-        self.worker.memory.get_local(self.dref)[0].set_result(res_dref)
+        self._get_future().set_result(result)
+        # self.ensure_future_exists()
+        # res_dref = self.worker.memory.put(value = result)
+        # self.worker.memory.get_local(self.dref)[0].set_result(res_dref)
 
-    def then(self, f, to = None):
-        if to is None:
-            to = self.owner
-        out_pr = Promise(DistributedRef(self.worker, to))
+    # def then(self, f, to = None):
+    #     if to is None:
+    #         to = self.owner
+    #     out_pr = Promise(DistributedRef(self.worker, to))
 
-        async def wait_to_start(worker):
-            v = await self
-            task(worker, f, v, out_pr = out_pr)
-        self.worker.submit_work(self.owner, wait_to_start)
-        return out_pr
+    #     async def wait_to_start(worker):
+    #         v = await self
+    #         task(worker, f, v, out_pr = out_pr)
+    #     self.worker.submit_work(self.owner, wait_to_start)
+    #     return out_pr
 
-    def next(self, f, to = None):
-        return self.then(lambda x: f(), to)
+    # def next(self, f, to = None):
+    #     return self.then(lambda x: f(), to)
 
-def _unwrap_promise(pr, result):
-    if isinstance(result, Promise):
-        result.then(lambda w, x: pr.set_result(x))
+
+# def task_runner_builder(worker, data):
+#     async def task_runner(worker):
+#         out_pr = Promise(data[0])
+#         assert(worker.comm.addr == out_pr.dref.owner)
+#
+#         f = data[1]
+#         if is_dref(f):
+#             f = await remote_get(worker, f)
+#
+#         if len(data) > 2:
+#             args = data[2]
+#             if is_dref(args):
+#                 args = await remote_get(worker, args)
+#             waiter = worker.wait_for_work(f, args)
+#         else:
+#             waiter = worker.wait_for_work(f)
+#         _unwrap_promise(out_pr, await waiter)
+#     return task_runner
+
+async def ensure_obj(maybe_ref):
+    if is_ref(maybe_ref):
+        return await maybe_ref.get()
     else:
-        pr.set_result(result)
+        return maybe_ref
 
-def task_runner_builder(worker, data):
-    async def task_runner(worker):
-        out_pr = Promise(data[0])
-        assert(worker.comm.addr == out_pr.dref.owner)
+def task_runner(worker, pr, in_f, *in_args):
+    async def task_wrapper(worker):
+        f = await ensure_obj(in_f)
+        args = []
+        for a in in_args:
+            args.append(await ensure_obj(a))
+        try:
+            result = await worker.wait_for_work(f, *args)
+        # catches all exceptions except system-exiting exceptions that inherit
+        # from BaseException
+        except Exception as e:
+            result = e
+        _unwrap_promise(worker, pr, result)
+    worker.run_work(task_wrapper)
 
-        f = data[1]
-        if is_dref(f):
-            f = await remote_get(worker, f)
-
-        if len(data) > 2:
-            args = data[2]
-            if is_dref(args):
-                args = await remote_get(worker, args)
-            waiter = worker.wait_for_work(f, args)
-        else:
-            waiter = worker.wait_for_work(f)
-        _unwrap_promise(out_pr, await waiter)
-    return task_runner
-
-def ensure_dref_if_remote(worker, v, to):
-    if worker.addr == to or is_ref(v):
-        return v
-    return put(worker, v)
+def task_handler(worker, args):
+    task_runner(worker, args[0], args[1], *args[2:])
 
 # f and args can be provided in two forms:
 # -- a python object (f should be callable or awaitable)
 # -- a dref to a serialized object in the memory manager
 # if f is a function and the task is being run locally, f is never serialized, but when the task is being run remotely, f is entered into the
-def task(worker, f, *args, *, to = None, out_pr = None):
-    # if out_pr is None:
-    #     if to is None:
-    #         to = worker.comm.addr
-    #     out_pr = Promise(DistributedRef(worker, to))
+def task(worker, f, *args, to = None):
+    if to is None:
+        to = worker.addr
     out_pr = Promise(worker, to)
-
-    task_objs = [
-        out_pr,
-        ensure_dref_if_remote(worker, f, to)
-    ]
-    for a in args:
-        task_objs.append(ensure_dref_if_remote(worker, a, to))
-    worker.send(out_pr.owner, worker.protocol.TASK, task_objs)
-
+    if to == worker.addr:
+        task_runner(worker, out_pr, f, *args)
+    else:
+        msg_objs = [
+            out_pr,
+            ensure_ref(worker, f)
+        ] + [ensure_ref(worker, a) for a in args]
+        worker.send(to, worker.protocol.TASK, msg_objs)
     return out_pr
+
+def _unwrap_promise(worker, pr, result):
+    ref = put(worker, result)
+    if isinstance(result, Promise):
+        result.then(lambda w, x: pr.set_result(ref))
+    else:
+        pr.set_result(ref)
+
+def ensure_ref(worker, v):
+    if is_ref(v):
+        return v
+    return put(worker, v)
 
 def when_all(ps, to = None):
     worker = ps[0].worker

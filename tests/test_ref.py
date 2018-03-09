@@ -4,80 +4,87 @@ import pytest
 import asyncio
 from taskloaf.cluster import cluster
 from taskloaf.ref import *
+from taskloaf.refcounting import RefCopyException
 from fixtures import w
 
 def syncawait(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
 
 def test_make_ref(w):
-    r = Ref(w, [12,3,4])
+    r = put(w, [12,3,4])
     assert(syncawait(r.get()) == [12,3,4])
 
-def test_gcref_get(w):
-    r = Ref(w, [12,3,4])
-    gcr = r.convert()
-    assert(syncawait(gcr.get()) == [12,3,4])
+def test_objref_get(w):
+    r = put(w, [12,3,4]).convert()
+    assert(syncawait(r.get()) == [12,3,4])
     w.object_cache.clear()
-    assert(syncawait(gcr.get()) == [12,3,4])
+    assert(syncawait(r.get()) == [12,3,4])
 
-def test_gcref_delete(w):
+def test_objref_delete(w):
     def check_norefs(v):
         assert(w.allocator.empty() == v)
         assert((len(w.ref_manager.entries) == 0) == v)
 
     check_norefs(True)
-    r = Ref(w, 10)
+    r = put(w, 10)
     check_norefs(True)
-    gcr = r.convert()
+    objr = r.convert()
     check_norefs(False)
     del r
     check_norefs(False)
-    del gcr
+    del objr
     check_norefs(True)
 
 def test_ref_conversion_caching(w):
-    r = Ref(w, [12,3,4])
-    gcr = r.convert()
-    assert(isinstance(gcr, GCRef))
-    gcr2 = r.convert()
-    assert(gcr is gcr2)
+    r = put(w, [12,3,4])
+    objr = r.convert()
+    assert(isinstance(objr, ObjectRef))
+    objr2 = r.convert()
+    assert(objr is objr2)
 
 def test_ref_pickle_exception(w):
-    r = Ref(w, [12,3,4])
-    gcr = r.convert()
+    r = put(w, [12,3,4])
+    objr = r.convert()
 
-    with pytest.raises(Exception):
+    with pytest.raises(RefCopyException):
         pickle.dumps(r)
 
-    with pytest.raises(Exception):
-        pickle.dumps(gcr)
+    with pytest.raises(RefCopyException):
+        pickle.dumps(objr)
 
 def ref_serialization_tester(w, sfnc, dfnc):
     assert(len(w.ref_manager.entries) == 0)
-    ref = Ref(w, 10)
-    gcr = ref.convert()
+    ref = put(w, 10)
+    objr = ref.convert()
     assert(len(w.ref_manager.entries) == 1)
-    ref_bytes = sfnc(gcr)
+    ref_bytes = sfnc(objr)
     del ref
-    del gcr
+    del objr
     assert(len(w.ref_manager.entries) == 1)
-    gcr2 = dfnc(w, ref_bytes)
-    assert(syncawait(gcr2.get()) == 10)
-    del w.object_cache[gcr2.key()]
-    assert(syncawait(gcr2.get()) == 10)
+    objr2 = dfnc(w, ref_bytes)
+    assert(syncawait(objr2.get()) == 10)
+    del w.object_cache[objr2.key()]
+    assert(syncawait(objr2.get()) == 10)
 
-    del gcr2
+    del objr2
     gc.collect()
     assert(len(w.ref_manager.entries) == 0)
     assert(len(w.object_cache) == 0)
 
-def test_ref_encode_capnp(w):
-    def serialize(ref):
-        return GCRefListMsg.serialize([ref]).to_bytes()
-    def deserialize(w, ref_b):
-        m = taskloaf.message_capnp.Message.from_bytes(ref_b)
-        return GCRefListMsg.deserialize(w, m)[0]
-    ref_serialization_tester(w, serialize, deserialize)
+def ref_serialize(ref):
+    return ObjectMsg.serialize([ref, b'']).to_bytes()
+
+def ref_deserialize(w, ref_b):
+    m = taskloaf.message_capnp.Message.from_bytes(ref_b)
+    return ObjectMsg.deserialize(w, m)[0]
+
+def test_objref_encode_capnp(w):
+    ref_serialization_tester(w, ref_serialize, ref_deserialize)
+
+def test_put_encode(w):
+    ref = put(w, 10)
+    ref2 = ref_deserialize(w, ref_serialize(ref))
+    assert(syncawait(ref2.get()) == 10)
 
 def test_alloc(w):
     ref = alloc(w, 100)
@@ -92,7 +99,7 @@ def test_submit_ref_work():
         ref = put(w, 1)
         assert(ref._id == 0)
         async def g(w):
-            assert(ref._id == 0)
+            assert(ref.ref._id == 0)
             submit_ref_work(w, 0, taskloaf.worker.shutdown)
         submit_ref_work(w, 1, g)
         await wait_to_die()
@@ -144,11 +151,9 @@ def test_remote_double_get():
 
 def test_put_delete_ref(w):
     def f():
-        ref = put(w, 1)
-        gcref = ref.convert()
-        ref2 = put(w, gcref)
-        gcref2 = ref2.convert()
-        del ref, gcref, ref2, gcref2
+        ref = put(w, 1).convert()
+        ref2 = put(w, ref).convert()
+        del ref, ref2
         import gc; gc.collect()
     f()
     assert(len(w.ref_manager.entries) == 0)

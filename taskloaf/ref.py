@@ -1,33 +1,34 @@
 import asyncio
 import taskloaf.serialize
 import taskloaf.allocator
+import taskloaf.refcounting
 
 def put(worker, obj):
-    return Ref(worker, obj)
+    return FreshObjectRef(worker, obj)
 
 def alloc(worker, nbytes):
-    return first_gcref(
-        worker, worker.get_new_id(),
-        worker.allocator.malloc(nbytes), False,
-        []
-    )
+    ptr = worker.allocator.malloc(nbytes)
+    def on_delete(_id, worker = worker, ptr = ptr):
+        worker.allocator.free(ptr)
+    ref = taskloaf.refcounting.Ref(worker, on_delete)
+    return ObjectRef(ref, ptr, False)
 
 def submit_ref_work(worker, to, f):
     ref = put(worker, f).convert()
-    worker.send(to, worker.protocol.REFWORK, [ref])
+    worker.send(to, worker.protocol.REFWORK, [ref, b''])
 
 def setup_plugin(worker):
     assert(hasattr(worker, 'allocator'))
-    worker.ref_manager = taskloaf.refcounting.RefManager(worker)
+    assert(hasattr(worker, 'ref_manager'))
     worker.object_cache = dict()
     worker.protocol.add_msg_type(
-        'REMOTEGET', type = GCRefListMsg, handler = handle_remote_get
+        'REMOTEGET', type = ObjectMsg, handler = handle_remote_get
     )
     worker.protocol.add_msg_type(
-        'REMOTEPUT', type = RemotePutMsg, handler = handle_remote_put
+        'REMOTEPUT', type = ObjectMsg, handler = handle_remote_put
     )
     worker.protocol.add_msg_type(
-        'REFWORK', type = GCRefListMsg, handler = handle_ref_work
+        'REFWORK', type = ObjectMsg, handler = handle_ref_work
     )
 
 def handle_ref_work(worker, args):
@@ -38,7 +39,7 @@ def handle_ref_work(worker, args):
     worker.start_async_work(run_me)
 
 def is_ref(x):
-    return isinstance(x, Ref) or isinstance(x, GCRef)
+    return isinstance(x, FreshObjectRef) or isinstance(x, ObjectRef)
 
 """
 This class barely needs to do anything because python already uses reference
@@ -49,48 +50,63 @@ memory from another worker, the reference first has to arrive at that other
 worker and thus serialization of the reference can be used as a trigger for
 serialization of the underlying object.
 """
-class Ref:
+class FreshObjectRef:
     def __init__(self, worker, obj):
         self.worker = worker
         self._id = self.worker.get_new_id()
         self.obj = obj
-        self.gcref = None
+        self.objref = None
 
     async def get(self):
+        return self.get_local()
+
+    def get_local(self):
         return self.obj
 
-    def __getstate__(self):
-        raise Exception()
+    def __reduce__(self):
+        objref = self.convert()
+        return (FreshObjectRef.reconstruct, (objref,))
+
+    @classmethod
+    def reconstruct(cls, objref):
+        return objref
 
     def convert(self):
-        if self.gcref is not None:
-            return self.gcref
+        if self.objref is not None:
+            return self.objref
         else:
             return self._new_ref()
 
     def _new_ref(self):
-        deserialize, ref_list, serialized_obj = serialize_if_needed(self.obj)
+        deserialize, child_refs, serialized_obj = serialize_if_needed(
+            self.worker, self.obj
+        )
         nbytes = len(serialized_obj)
         ptr = self.worker.allocator.malloc(nbytes)
         ptr.deref()[:] = serialized_obj
         self.worker.object_cache[(self.worker.addr, self._id)] = self.obj
-        self.gcref = first_gcref(self.worker, self._id, ptr, deserialize, ref_list)
-        return self.gcref
+        def on_delete(_id, worker = self.worker, ptr = ptr):
+            key = (worker.addr, _id)
+            del worker.object_cache[key]
+            worker.allocator.free(ptr)
+        ref = taskloaf.refcounting.Ref(
+            self.worker, on_delete, _id = self._id, child_refs = child_refs
+        )
+        self.objref = ObjectRef(ref, ptr, deserialize)
+        return self.objref
+
+    def encode_capnp(self, msg):
+        self.convert().encode_capnp(msg)
 
 def is_bytes(v):
     return isinstance(v, bytes) or isinstance(v, memoryview)
 
-def serialize_if_needed(obj):
+def serialize_if_needed(worker, obj):
     if is_bytes(obj):
         return False, [], obj
     else:
-        ref_list, blob = taskloaf.serialize.dumps(obj)
-        return True, ref_list, blob
-
-def first_gcref(worker, _id, ptr, deserialize, ref_list):
-    ref = GCRef(worker, _id, ptr, deserialize, ref_list)
-    worker.ref_manager.new_ref(_id, ptr)
-    return ref
+        child_refs, blob = taskloaf.serialize.dumps(worker, obj)
+        return True, child_refs, blob
 
 """
 It seems like we're recording two indexes to the data:
@@ -98,36 +114,52 @@ It seems like we're recording two indexes to the data:
     -- the (owner, _id) pair
 This isn't strictly necessary, but has some advantages.
 """
-class GCRef:
-    def __init__(self, worker, _id, ptr, deserialize, ref_list):
-        self.worker = worker
-        self.owner = worker.addr
-        self._id = _id
-        self.gen = 0
-        self.n_children = 0
+class ObjectRef:
+    def __init__(self, ref, ptr, deserialize):
+        self.ref = ref
         self.ptr = ptr
         self.deserialize = deserialize
-        self.ref_list = ref_list
+
+    def key(self):
+        return self.ref.key()
+
+    @property
+    def worker(self):
+        return self.ref.worker
 
     async def get(self):
-        self._ensure_ref_list_deserialized()
+        await self._ensure_available()
+        self._ensure_deserialized()
+        return self.get_local()
+
+    async def get_buffer(self):
+        await self._ensure_available()
+        return self.ptr.deref()
+
+    def get_local(self):
+        return self.worker.object_cache[self.key()]
+
+    async def _ensure_available(self):
+        self.ref._ensure_child_refs_deserialized()
         if self.key() in self.worker.object_cache:
             val = self.worker.object_cache[self.key()]
             if isinstance(val, asyncio.Future):
-                return (await val)
-            else:
-                return val
+                await val
 
         ptr_accessible = self.ptr is not None
-        if ptr_accessible:
-            return self._deserialize_and_store(self.ptr.deref())
-        else:
-            return (await self._remote_get())
+        if not ptr_accessible:
+            await self._remote_get()
+
+    def _ensure_deserialized(self):
+        if self.key() not in self.worker.object_cache:
+            self._deserialize_and_store(self.ptr.deref())
 
     async def _remote_get(self):
         future = asyncio.Future()
         self.worker.object_cache[self.key()] = future
-        self.worker.send(self.owner, self.worker.protocol.REMOTEGET, [self])
+        self.worker.send(
+            self.ref.owner, self.worker.protocol.REMOTEGET, [self, b'']
+        )
         return (await future)
 
     def _remote_put(self, buf):
@@ -135,116 +167,66 @@ class GCRef:
         obj = self._deserialize_and_store(buf)
         future.set_result(obj)
 
-    def key(self):
-        return (self.owner, self._id)
-
     def _deserialize_and_store(self, buf):
         if self.deserialize:
-            assert(isinstance(self.ref_list, list))
-            out = taskloaf.serialize.loads(self.ref_list, buf)
+            assert(isinstance(self.ref.child_refs, list))
+            out = taskloaf.serialize.loads(
+                self.ref.worker, self.ref.child_refs, buf
+            )
         else:
             out = buf
         self.worker.object_cache[self.key()] = out
         return out
 
-    def log(self, text):
-        self.worker.log.debug(
-            text, _id = self._id, n_children = self.n_children,
-            gen = self.gen, owner = self.owner
+    def __getstate__(self):
+        return dict(
+            ref = self.ref,
+            deserialize = self.deserialize,
+            ptr = self.ptr,
         )
 
-    def __del__(self):
-        self.log_ref('del ref')
-        self.worker.ref_manager.dec_ref(
-            self._id, self.gen, self.n_children,
-            owner = self.owner
-        )
-
-    def _ensure_ref_list_deserialized(self):
-        if isinstance(self.ref_list, list):
-            return
-        self.ref_list = [
-            GCRef.decode_capnp(self.worker, child_ref, child = True)
-            for child_ref in self.ref_list
-        ]
-
-    def encode_reflist(self, msg):
-        msg.init('refList', len(self.ref_list))
-        if isinstance(self.ref_list, list):
-            for i in range(len(self.ref_list)):
-                self.ref_list[i].encode_capnp(msg.refList[i])
-        else:
-            msg.refList = self.ref_list
-
-    # After encoding or pickling, the __del__ call will only happen if
-    # the object is decoded properly and nothing bad happens. This is scary,
-    # but is hard to avoid without adding a whole lot more synchronization and
-    # tracking. Using the log statements, checking whether encodes and decodes
-    # are paired should be possible.
     def encode_capnp(self, msg):
-        self.log('encode ref')
-        self.n_children += 1
-        msg.owner = self.owner
-        msg.id = self._id
-        msg.gen = self.gen + 1
+        self.ref.encode_capnp(msg.ref)
         msg.deserialize = self.deserialize
         self.ptr.encode_capnp(msg.ptr)
-        self.encode_reflist(msg)
 
     @classmethod
-    def decode_capnp(cls, worker, msg, child = False):
-        ref = GCRef.__new__(GCRef)
-        ref.owner = msg.owner
-        ref._id = msg.id
-        ref.gen = msg.gen
-        ref.deserialize = msg.deserialize
-        ref.ptr = taskloaf.allocator.Ptr.decode_capnp(worker, ref.owner, msg.ptr)
-        ref.n_children = 0
-        ref.worker = worker
-        ref.log('decode ref')
+    def decode_capnp(cls, worker, msg):
+        objref = ObjectRef.__new__(ObjectRef)
+        objref.ref = taskloaf.refcounting.Ref.decode_capnp(worker, msg.ref)
+        objref.deserialize = msg.deserialize
+        objref.ptr = taskloaf.allocator.Ptr.decode_capnp(
+            worker, objref.ref.owner, msg.ptr
+        )
 
-        ref.ref_list = msg.refList
-        if not child:
-            ref._ensure_ref_list_deserialized()
-        return ref
+        return objref
 
-
-class GCRefListMsg:
-    @staticmethod
-    def serialize(refs):
-        msg = taskloaf.message_capnp.Message.new_message()
-        msg.init('refList', len(refs))
-        for i in range(len(refs)):
-            refs[i].encode_capnp(msg.refList[i])
-        return msg
-
-    @staticmethod
-    def deserialize(worker, msg):
-        return [GCRef.decode_capnp(worker, ref) for ref in msg.refList]
-
-class RemotePutMsg:
+class ObjectMsg:
     @staticmethod
     def serialize(args):
         ref, v = args
         m = taskloaf.message_capnp.Message.new_message()
-        m.init('remotePut')
-        ref.encode_capnp(m.remotePut.ref)
-        m.remotePut.val = bytes(v)
+        m.init('object')
+        ref.encode_capnp(m.object.objref)
+        m.object.val = bytes(v)
         return m
 
     @staticmethod
     def deserialize(worker, msg):
         return (
-            GCRef.decode_capnp(worker, msg.remotePut.ref),
-            msg.remotePut.val
+            ObjectRef.decode_capnp(worker, msg.object.objref),
+            msg.object.val
         )
 
 def handle_remote_get(worker, args):
-    worker.send(
-        worker.cur_msg.sourceAddr,
-        worker.protocol.REMOTEPUT,
-        [args[0], args[0].ptr.deref()]
-    )
+    msg = worker.cur_msg
+    async def reply(w):
+        worker.send(
+            msg.sourceAddr,
+            worker.protocol.REMOTEPUT,
+            [args[0], await args[0].get_buffer()]
+        )
+    worker.run_work(reply)
 
 def handle_remote_put(worker, args):
     args[0]._remote_put(args[1])
