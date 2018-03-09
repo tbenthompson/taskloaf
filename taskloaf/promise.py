@@ -39,34 +39,24 @@ def setup_plugin(worker):
         type = TaskMsg,
         handler = task_handler
     )
-    # worker.protocol.add_msg_type(
-    #     'SETRESULT',
-    #     serializer = DRefListSerializer,
-    #     handler = set_result_builder
-    # )
-    # worker.protocol.add_msg_type(
-    #     'AWAIT',
-    #     serializer = DRefListSerializer,
-    #     handler = await_builder
-    # )
+    worker.protocol.add_msg_type(
+        'SETRESULT',
+        type = TaskMsg,
+        handler = set_result_handler
+    )
+    worker.protocol.add_msg_type(
+        'AWAIT',
+        type = TaskMsg,
+        handler = await_handler
+    )
 
-def await_builder(worker, args):
-    pr_dref = args[0]
+def await_handler(worker, args):
+    pr = args[0]
     req_addr = worker.cur_msg.sourceAddr
-    async def run(worker):
-        res_dref = await Promise(pr_dref).await_result_dref()
-        worker.send(req_addr, worker.protocol.SETRESULT, [pr_dref, res_dref])
-    return run
-
-def set_result_builder(worker, args):
-    async def run(worker):
-        #TODO: Why were these lines necessary? I need to get some no-shmem
-        # tests going so that I don't have to worry about designing something
-        # that won't work distributed
-        # fut_val = await remote_get(worker, args[1])
-        # worker.memory.put(value = fut_val, dref = args[1])
-        worker.memory.get_local(args[0])[0].set_result(args[1])
-    return run
+    async def await_wrapper(worker):
+        result_ref = await pr._get_future()
+        worker.send(req_addr, worker.protocol.SETRESULT, [pr, result_ref])
+    worker.run_work(await_wrapper)
 
 class Promise:
     def __init__(self, worker, running_on):
@@ -74,7 +64,11 @@ class Promise:
             del worker.promises[_id]
         self.ref = taskloaf.refcounting.Ref(worker, on_delete)
         self.running_on = running_on
-        worker.promises[self.ref._id] = asyncio.Future()
+        self.ensure_future_exists()
+
+    @property
+    def worker(self):
+        return self.ref.worker
 
     def encode_capnp(self, msg):
         self.ref.encode_capnp(msg.ref)
@@ -87,27 +81,20 @@ class Promise:
         out.running_on = msg.runningOn
         return out
 
-    # def ensure_future_exists(self):
-    #     if not self.worker.memory.available(self.dref):
-    #         here = self.worker.comm.addr
-    #         self.worker.memory.put(
-    #             value = [asyncio.Future(), False],
-    #             dref = self.dref
-    #         )
-    #         if self.owner != here:
-    #             async def delete_after_triggered(worker):
-    #                 await worker.memory.get_local(self.dref)[0]
-    #                 worker.memory.delete(self.dref)
-    #             self.worker.run_work(delete_after_triggered)
+    def ensure_future_exists(self):
+        self.worker.promises[self.ref._id] = asyncio.Future()
 
     def _get_future(self):
-        return self.ref.worker.promises[self.ref._id]
+        return self.worker.promises[self.ref._id]
 
     def __await__(self):
-        if self.ref.worker.addr == self.running_on:
-            result_ref = yield from self._get_future().__await__()
-            out = yield from result_ref.get().__await__()
-            return out
+        if self.worker.addr != self.ref.owner:
+            self.ensure_future_exists()
+            self.worker.send(self.ref.owner, self.worker.protocol.AWAIT, [self])
+        result_ref = yield from self._get_future().__await__()
+        out = yield from result_ref.get().__await__()
+        return out
+
         # else:
         #     self.worker.promises[self.ref._id]
         #     self.worker.send(self.
@@ -151,31 +138,6 @@ class Promise:
     #     return self.then(lambda x: f(), to)
 
 
-# def task_runner_builder(worker, data):
-#     async def task_runner(worker):
-#         out_pr = Promise(data[0])
-#         assert(worker.comm.addr == out_pr.dref.owner)
-#
-#         f = data[1]
-#         if is_dref(f):
-#             f = await remote_get(worker, f)
-#
-#         if len(data) > 2:
-#             args = data[2]
-#             if is_dref(args):
-#                 args = await remote_get(worker, args)
-#             waiter = worker.wait_for_work(f, args)
-#         else:
-#             waiter = worker.wait_for_work(f)
-#         _unwrap_promise(out_pr, await waiter)
-#     return task_runner
-
-async def ensure_obj(maybe_ref):
-    if is_ref(maybe_ref):
-        return await maybe_ref.get()
-    else:
-        return maybe_ref
-
 def task_runner(worker, pr, in_f, *in_args):
     async def task_wrapper(worker):
         f = await ensure_obj(in_f)
@@ -187,12 +149,30 @@ def task_runner(worker, pr, in_f, *in_args):
         # catches all exceptions except system-exiting exceptions that inherit
         # from BaseException
         except Exception as e:
+            worker.log.exception('exception during task')
             result = e
         _unwrap_promise(worker, pr, result)
     worker.run_work(task_wrapper)
 
+def set_result(pr, result_ref):
+    pr.set_result(result_ref)
+
+def _unwrap_promise(worker, pr, result):
+    result_ref = put(worker, result)
+    if isinstance(result, Promise):
+        pass
+        # result.then(lambda w, x: pr.set_result(ref))
+    else:
+        if pr.ref.owner == worker.addr:
+            set_result(pr, result_ref)
+        else:
+            worker.send(pr.ref.owner, worker.protocol.SETRESULT, [pr, result_ref])
+
 def task_handler(worker, args):
     task_runner(worker, args[0], args[1], *args[2:])
+
+def set_result_handler(worker, args):
+    set_result(args[0], args[1])
 
 # f and args can be provided in two forms:
 # -- a python object (f should be callable or awaitable)
@@ -212,12 +192,11 @@ def task(worker, f, *args, to = None):
         worker.send(to, worker.protocol.TASK, msg_objs)
     return out_pr
 
-def _unwrap_promise(worker, pr, result):
-    ref = put(worker, result)
-    if isinstance(result, Promise):
-        result.then(lambda w, x: pr.set_result(ref))
+async def ensure_obj(maybe_ref):
+    if is_ref(maybe_ref):
+        return await maybe_ref.get()
     else:
-        pr.set_result(ref)
+        return maybe_ref
 
 def ensure_ref(worker, v):
     if is_ref(v):

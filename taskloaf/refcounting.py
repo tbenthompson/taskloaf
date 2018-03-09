@@ -150,7 +150,8 @@ class Ref:
             for i in range(len(self.child_refs)):
                 self.child_refs[i].encode_capnp(msg.refList[i])
         else:
-            msg.refList = self.child_refs
+            for i, r in enumerate(self.child_refs):
+                msg.refList[i] = r
 
     def _ensure_child_refs_deserialized(self):
         if isinstance(self.child_refs, list):

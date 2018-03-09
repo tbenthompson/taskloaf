@@ -19,31 +19,42 @@ def test_task():
         assert(w.abc == 17)
 
         def there(w):
-            print('running!')
             assert(w.addr == 1)
             return 13
         assert(await task(w, there, to = 1) == 13)
-#
-#         # thirteen = taskloaf.serialize.dumps(13)
-#         # def there2(w):
-#         #     assert(w.addr == 1)
-#         #     return thirteen
-#         # assert(await task(w, there2, to = 1) == thirteen)
-#
-#         # there_bytes = w.memory.put(serialized = taskloaf.serialize.dumps(there))
-#         # assert(await task(w, there_bytes, to = 1) == 13)
-#
-#         # def f_with_args(w, a):
-#         #     return a
-#         # f_bytes = w.memory.put(serialized = taskloaf.serialize.dumps(f_with_args))
-#         # assert(await task(w, f_bytes, 14, to = 1) == 14)
-#         # a_bytes = w.memory.put(serialized = taskloaf.serialize.dumps(15))
-#         # assert(await task(w, f_bytes, a_bytes, to = 1) == 15)
-#
+
+        thirteen = taskloaf.serialize.dumps(w, 13)
+        def there2(w):
+            assert(w.addr == 1)
+            return thirteen
+        assert(await task(w, there2, to = 1) == thirteen)
+
+        there_ref = put(w, there)
+        assert(await task(w, there_ref, to = 1) == 13)
+
+        def f_with_args(w, a):
+            return a
+        f_ref = put(w, f_with_args)
+        assert(await task(w, f_ref, 14, to = 1) == 14)
+        a_ref = put(w, 15)
+        assert(await task(w, f_ref, a_ref, to = 1) == 15)
+
     cluster(2, f)
-#
-# import asyncio
-# @mpi_procs(2)
+
+def test_task_await_elsewhere():
+    async def f(w):
+        def g(w):
+            return 71
+        pr = task(w, g, to = 1)
+        async def h(w):
+            a = await pr
+            return a + 1
+        pr2 = task(w, h, to = 2)
+        assert(await pr2 == 72)
+    cluster(3, f)
+
+#TODO: Test exception as result
+
 # def test_then():
 #     async def f(w):
 #         y = await task(w, lambda w: 10, to = 1).then(lambda w, x: 2 * x, to = 0)
