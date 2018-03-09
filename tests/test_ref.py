@@ -86,6 +86,13 @@ def test_put_encode(w):
     ref2 = ref_deserialize(w, ref_serialize(ref))
     assert(syncawait(ref2.get()) == 10)
 
+def test_put_bytes(w):
+    x = bytes([10,11])
+    for blob in [x, memoryview(x)]:
+        ref = put(w, blob).convert()
+        blob2 = syncawait(ref.get())
+        assert(blob == blob2)
+
 def test_alloc(w):
     ref = alloc(w, 100)
     assert(len(syncawait(ref.get())) == 100)

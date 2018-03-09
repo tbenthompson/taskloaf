@@ -101,6 +101,7 @@ class Worker:
         if asyncio.iscoroutinefunction(f):
             self.start_async_work(f, *args)
         else:
+            #TODO: need to catch exceptions here?
             f(self, *args)
 
     async def wait_for_work(self, f, *args):

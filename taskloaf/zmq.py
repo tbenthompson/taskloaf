@@ -88,6 +88,7 @@ class ZMQComm:
 def zmqrun(n_workers, f):
     try:
         q = multiprocessing.Queue()
+        #TODO: Config option for zmq ports
         hosts = [('tcp://127.0.0.1:%s', (5755 + 2 * i)) for i in range(n_workers)]
         ps = [
             multiprocessing.Process(

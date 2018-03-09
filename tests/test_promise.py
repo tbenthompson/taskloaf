@@ -1,4 +1,4 @@
-
+import pytest
 import numpy as np
 from taskloaf.promise import *
 from taskloaf.test_decorators import mpi_procs
@@ -53,38 +53,48 @@ def test_task_await_elsewhere():
         assert(await pr2 == 72)
     cluster(3, f)
 
-#TODO: Test exception as result
+class Implosion(Exception):
+    pass
 
-# def test_then():
-#     async def f(w):
-#         y = await task(w, lambda w: 10, to = 1).then(lambda w, x: 2 * x, to = 0)
-#         assert(y == 20)
-#     cluster(2, f)
-#
-# @mpi_procs(2)
-# def test_auto_unwrap():
-#     async def f(w):
-#         y = await task(w, lambda w: 10, to = 1).then(
-#             lambda w, x: task(w, lambda w: 2 * x),
-#             to = 0
-#         )
-#         assert(y == 20)
-#     cluster(2, f)
-#
-# @mpi_procs(2)
-# def test_when_all():
-#     async def f(w):
-#         y = await when_all([
-#             task(w, lambda w: 10),
-#             task(w, lambda w: 5, to = 1)
-#         ]).then(lambda w, x: sum(x), to = 1)
-#         assert(y == 15)
-#     cluster(2, f)
+def test_task_exception():
+    async def f(w):
+        def g(w):
+            raise Implosion()
+
+        with pytest.raises(Implosion):
+            await task(w, g)
+
+        with pytest.raises(Implosion):
+            await task(w, g, to = 1)
+    cluster(2, f)
+
+def test_then():
+    async def f(w):
+        y = await task(w, lambda w: 10, to = 1).then(lambda w, x: 2 * x, to = 0)
+        assert(y == 20)
+    cluster(2, f)
+
+def test_auto_unwrap():
+    async def f(w):
+        y = await task(w, lambda w: 10, to = 1).then(
+            lambda w, x: task(w, lambda w: 2 * x),
+            to = 0
+        )
+        assert(y == 20)
+    cluster(2, f)
+
+def test_when_all():
+    async def f(w):
+        y = await when_all([
+            task(w, lambda w: 10),
+            task(w, lambda w: 5, to = 1)
+        ]).then(lambda w, x: sum(x), to = 1)
+        assert(y == 15)
+    cluster(2, f)
 
 # When originally written, this test hung forever. So, even though there are no
 # asserts, it is testing *something*. It checks that the exception behavior
 # propagates from free tasks upward to the Worker properly.
-# @mpi_procs(2)
 # def test_cluster_broken_task():
 #     async def f(w):
 #
@@ -97,9 +107,5 @@ def test_task_await_elsewhere():
 #
 #         taskloaf.task(w, f)
 #         await taskloaf.task(w, broken_task, to = 1)
-#     if rank() == 1:
-#         with pytest.raises(NameError):
-#             cluster(2, f)
-#     else:
-#         cluster(2, f)
+#     cluster(2, f)
 
