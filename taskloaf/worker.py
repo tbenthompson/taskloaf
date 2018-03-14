@@ -22,7 +22,8 @@ def shutdown(w):
     w.stop = True
 
 class Worker:
-    def __init__(self, comm):
+    def __init__(self, comm, cfg):
+        self.cfg = cfg
         self.comm = comm
         self.init_time = time.time()
         self.work = []

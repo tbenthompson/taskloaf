@@ -14,14 +14,18 @@ def add_plugins(worker):
 
 @contextlib.contextmanager
 def null_comm_worker():
+    cfg = dict()
     try:
-        with taskloaf.worker.Worker(taskloaf.worker.NullComm()) as worker:
+        with taskloaf.worker.Worker(taskloaf.worker.NullComm(), cfg) as worker:
             add_plugins(worker)
             yield worker
     finally:
         pass
 
-def run(coro):
+def run(coro, cfg = None):
+    if cfg is None:
+        cfg = dict()
+
     async def wrapper(worker):
         try:
             worker.result = await coro(worker)

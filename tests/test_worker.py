@@ -6,15 +6,15 @@ from taskloaf.cluster import cluster
 from taskloaf.mpi import mpiexisting, MPIComm, rank
 from taskloaf.test_decorators import mpi_procs
 from taskloaf.run import run
+from fixtures import w
 
 if __name__ == "__main__":
     test_log()
 
-def test_shutdown():
+def test_shutdown(w):
     async def f(w):
         taskloaf.worker.shutdown(w)
-    with taskloaf.worker.Worker(taskloaf.worker.NullComm()) as w:
-        w.start(f)
+    w.start(f)
 
 def test_run_work():
     val = [0, 1]
