@@ -2,6 +2,8 @@ import os
 import mmap
 import uuid
 import contextlib
+import ctypes
+import numpy as np
 
 def get_size_from_fd(fd):
     return os.fstat(fd).st_size
@@ -19,28 +21,33 @@ def roundup_to_multiple(n, alignment):
     return (n + mask) & ~mask
 
 class Shmem:
-    def __init__(self, filepath):
+    def __init__(self, filepath, track_refs = False):
         self.filepath = filepath
+        self.track_refs = track_refs
 
     def __enter__(self):
         self.file = open(self.filepath, 'r+b')
         self.size = get_size_from_fd(self.file.fileno())
         self.mmap = mmap_full_file(self.file.fileno())
 
-        # This is some crooked trickery to create a memoryview from the mmap
-        # without mmap knowing about it so that the mmap can be closed without
-        # tracking its references (this WILL cause seg faults if there are
-        # existing references to the mmap segment when it's deleted)
-        # TODO: An alternative might be to call gc.collect before
-        # self.mmap.close
-        import numpy as np
-        import ctypes
-        temp_np = np.frombuffer(self.mmap, dtype = np.uint8)
-        ptr = temp_np.ctypes.data
-        del temp_np
-        ptrc = ctypes.cast(ptr, ctypes.POINTER(ctypes.c_byte))
-        new_array = np.ctypeslib.as_array(ptrc,shape=(self.size,))
-        self.mem = memoryview(new_array.data.cast('B'))
+        if not self.track_refs:
+            # mmap tracks references internally. This is annoying when trying
+            # to delete the mmap.  This code is some crooked trickery using
+            # ctypes and grabbing the pointer from a numpy buffer to create a
+            # memoryview from the mmap without mmap knowing about it so that
+            # the mmap can be closed without tracking its references (this WILL
+            # cause seg faults if there are existing references to the mmap
+            # segment when it's deleted)
+            # When using Shmem blocks through the allocator system, this is
+            # fine since then taskloaf performs its own memory tracking
+            temp_np = np.frombuffer(self.mmap, dtype = np.uint8)
+            ptr = temp_np.ctypes.data
+            del temp_np
+            ptrc = ctypes.cast(ptr, ctypes.POINTER(ctypes.c_byte))
+            new_array = np.ctypeslib.as_array(ptrc,shape=(self.size,))
+            self.mem = memoryview(new_array.data.cast('B'))
+        else:
+            self.mem = memoryview(self.mmap)
 
         return self
 
