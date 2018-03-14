@@ -41,6 +41,27 @@ def test_run_output():
         return 1
     assert(run(f) == 1)
 
+def test_exception():
+    async def f(w):
+        def count_except(w):
+            if not hasattr(w, 'testcounter'):
+                w.testcounter = 0
+            w.testcounter += 1
+            if w.testcounter % 2:
+                raise Exception("failed task!")
+            if w.testcounter > 10:
+                #TODO: Look up condition variables in python and asyncio. Could
+                # be handy for doing automatic wakeup of threads. asyncio.Future
+                # works, but is it the best option?
+                def success(w):
+                    w.wait_fut.set_result(None)
+                w.submit_work(0, success)
+        for i in range(12):
+            w.submit_work(1, count_except)
+        w.wait_fut = asyncio.Future()
+        await w.wait_fut
+    cluster(2, f)
+
 @mpi_procs(2)
 def test_remote_work():
     async def f(w):

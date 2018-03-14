@@ -25,6 +25,7 @@ def cluster(n_workers, coro, cfg = None, runner = zmqrun):
                 worker.shutdown_all(range(n_workers))
                 raise
             finally:
+                # TODO: Is this necessary?
                 comm.barrier()
 
     return runner(n_workers, wrap_start_coro, cfg)

@@ -94,7 +94,7 @@ class Worker:
             except asyncio.CancelledError:
                 self.log.warning('async work cancelled', exc_info = True)
             except Exception as e:
-                self.log.exception('async work failed with unhandled exception')
+                self.log.warning('async work failed with unhandled exception')
         return asyncio.ensure_future(wrapper(self))
 
     def run_work(self, f, *args):
@@ -121,7 +121,7 @@ class Worker:
                 try:
                     self.run_work(self.work.pop())
                 except Exception as e:
-                    self.log.exception('work failed with unhandled exception')
+                    self.log.warning('work failed with unhandled exception')
             await asyncio.sleep(0)
 
     def poll(self):
