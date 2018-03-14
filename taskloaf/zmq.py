@@ -85,11 +85,18 @@ class ZMQComm:
     def barrier(self):
         self._sync()
 
-def zmqrun(n_workers, f):
+def zmqrun(n_workers, f, cfg):
     try:
         q = multiprocessing.Queue()
-        #TODO: Config option for zmq ports
-        hosts = [('tcp://127.0.0.1:%s', (5755 + 2 * i)) for i in range(n_workers)]
+        ports = cfg.get(
+            'zmq_ports',
+            [5755 + 2 * i for i in range(n_workers)]
+        )
+        hostnames = cfg.get(
+            'zmq_hostnames',
+            ['tcp://127.0.0.1:%s' for i in range(n_workers)]
+        )
+        hosts = [(h, p) for h, p in zip(hostnames, ports)]
         ps = [
             multiprocessing.Process(
                 target = zmqstart,

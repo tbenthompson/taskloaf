@@ -26,6 +26,8 @@ class Worker:
         self.cfg = cfg
         self.comm = comm
         self.init_time = time.time()
+        self.next_id = 0
+        self.stop = False
         self.work = []
         self.protocol = taskloaf.protocol.Protocol()
 
@@ -35,9 +37,6 @@ class Worker:
         def handle_new_work(w, x):
             w.work.append(x[0])
         self.protocol.add_msg_type('WORK', handler = handle_new_work)
-        self.exception = None
-        self.next_id = 0
-        self.stop = False
 
     def shutdown_all(self, addrs):
         for a in addrs:

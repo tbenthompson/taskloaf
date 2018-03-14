@@ -6,6 +6,8 @@ from taskloaf.mpi import MPIComm
 from taskloaf.zmq import ZMQComm, zmqrun
 from taskloaf.test_decorators import mpi_procs
 
+test_cfg = dict()
+
 def queue_test_helper(q):
     q.put(123)
 
@@ -58,7 +60,7 @@ def test_zmq():
             wait_for(c, "OHI!")
             c.send(leader, cloudpickle.dumps("OYAY"))
         c.barrier()
-    zmqrun(n_workers, f)
+    zmqrun(n_workers, f, test_cfg)
 
 def data_send(c):
     if c.addr == 0:
@@ -74,10 +76,10 @@ def fnc_send(c):
         wait_for(c, 169, lambda x: x())
 
 def test_zmq_data_send():
-    zmqrun(2, data_send)
+    zmqrun(2, data_send, test_cfg)
 
 def test_zmq_fnc_send():
-    zmqrun(2, fnc_send)
+    zmqrun(2, fnc_send, test_cfg)
 
 @mpi_procs(2)
 def test_zmq_data_send():

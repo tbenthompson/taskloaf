@@ -38,7 +38,7 @@ class MPIComm:
     def barrier(self):
         self.comm.Barrier()
 
-def mpirun(n_workers, f):
+def mpirun(n_workers, f, cfg):
     mpi_args = dict(max_workers = n_workers)#, path = [])
     with MPIPoolExecutor(**mpi_args) as p:
         out = p.starmap(mpistart, zip([cloudpickle.dumps(f)] * n_workers, range(n_workers)))
@@ -48,7 +48,7 @@ def mpistart(f, i):
     c = MPIComm()
     return cloudpickle.loads(f)(c)
 
-def mpiexisting(n_workers, f, die_on_exception = True):
+def mpiexisting(n_workers, f, cfg, die_on_exception = True):
     orig_sys_except = sys.excepthook
     if die_on_exception:
         def die(*args, **kwargs):

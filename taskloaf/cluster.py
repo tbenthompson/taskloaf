@@ -27,4 +27,4 @@ def cluster(n_workers, coro, cfg = None, runner = zmqrun):
             finally:
                 comm.barrier()
 
-    return runner(n_workers, wrap_start_coro)
+    return runner(n_workers, wrap_start_coro, cfg)
