@@ -101,7 +101,9 @@ class Worker:
         if asyncio.iscoroutinefunction(f):
             self.start_async_work(f, *args)
         else:
-            #TODO: need to catch exceptions here?
+            # No need to catch exceptions here because this this is run
+            # synchronously and the exception will bubble up to the owning
+            # thread or task
             f(self, *args)
 
     async def wait_for_work(self, f, *args):
@@ -116,7 +118,10 @@ class Worker:
     async def work_loop(self):
         while not self.stop:
             if len(self.work) > 0:
-                self.run_work(self.work.pop())
+                try:
+                    self.run_work(self.work.pop())
+                except Exception as e:
+                    self.log.exception('work failed with unhandled exception')
             await asyncio.sleep(0)
 
     def poll(self):
