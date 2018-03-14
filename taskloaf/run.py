@@ -2,13 +2,13 @@ import taskloaf.worker
 import taskloaf.promise
 import taskloaf.allocator
 import taskloaf.refcounting
-import taskloaf.ref
+import taskloaf.object_ref
 import contextlib
 
 def add_plugins(worker):
     taskloaf.allocator.setup_plugin(worker)
     taskloaf.refcounting.setup_plugin(worker)
-    taskloaf.ref.setup_plugin(worker)
+    taskloaf.object_ref.setup_plugin(worker)
     taskloaf.promise.setup_plugin(worker)
     return worker
 

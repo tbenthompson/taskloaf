@@ -23,7 +23,6 @@ class MPIComm:
         self.addr = rank(self.comm)
 
     def send(self, to_addr, data):
-        #TODO: data.obj here is incorrect
         self.comm.Isend(data, dest = to_addr)
 
     def recv(self):

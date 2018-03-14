@@ -1,5 +1,7 @@
 import taskloaf as tsk
 
+# An example of a taskloaf "daemon"? Could be cool!
+
 def start_profiler(w):
     import pyinstrument
     profiler = pyinstrument.Profiler()
@@ -12,7 +14,6 @@ def stop_profiler(w, profiler):
         print('profile for addr: ' + str(w.addr))
     print(profiler.output_text(unicode=True, color=True))
 
-# TODO: Maybe an example of a more general-purpose "daemon". Could be cool!
 class Profiler:
     def __init__(self, w, addrs):
         self.w = w

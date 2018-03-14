@@ -10,10 +10,10 @@ import numpy as np
 # Use shm_open or /dev/shm for tmpfs backing the mmap
 # Write a simple allocator
 # Oops! We need to align memory allocations
-# TODO: Why does MAP_PRIVATE not have this perf problem?
+# Why does MAP_PRIVATE not have this perf problem?
 # Using huge pages makes the MAP_SHARED version equivalent to the MAP_PRIVATE or malloc version
-#TODO: Try map_populate
-#TODO: Try transparent huge pages
+# Try map_populate
+# Try transparent huge pages
 
 # The story of shared memory in python
 # Zero copy data formats
@@ -25,7 +25,7 @@ import numpy as np
 #https://stackoverflow.com/questions/45972/mmap-vs-reading-blocks
 #https://paolozaino.wordpress.com/2016/10/02/how-to-force-any-linux-application-to-use-hugepages-without-modifying-the-source-code/
 # https://xkcd.com/1205/
-# TODO: using likwid to OBSERVE what's wrong!
+# using likwid to OBSERVE what's wrong!
 # https://github.com/RRZE-HPC/likwid/wiki
 
 # This paper discusses all this stuff!

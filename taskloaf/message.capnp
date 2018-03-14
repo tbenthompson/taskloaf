@@ -55,6 +55,10 @@ struct Task {
 # using a separate message part for the typeCode and sourceAddr and then a
 # user-defined message for the remainder, to be decoded by the deserializer
 # specified by typeCode
+# TODO: This seems especially cool in the context of a system where Capnp
+# objects underlie most of the system so that no serialization needs to happen
+# for a lot of messaging requirements.
+# TODO: is there any kind of capnp <--> zmq interface? A buffer interface?
 struct Message {
     typeCode @0 :Int64;
     sourceAddr @1 :Int64;

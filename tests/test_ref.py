@@ -3,7 +3,7 @@ import pickle
 import pytest
 import asyncio
 from taskloaf.cluster import cluster
-from taskloaf.ref import *
+from taskloaf.object_ref import *
 from taskloaf.refcounting import RefCopyException
 from fixtures import w
 

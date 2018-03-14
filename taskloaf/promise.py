@@ -2,8 +2,8 @@ import asyncio
 import capnp
 
 import taskloaf.serialize
-import taskloaf.refcounting
-from taskloaf.ref import put, is_ref
+from taskloaf.refcounting import Ref
+from taskloaf.object_ref import put, is_ref, ObjectRef
 
 def setup_plugin(worker):
     worker.promises = dict()
@@ -35,7 +35,7 @@ class Promise:
     def __init__(self, worker, running_on):
         def on_delete(_id):
             del worker.promises[_id]
-        self.ref = taskloaf.refcounting.Ref(worker, on_delete)
+        self.ref = Ref(worker, on_delete)
         self.running_on = running_on
         self.ensure_future_exists()
 
@@ -50,7 +50,7 @@ class Promise:
     @classmethod
     def decode_capnp(cls, worker, msg):
         out = Promise.__new__(Promise)
-        out.ref = taskloaf.refcounting.Ref.decode_capnp(worker, msg.ref)
+        out.ref = Ref.decode_capnp(worker, msg.ref)
         out.running_on = msg.runningOn
         return out
 
@@ -171,7 +171,7 @@ class TaskMsg:
             Promise.decode_capnp(worker, msg.task.promise)
         ]
         for i in range(len(msg.task.objrefs)):
-            out.append(taskloaf.ref.ObjectRef.decode_capnp(
+            out.append(ObjectRef.decode_capnp(
                 worker, msg.task.objrefs[i]
             ))
         return out

@@ -1,7 +1,6 @@
 import capnp
 import cloudpickle
 import taskloaf.message_capnp
-import taskloaf.ref
 
 class CloudPickleMsg:
     @staticmethod
