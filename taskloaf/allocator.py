@@ -8,7 +8,7 @@ import attr
 import taskloaf.shmem
 
 def setup_plugin(worker):
-    block_root_path = worker.cfg.get('block_root_path', '/dev/shm/taskloaf_')
+    block_root_path = worker.cfg['block_root_path']
     local_root_path = block_root_path + str(worker.addr)
     worker.remote_shmem = worker.exit_stack.enter_context(closing(
         taskloaf.allocator.RemoteShmemRepo(block_root_path)

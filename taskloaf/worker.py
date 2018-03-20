@@ -55,10 +55,12 @@ class Worker:
 
     def start(self, coro):
         main_task = asyncio.ensure_future(coro(self))
+        #TODO: Use a new unique event loop. Read about best practices on
+        # libraries writing asyncio code
         self.ioloop = asyncio.get_event_loop()
         self.log.info('starting worker ioloop')
         self.ioloop.run_until_complete(asyncio.gather(
-            self.poll_loop(), self.work_loop(),
+            self.poll_loop(), self.work_loop()
         ))
 
         pending = asyncio.Task.all_tasks()

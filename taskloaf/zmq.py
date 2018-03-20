@@ -9,7 +9,6 @@ class ZMQComm:
         self.hosts = hosts
         self.ctx = zmq.Context()
         self.recv_socket = self.ctx.socket(zmq.PULL)
-        # self.recv_socket.setsockopt(zmq.SUBSCRIBE,b'')
 
         self.hostname, self.port = self.hosts[self.addr]
         self.recv_socket.bind(self.hostname % self.port)
@@ -107,6 +106,8 @@ def zmqrun(n_workers, f, cfg):
             p.start()
         return q.get()
     finally:
+        #TODO: What if there was an error in the previous block? Does this
+        # finally block hang?
         for p in ps:
             p.join()
 

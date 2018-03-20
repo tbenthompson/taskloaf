@@ -62,6 +62,7 @@ def test_zmq():
         c.barrier()
     zmqrun(n_workers, f, test_cfg)
 
+
 def data_send(c):
     if c.addr == 0:
         c.send(1, cloudpickle.dumps(123))

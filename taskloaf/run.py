@@ -23,8 +23,7 @@ def null_comm_worker():
         pass
 
 def run(coro, cfg = None):
-    if cfg is None:
-        cfg = dict()
+    cfg = setup_cfg(cfg)
 
     async def wrapper(worker):
         try:
