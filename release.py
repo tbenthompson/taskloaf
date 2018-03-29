@@ -1,7 +1,11 @@
 import datetime
 
+import sys
+
+append = sys.argv[1]
+
 d = datetime.datetime.now()
-version_str = d.strftime('%y.%m.%d')
+version_str = d.strftime('%y.%m.%d') + '.' + append
 open('VERSION', 'w').write(version_str)
 
 def run(cmd):
