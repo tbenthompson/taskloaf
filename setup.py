@@ -13,7 +13,7 @@ setup(
 
     install_requires = ['uvloop', 'cloudpickle', 'pycapnp', 'attrs', 'structlog'],
     zip_safe = False,
-    entry_points = {},
+    include_package_data = True,
 
     name = 'taskloaf',
     version = version,
