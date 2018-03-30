@@ -11,7 +11,7 @@ except (IOError, ImportError):
 setup(
     packages = ['taskloaf'],
 
-    install_requires = ['uvloop', 'cloudpickle', 'pycapnp', 'attrs', 'structlog'],
+    install_requires = ['uvloop', 'cloudpickle', 'pycapnp', 'attrs', 'structlog', 'pyzmq'],
     zip_safe = False,
     include_package_data = True,
 
