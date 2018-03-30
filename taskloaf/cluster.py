@@ -1,5 +1,4 @@
 import taskloaf.worker
-from taskloaf.mpi import mpiexisting
 from taskloaf.zmq import zmqrun
 from taskloaf.run import add_plugins
 
