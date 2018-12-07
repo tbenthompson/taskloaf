@@ -88,14 +88,14 @@ class Worker:
             self.send(to, self.protocol.WORK, [f])
 
     def start_async_work(self, f, *args):
-        async def wrapper(w):
+        async def async_work_wrapper(w):
             try:
                 await f(w, *args)
             except asyncio.CancelledError:
                 self.log.warning('async work cancelled', exc_info = True)
             except Exception as e:
                 self.log.warning('async work failed with unhandled exception')
-        return asyncio.ensure_future(wrapper(self))
+        return asyncio.ensure_future(async_work_wrapper(self))
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):

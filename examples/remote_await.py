@@ -9,8 +9,5 @@ async def submit(w):
 
 if __name__ == "__main__":
     result = tsk.cluster(2, submit)
-
-    from mpi4py import MPI
-    if MPI.COMM_WORLD.Get_rank() == 0:
-        print(result)
-        assert(result == 45)
+    print(result)
+    assert(result == 45)
