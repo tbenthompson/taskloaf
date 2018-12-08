@@ -155,7 +155,7 @@ class ObjectRef:
             self._deserialize_and_store(self.ptr.deref())
 
     async def _remote_get(self):
-        future = asyncio.Future()
+        future = asyncio.Future(loop = self.worker.ioloop)
         self.worker.object_cache[self.key()] = future
         self.worker.send(
             self.ref.owner, self.worker.protocol.REMOTEGET, [self, b'']

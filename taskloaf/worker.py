@@ -2,6 +2,7 @@ import time
 import asyncio
 import logging
 import traceback
+import threading
 import structlog
 from contextlib import suppress, ExitStack
 
@@ -54,23 +55,32 @@ class Worker:
         self.exit_stack.close()
 
     def start(self, coro):
-        main_task = asyncio.ensure_future(coro(self))
-        self.ioloop = asyncio.get_event_loop()
-        self.log.info('starting worker ioloop')
-        self.ioloop.run_until_complete(asyncio.gather(
-            self.poll_loop(), self.work_loop(),
-        ))
+        def launch_thread():
+            self.ioloop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.ioloop)
 
-        pending = asyncio.Task.all_tasks()
-        for task in pending:
-            task.cancel()
-            # Now we should await task to execute it's cancellation.
-            # Cancelled task raises asyncio.CancelledError that we can suppress:
-            with suppress(asyncio.CancelledError):
-                self.ioloop.run_until_complete(task)
+            main_task = asyncio.ensure_future(coro(self))
+            start_task = asyncio.gather(
+                self.poll_loop(), self.work_loop(),
+                loop = self.ioloop
+            )
+            self.log.info('starting worker ioloop')
+            self.ioloop.run_until_complete(start_task)
 
-        if not main_task.cancelled() and main_task.exception():
-            raise main_task.exception()
+            pending = asyncio.Task.all_tasks(loop = self.ioloop)
+            for task in pending:
+                task.cancel()
+                # Now we should await task to execute it's cancellation.
+                # Cancelled task raises asyncio.CancelledError that we can suppress:
+                with suppress(asyncio.CancelledError):
+                    self.ioloop.run_until_complete(task)
+
+            if not main_task.cancelled() and main_task.exception():
+                raise main_task.exception()
+        #TODO: Instead can I redesign to interop nicely with other event loops? Is that a good idea?
+        t = threading.Thread(target = launch_thread)
+        t.start()
+        t.join()
 
     @property
     def addr(self):
@@ -95,7 +105,10 @@ class Worker:
                 self.log.warning('async work cancelled', exc_info = True)
             except Exception as e:
                 self.log.warning('async work failed with unhandled exception')
-        return asyncio.ensure_future(async_work_wrapper(self))
+        return asyncio.ensure_future(
+            async_work_wrapper(self),
+            loop = self.ioloop
+        )
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
@@ -122,7 +135,7 @@ class Worker:
                     self.run_work(self.work.pop())
                 except Exception as e:
                     self.log.warning('work failed with unhandled exception')
-            await asyncio.sleep(0)
+            await asyncio.sleep(0, loop = self.ioloop)
 
     def poll(self):
         msg = self.comm.recv()
@@ -135,4 +148,4 @@ class Worker:
     async def poll_loop(self):
         while not self.stop:
             self.poll()
-            await asyncio.sleep(0)
+            await asyncio.sleep(0, loop = self.ioloop)

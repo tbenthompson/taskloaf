@@ -55,7 +55,9 @@ class Promise:
         return out
 
     def ensure_future_exists(self):
-        self.worker.promises[self.ref._id] = asyncio.Future()
+        self.worker.promises[self.ref._id] = asyncio.Future(
+            loop = self.worker.ioloop
+        )
 
     def _get_future(self):
         return self.worker.promises[self.ref._id]

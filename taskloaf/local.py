@@ -1,7 +1,6 @@
 import os
 import time
 import multiprocessing
-import asyncio
 
 class LocalComm:
     def __init__(self, local_queues, addr):
