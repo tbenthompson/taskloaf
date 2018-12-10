@@ -2,7 +2,6 @@ import time
 import asyncio
 import logging
 import traceback
-import threading
 import structlog
 from contextlib import suppress, ExitStack
 
@@ -55,32 +54,27 @@ class Worker:
         self.exit_stack.close()
 
     def start(self, coro):
-        def launch_thread():
-            self.ioloop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.ioloop)
-
-            main_task = asyncio.ensure_future(coro(self))
-            start_task = asyncio.gather(
-                self.poll_loop(), self.work_loop(),
-                loop = self.ioloop
-            )
-            self.log.info('starting worker ioloop')
-            self.ioloop.run_until_complete(start_task)
-
-            pending = asyncio.Task.all_tasks(loop = self.ioloop)
-            for task in pending:
-                task.cancel()
-                # Now we should await task to execute it's cancellation.
-                # Cancelled task raises asyncio.CancelledError that we can suppress:
-                with suppress(asyncio.CancelledError):
-                    self.ioloop.run_until_complete(task)
-
-            if not main_task.cancelled() and main_task.exception():
-                raise main_task.exception()
         #TODO: Instead can I redesign to interop nicely with other event loops? Is that a good idea?
-        t = threading.Thread(target = launch_thread)
-        t.start()
-        t.join()
+        self.ioloop = asyncio.get_event_loop()
+
+        main_task = asyncio.ensure_future(coro(self))
+        start_task = asyncio.gather(
+            self.poll_loop(), self.work_loop(),
+            loop = self.ioloop
+        )
+        self.log.info('starting worker ioloop')
+        self.ioloop.run_until_complete(start_task)
+
+        pending = asyncio.Task.all_tasks(loop = self.ioloop)
+        for task in pending:
+            task.cancel()
+            # Now we should await task to execute it's cancellation.
+            # Cancelled task raises asyncio.CancelledError that we can suppress:
+            with suppress(asyncio.CancelledError):
+                self.ioloop.run_until_complete(task)
+
+        if not main_task.cancelled() and main_task.exception():
+            raise main_task.exception()
 
     @property
     def addr(self):
