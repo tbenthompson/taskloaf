@@ -2,62 +2,29 @@ import time
 import asyncio
 import logging
 import traceback
-import structlog
 from contextlib import suppress, ExitStack
 
 import taskloaf.protocol
 
-# A NullComm is handy for running single-threaded or for some testing purposes
-class NullComm:
-    def __init__(self):
-        self.addr = 0
+def shutdown(e):
+    e.stop = True
 
-    def send(self, to, data):
-        pass
-
-    def recv(self):
-        return None
-
-def shutdown(w):
-    w.stop = True
-
-class Worker:
-    def __init__(self, comm, cfg):
+class Executor:
+    def __init__(self, recv_fnc, cfg, log):
+        self.recv_fnc = recv_fnc
         self.cfg = cfg
-        self.comm = comm
+        self.log = log
         self.init_time = time.time()
-        self.next_id = 0
         self.stop = False
         self.work = []
-        self.protocol = taskloaf.protocol.Protocol()
 
-        log_name = 'taskloaf.worker' + str(self.addr)
-        self.log = structlog.wrap_logger(logging.getLogger(log_name))
-
-        def handle_new_work(w, x):
-            w.work.append(x[0])
-        self.protocol.add_msg_type('WORK', handler = handle_new_work)
-
-    def shutdown_all(self, addrs):
-        for a in addrs:
-            self.submit_work(a, shutdown)
-
-    def get_new_id(self):
-        self.next_id += 1
-        return self.next_id - 1
-
-    def __enter__(self):
-        self.exit_stack = ExitStack()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.exit_stack.close()
-
-    def start(self, coro):
-        #TODO: Instead can I redesign to interop nicely with other event loops? Is that a good idea?
+    def start(self, coro = None):
+        #TODO: Instead can I redesign to interop nicely with other event loops? Is that a good idea? No. Only necessary in the Client!
         self.ioloop = asyncio.get_event_loop()
 
-        main_task = asyncio.ensure_future(coro(self))
+        if coro is not None:
+            main_task = asyncio.ensure_future(coro(self))
+
         start_task = asyncio.gather(
             self.poll_loop(), self.work_loop(),
             loop = self.ioloop
@@ -75,21 +42,6 @@ class Worker:
 
         if not main_task.cancelled() and main_task.exception():
             raise main_task.exception()
-
-    @property
-    def addr(self):
-        return self.comm.addr
-
-    def send(self, to, type_code, objs):
-        data = self.protocol.encode(self, type_code, objs)
-        self.comm.send(to, data)
-
-    def submit_work(self, to, f):
-        self.log.debug('submit_work', to = to, f = f)
-        if to == self.addr:
-            self.work.append(f)
-        else:
-            self.send(to, self.protocol.WORK, [f])
 
     def start_async_work(self, f, *args):
         async def async_work_wrapper(w):
@@ -132,7 +84,7 @@ class Worker:
             await asyncio.sleep(0, loop = self.ioloop)
 
     def poll(self):
-        msg = self.comm.recv()
+        msg = self.recv_fnc()
         if msg is not None:
             m, args = self.protocol.decode(self, memoryview(msg))
             self.cur_msg = m

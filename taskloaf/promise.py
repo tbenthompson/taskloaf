@@ -1,27 +1,8 @@
 import asyncio
 import capnp
 
-import taskloaf.serialize
-from taskloaf.refcounting import Ref
-from taskloaf.object_ref import put, is_ref, ObjectRef
-
-def setup_plugin(worker):
-    worker.promises = dict()
-    worker.protocol.add_msg_type(
-        'TASK',
-        type = TaskMsg,
-        handler = task_handler
-    )
-    worker.protocol.add_msg_type(
-        'SETRESULT',
-        type = TaskMsg,
-        handler = set_result_handler
-    )
-    worker.protocol.add_msg_type(
-        'AWAIT',
-        type = TaskMsg,
-        handler = await_handler
-    )
+from .refcounting import Ref
+from .object_ref import put, is_ref, ObjectRef
 
 def await_handler(worker, args):
     pr = args[0]

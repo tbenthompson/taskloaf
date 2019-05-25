@@ -17,20 +17,6 @@ def submit_ref_work(worker, to, f):
     ref = put(worker, f).convert()
     worker.send(to, worker.protocol.REFWORK, [ref, b''])
 
-def setup_plugin(worker):
-    assert(hasattr(worker, 'allocator'))
-    assert(hasattr(worker, 'ref_manager'))
-    worker.object_cache = dict()
-    worker.protocol.add_msg_type(
-        'REMOTEGET', type = ObjectMsg, handler = handle_remote_get
-    )
-    worker.protocol.add_msg_type(
-        'REMOTEPUT', type = ObjectMsg, handler = handle_remote_put
-    )
-    worker.protocol.add_msg_type(
-        'REFWORK', type = ObjectMsg, handler = handle_ref_work
-    )
-
 def handle_ref_work(worker, args):
     f_ref = args[0]
     async def run_me(worker):

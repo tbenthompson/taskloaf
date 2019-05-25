@@ -28,9 +28,6 @@ import asyncio
 
 import taskloaf.serialize
 
-def setup_plugin(worker):
-    worker.ref_manager = RefManager(worker)
-
 class RefCount:
     def __init__(self):
         self.gen_counts = [1]

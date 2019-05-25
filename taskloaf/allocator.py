@@ -1,30 +1,10 @@
 import bisect
 from collections import deque
-from contextlib import ExitStack, closing
 from math import log, ceil
 
 import attr
 
 import taskloaf.shmem
-
-def setup_plugin(worker):
-    block_root_path = worker.cfg.get('block_root_path', '/dev/shm/taskloaf_')
-    local_root_path = block_root_path + str(worker.addr)
-    worker.remote_shmem = worker.exit_stack.enter_context(closing(
-        taskloaf.allocator.RemoteShmemRepo(block_root_path)
-    ))
-    block_manager = worker.exit_stack.enter_context(closing(
-        taskloaf.allocator.BlockManager(local_root_path)
-    ))
-    worker.allocator = worker.exit_stack.enter_context(closing(
-        taskloaf.allocator.ShmemAllocator(block_manager)
-    ))
-
-def get_memory_used():
-    import os
-    import psutil
-    process = psutil.Process(os.getpid())
-    return process.memory_info().rss
 
 @attr.s
 class Ptr:

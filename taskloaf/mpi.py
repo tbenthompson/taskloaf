@@ -4,8 +4,6 @@ import cloudpickle
 from mpi4py import MPI
 from mpi4py.futures import MPIPoolExecutor
 
-import taskloaf.worker
-
 def rank(comm = MPI.COMM_WORLD):
     return comm.Get_rank()
 
