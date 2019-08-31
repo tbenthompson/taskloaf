@@ -8,6 +8,12 @@ from taskloaf.allocator import *
 
 block_manager = BlockManager('/dev/shm/pool', taskloaf.shmem.page4kb)
 
+def get_memory_used():
+    import os
+    import psutil
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss
+
 def check_ptr(ptr):
     x = np.frombuffer(ptr.deref())
     n = x.shape[0]

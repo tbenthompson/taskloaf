@@ -12,8 +12,8 @@ def zmq_context():
     ctx.destroy(linger = 0)
 
 class Friend:
-    def __init__(self, _id, hostname, port):
-        self._id = _id
+    def __init__(self, hostname, port):
+        self.name = hash((hostname, port))
         self.hostname = hostname
         self.port = port
 
@@ -43,16 +43,16 @@ class ZMQComm:
         self.exit_stack.close()
 
     def add_friend(self, hostname, port):
-        _id = hash((hostname, port))
-        f = Friend(_id, hostname, port)
+        f = Friend(hostname, port)
         f.send_socket = self.exit_stack.enter_context(closing(
             self.ctx.socket(zmq.PUSH)
         ))
         f.send_socket.setsockopt(zmq.LINGER, 0)
         f.send_socket.connect(f.hostname + ':' + str(f.port))
-        self.friends[_id] = f
+        self.friends[f.name] = f
 
     def send(self, to_addr, data):
+        print(to_addr, data)
         self.friends[to_addr].send_socket.send_multipart([data])
 
     def recv(self):

@@ -50,24 +50,24 @@ def test_send_recv():
     def f(c):
         if c.port < min([f.port for f in c.friends.values()]):
             for f in c.friends.values():
-                c.send(f._id, cloudpickle.dumps("OHI!"))
+                c.send(f.name, cloudpickle.dumps("OHI!"))
             for i in range(n_workers - 1):
                 wait_for(c, "OYAY")
         else:
             wait_for(c, "OHI!")
-            c.send(get_min_port_friend(c)._id, cloudpickle.dumps("OYAY"))
+            c.send(get_min_port_friend(c).name, cloudpickle.dumps("OYAY"))
     zmqrun(n_workers, f, test_cfg)
 
 def data_send(c):
     if c.port == baseport:
-        c.send(get_min_port_friend(c)._id, cloudpickle.dumps(123))
+        c.send(get_min_port_friend(c).name, cloudpickle.dumps(123))
     if c.port == baseport + 1:
         wait_for(c, 123)
 
 def fnc_send(c):
     if c.port == baseport:
         x = 13
-        c.send(get_min_port_friend(c)._id, cloudpickle.dumps(lambda: x ** 2))
+        c.send(get_min_port_friend(c).name, cloudpickle.dumps(lambda: x ** 2))
     if c.port == baseport + 1:
         wait_for(c, 169, lambda x: x())
 

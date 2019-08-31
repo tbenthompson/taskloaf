@@ -5,11 +5,10 @@ from contextlib import ExitStack, closing
 from .refcounting import RefManager
 from .allocator import RemoteShmemRepo, BlockManager, ShmemAllocator
 from .protocol import Protocol
-from .executor import Executor
 
 class Context:
-    def __init__(self, comm, cfg):
-        self.name = comm.addr
+    def __init__(self, name, comm, cfg):
+        self.name = name
         self.cfg = cfg
         self.next_id = 0
 
@@ -18,13 +17,44 @@ class Context:
 
         self.comm = comm
         self.protocol = Protocol()
+
+        #TODO: move elsewhere?
+        def handle_new_work(args):
+            self.executor.work.append(args)
+        self.protocol.add_msg_type('WORK', handler = handle_new_work)
+
+        # JOIN = send a message asking to MEET
+        #        receiver sends a MEET reply
+        #
+        # MEET = send a message with tuples of form (name, hostname, port) for
+        #        all friends receiver then MEETs all new friends (possibly
+        #        including the one they received the MEET from)
+        #
+        # A worker will JOIN then receive the MEET replies and MEET all the new
+        # friends.
+        #
+        # A client will JOIN then receive the MEET replies and JOIN all the new
+        # friends. As a result, a client learns about the whole cluster but the
+        # cluster doesn't know about the client or send the client info. Is
+        # this a good idea? Then how to send info out to the client? By
+        # hostname/port?
+
+        #TODO: move elsewhere?
+        #TODO: send my info and all my friends info to a new acquiantance
+        # once they receive it, "MEET" all new friends, reply with my info
+        # to sender
+        # TODO: could be optimized with capnp
+        def handle_join(args):
+
+        self.protocol.add_msg_type('JOIN', handler = handle_join)
+        def handle_meet(args):
+            new_friend = args[0]
+            their_friends = args[1]
+            self.comm.add_friend(
+        self.protocol.add_msg_type('MEET', handler = handle_meet)
+
         self.setup_object_protocol()
         self.setup_promise_protocol()
-
-        def recv_fnc():
-            return self.comm.recv()
-        # TODO: Make Executor into a context manager
-        self.executor = Executor(recv_fnc, cfg, self.log)
 
     def __enter__(self):
         self.exit_stack = ExitStack()
@@ -44,6 +74,15 @@ class Context:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.exit_stack.close()
+
+    def poll_fnc(self):
+        msg = self.comm.recv()
+        # print(msg)
+        if msg is not None:
+            m, args = self.protocol.decode(self, memoryview(msg))
+            self.cur_msg = m
+            self.protocol.handle(self, m.typeCode, args)
+            self.cur_msg = None
 
     def setup_object_protocol(self):
         from .object_ref import ObjectMsg, handle_remote_get, \

@@ -26,11 +26,11 @@ class Protocol:
         self.msg_types.append((type, handler, name))
         return type_code
 
-    def encode(self, worker, type_code, *args):
+    def encode(self, source_addr, type_code, *args):
         serializer = self.msg_types[type_code][0].serialize
         m = serializer(*args)
         m.typeCode = type_code
-        m.sourceAddr = worker.addr
+        m.sourceAddr = source_addr
         return memoryview(m.to_bytes())
 
     def decode(self, worker, b):

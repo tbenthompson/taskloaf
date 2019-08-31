@@ -44,15 +44,15 @@ class Executor:
             raise main_task.exception()
 
     def start_async_work(self, f, *args):
-        async def async_work_wrapper(w):
+        async def async_work_wrapper():
             try:
-                await f(w, *args)
+                await f(*args)
             except asyncio.CancelledError:
                 self.log.warning('async work cancelled', exc_info = True)
             except Exception as e:
                 self.log.warning('async work failed with unhandled exception')
         return asyncio.ensure_future(
-            async_work_wrapper(self),
+            async_work_wrapper(),
             loop = self.ioloop
         )
 
@@ -63,7 +63,7 @@ class Executor:
             # No need to catch exceptions here because this this is run
             # synchronously and the exception will bubble up to the owning
             # thread or task
-            f(self, *args)
+            f(*args)
 
     async def wait_for_work(self, f, *args):
         out = f(self, *args)
@@ -81,17 +81,10 @@ class Executor:
                     self.run_work(self.work.pop())
                 except Exception as e:
                     self.log.warning('work failed with unhandled exception')
+                    traceback.print_exc()
             await asyncio.sleep(0, loop = self.ioloop)
-
-    def poll(self):
-        msg = self.recv_fnc()
-        if msg is not None:
-            m, args = self.protocol.decode(self, memoryview(msg))
-            self.cur_msg = m
-            self.protocol.handle(self, m.typeCode, args)
-            self.cur_msg = None
 
     async def poll_loop(self):
         while not self.stop:
-            self.poll()
+            self.recv_fnc()
             await asyncio.sleep(0, loop = self.ioloop)
