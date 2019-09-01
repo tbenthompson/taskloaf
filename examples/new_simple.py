@@ -8,14 +8,15 @@ import taskloaf
 from taskloaf.zmq import ZMQComm
 from taskloaf.mpi import MPIComm
 from taskloaf.context import Context
+from taskloaf.messenger import JoinMeetMessenger
 from taskloaf.executor import Executor
 
 
 # How do you launch a taskloaf cluster?
 # taskloaf.MPIWorker()
 # taskloaf.MPIClient()
-# taskloaf.ZMQWorker(join_addr = None)
-# taskloaf.ZMQClient(join_addr = None)
+# taskloaf.ZMQWorker(meet_addr = None)
+# taskloaf.ZMQClient(meet_addr = None)
 
 
 def f(comm):
@@ -44,24 +45,26 @@ def mpi_worker():
     return out
 
 
-def zmq_launcher(name, port, hostname, cpu_affinity):
+def zmq_launcher(addr, cpu_affinity, meet_addr):
     psutil.Process().cpu_affinity(cpu_affinity)
-    with ZMQComm(port, []) as comm:
+    with ZMQComm(addr) as comm:
         cfg = dict()
-        with Context(name, comm, cfg) as ctx:
+        #TODO: addr[1] = port, this is insufficient eventually, use uuid?
+        messenger = JoinMeetMessenger(addr[1], comm)
+        if meet_addr is not None:
+            messenger.meet(meet_addr)
+        with Context(messenger, cfg) as ctx:
             taskloaf.set_ctx(ctx)
             # TODO: Make Executor into a context manager
             ctx.executor = Executor(ctx.poll_fnc, cfg, ctx.log)
             ctx.executor.start()
 
 class ZMQWorker:
-    def __init__(self, name, port, cpu_affinity, hostname = 'tcp://*'):
-        self.name = name
-        self.port = port
-        self.hostname = hostname
+    def __init__(self, addr, cpu_affinity, meet_addr = None):
+        self.addr = addr
         self.p = multiprocessing.Process(
             target = zmq_launcher,
-            args = (name, port, hostname, cpu_affinity)
+            args = (addr, cpu_affinity, meet_addr)
         )
 
     def __enter__(self):
@@ -74,22 +77,21 @@ class ZMQWorker:
         self.p.join()
 
 class ZMQClient:
-    def __init__(self, port, join_addr, hostname = 'tcp://*'):
-        self.name = 1000 #TODO:
-        self.port = port
-        self.join_addr = join_addr
-        self.hostname = hostname
+    def __init__(self, addr, meet_addr):
+        self.addr = addr
+        self.meet_addr = meet_addr
 
     def __enter__(self):
         self.exit_stack = ExitStack()
-        self.comm = self.exit_stack.enter_context(ZMQComm(
-            self.port,
-            [self.join_addr],
-            hostname=self.hostname
+        comm = self.exit_stack.enter_context(ZMQComm(
+            self.addr,
+            # [self.meet_addr],
         ))
+        #TODO: addr[1] = port, this is insufficient eventually, use uuid?
+        messenger = JoinMeetMessenger(self.addr[1], comm)
+        messenger.meet(self.meet_addr)
         self.ctx = self.exit_stack.enter_context(Context(
-            self.name,
-            self.comm,
+            messenger,
             dict()
         ))
         return self
@@ -106,28 +108,51 @@ class ZMQClient:
 
 if __name__ == "__main__":
     # w = mpi_worker()
-    with ZMQWorker(0, 5755, [0]) as worker:
-        with ZMQClient(5756, ('tcp://127.0.0.1', worker.port)) as client:
-            print(client.comm.friends)
-            keys = list(client.comm.friends.keys())
+    n_workers = 3
+    localhost = 'tcp://127.0.0.1'
+    base_port = 5755
+    with ExitStack() as es:
 
+        workers = []
+        for i in range(n_workers):
+            port = base_port + i
+            meet_addr = None
+            if i > 0:
+                meet_addr = (localhost, base_port)
+            workers.append(es.enter_context(ZMQWorker(
+                (localhost, port), [i], meet_addr = meet_addr
+            )))
+
+        with ZMQClient((localhost, base_port - 1), (localhost, base_port)) as client:
             def f():
                 global taskloaf_ctx
                 print("SENDING")
-                taskloaf.ctx().comm.send(
-                    list(taskloaf.ctx().comm.friends.keys())[0],
+                taskloaf.ctx().messenger.send(
+                    5754,
+                    taskloaf.ctx().messenger.protocol.WORK,
                     cloudpickle.dumps(123)
                 )
                 taskloaf.ctx().executor.stop = True
 
-            msg = client.ctx.protocol.encode(
-                client.name,
-                client.ctx.protocol.WORK,
+            while True:
+                client.ctx.poll_fnc()
+                if len(client.ctx.messenger.endpts) == 3:
+                    break
+
+
+            names = client.ctx.messenger.endpts.keys()
+            print('have endpts!', names)
+            import sys
+            sys.stdout.flush()
+
+            client.ctx.messenger.send(
+                list(names)[0],
+                client.ctx.messenger.protocol.WORK,
                 f
             )
-            client.comm.send(keys[0], msg)
+
             while True:
-                msg = client.comm.recv()
+                msg = client.ctx.messenger.comm.recv()
                 if msg is None:
                     continue
                 print("RECEIVED")

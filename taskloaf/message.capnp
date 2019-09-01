@@ -52,7 +52,7 @@ struct Task {
 # of using Python.
 #
 # TODO: A multi-part message design would allow getting rid of the union and
-# using a separate message part for the typeCode and sourceAddr and then a
+# using a separate message part for the typeCode and sourceName and then a
 # user-defined message for the remainder, to be decoded by the deserializer
 # specified by typeCode
 # TODO: This seems especially cool in the context of a system where Capnp
@@ -61,7 +61,7 @@ struct Task {
 # TODO: is there any kind of capnp <--> zmq interface? A buffer interface?
 struct Message {
     typeCode @0 :Int64;
-    sourceAddr @1 :Int64;
+    sourceName @1 :Int64;
     union {
         decRef @2 :DecRef;
         object @3 :Object;

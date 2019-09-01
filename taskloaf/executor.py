@@ -40,8 +40,8 @@ class Executor:
             with suppress(asyncio.CancelledError):
                 self.ioloop.run_until_complete(task)
 
-        if not main_task.cancelled() and main_task.exception():
-            raise main_task.exception()
+        # if not main_task.cancelled() and main_task.exception():
+        #     raise main_task.exception()
 
     def start_async_work(self, f, *args):
         async def async_work_wrapper():

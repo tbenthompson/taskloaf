@@ -205,10 +205,11 @@ class ObjectMsg:
         )
 
 def handle_remote_get(worker, args):
+    #TODO: add sourceName to args
     msg = worker.cur_msg
     async def reply(w):
         worker.send(
-            msg.sourceAddr,
+            msg.sourceName,
             worker.protocol.REMOTEPUT,
             [args[0], await args[0].get_buffer()]
         )

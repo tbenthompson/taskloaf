@@ -11,18 +11,14 @@ def zmq_context():
     yield ctx
     ctx.destroy(linger = 0)
 
-class Friend:
-    def __init__(self, hostname, port):
-        self.name = hash((hostname, port))
-        self.hostname = hostname
-        self.port = port
-
 class ZMQComm:
-    def __init__(self, port, initial_friends, hostname = 'tcp://*'):
-        self.port = port
-        self.hostname = hostname
-        self.initial_friends = initial_friends
-        self.friends = dict()
+    """
+    What is hidden inside ZMQComm?...
+    """
+    def __init__(self, addr):
+        self.addr = addr
+        self.hostname = addr[0]
+        self.port = addr[1]
 
     def __enter__(self):
         self.exit_stack = ExitStack()
@@ -34,26 +30,27 @@ class ZMQComm:
         # self.recv_socket.setsockopt(zmq.SUBSCRIBE,b'')
         self.recv_socket.bind(self.hostname + ':' + str(self.port))
 
-        for f in self.initial_friends:
-            self.add_friend(f[0], f[1])
-
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.exit_stack.close()
 
-    def add_friend(self, hostname, port):
-        f = Friend(hostname, port)
-        f.send_socket = self.exit_stack.enter_context(closing(
+    def connect(self, addr):
+        send_socket = self.exit_stack.enter_context(closing(
             self.ctx.socket(zmq.PUSH)
         ))
-        f.send_socket.setsockopt(zmq.LINGER, 0)
-        f.send_socket.connect(f.hostname + ':' + str(f.port))
-        self.friends[f.name] = f
+        send_socket.setsockopt(zmq.LINGER, 0)
+        send_socket.connect(addr[0] + ':' + str(addr[1]))
+        return send_socket
 
-    def send(self, to_addr, data):
-        print(to_addr, data)
-        self.friends[to_addr].send_socket.send_multipart([data])
+    def disconnect(self, socket):
+        pass
+        #TODO:???
+        # socket.close()
+
+    def send(self, socket, data):
+        #TODO: allow multipart messages
+        socket.send_multipart([data])
 
     def recv(self):
         if self.recv_socket.poll(timeout = 0) == 0:
