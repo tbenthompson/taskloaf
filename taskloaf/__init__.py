@@ -1,9 +1,10 @@
-from taskloaf.promise import task, when_all, Promise
-from taskloaf.object_ref import alloc, put#, get
-from taskloaf.local import localrun
-from taskloaf.profile import Profiler
-from taskloaf.timer import Timer
-
+from taskloaf.zmq import zmq_cluster
+# from taskloaf.promise import task, when_all, Promise
+# from taskloaf.object_ref import alloc, put#, get
+# from taskloaf.local import localrun
+# from taskloaf.profile import Profiler
+# from taskloaf.timer import Timer
+#
 _ctx = None
 
 def set_ctx(ctx):

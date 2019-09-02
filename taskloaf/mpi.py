@@ -63,3 +63,23 @@ def mpiexisting(n_workers, f, cfg, die_on_exception = True):
     out = f(c) if c.addr < n_workers else None
     sys.excepthook = orig_sys_except
     return out
+
+# def mpi_worker():
+#     orig_sys_except = sys.excepthook
+#     if die_on_exception:
+#         def die(*args, **kwargs):
+#             orig_sys_except(*args, **kwargs)
+#             sys.stderr.flush()
+#             MPI.COMM_WORLD.Abort()
+#         sys.excepthook = die
+#
+#     n_mpi_procs = MPI.COMM_WORLD.Get_size()
+#     if n_workers > n_mpi_procs:
+#         raise Exception(
+#             'There are only %s MPI processes but %s were requested' % (n_mpi_procs, n_workers)
+#         )
+#     c = MPIComm()
+#     out = f(c) if c.name < n_workers else None
+#     sys.excepthook = orig_sys_except
+#     return out
+#

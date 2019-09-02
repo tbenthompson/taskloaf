@@ -16,10 +16,14 @@ class Executor:
         self.log = log
         self.init_time = time.time()
         self.stop = False
-        self.work = []
+        self.work = asyncio.LifoQueue()
+
+    def add_work(self, w):
+        self.work.put_nowait(w)
 
     def start(self, coro = None):
-        #TODO: Instead can I redesign to interop nicely with other event loops? Is that a good idea? No. Only necessary in the Client!
+        #TODO: Instead can I redesign to interop nicely with other event loops?
+        # Is that a good idea? No. Only necessary in the Client!
         self.ioloop = asyncio.get_event_loop()
 
         if coro is not None:
@@ -76,15 +80,13 @@ class Executor:
 
     async def work_loop(self):
         while not self.stop:
-            if len(self.work) > 0:
-                try:
-                    self.run_work(self.work.pop())
-                except Exception as e:
-                    self.log.warning('work failed with unhandled exception')
-                    traceback.print_exc()
-            await asyncio.sleep(0, loop = self.ioloop)
+            w = await self.work.get()
+            try:
+                self.run_work(w)
+            except Exception as e:
+                self.log.warning('work failed with unhandled exception')
+                traceback.print_exc()
 
     async def poll_loop(self):
         while not self.stop:
-            self.recv_fnc()
-            await asyncio.sleep(0, loop = self.ioloop)
+            await self.recv_fnc()

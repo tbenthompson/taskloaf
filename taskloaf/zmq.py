@@ -1,61 +1,88 @@
+from contextlib import ExitStack, contextmanager
 import multiprocessing
-from contextlib import ExitStack, closing, contextmanager
+import asyncio
 
-import cloudpickle
 import psutil
-import zmq
 
-@contextmanager
-def zmq_context():
-    ctx = zmq.Context()
-    yield ctx
-    ctx.destroy(linger = 0)
+import taskloaf
+from taskloaf.zmq_comm import ZMQComm
+from taskloaf.messenger import JoinMeetMessenger
+from taskloaf.context import Context
+from taskloaf.executor import Executor
 
-class ZMQComm:
-    """
-    What is hidden inside ZMQComm?...
-    """
+def zmq_launcher(addr, cpu_affinity, meet_addr):
+    psutil.Process().cpu_affinity(cpu_affinity)
+    with ZMQComm(addr) as comm:
+        cfg = dict()
+        #TODO: addr[1] = port, this is insufficient eventually, use uuid?
+        #TODO: move ZMQClient/ZMQWorker to their own file
+        messenger = JoinMeetMessenger(addr[1], comm, True)
+        if meet_addr is not None:
+            messenger.meet(meet_addr)
+        with Context(messenger, cfg) as ctx:
+            taskloaf.set_ctx(ctx)
+            # TODO: Make Executor into a context manager
+            ctx.executor = Executor(ctx.messenger.recv, cfg, ctx.log)
+            ctx.executor.start()
+
+class ZMQWorker:
+    def __init__(self, addr, cpu_affinity, meet_addr = None):
+        self.addr = addr
+        self.p = multiprocessing.Process(
+            target = zmq_launcher,
+            args = (addr, cpu_affinity, meet_addr)
+        )
+
+    def __enter__(self):
+        self.p.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        #TODO: softer exit?
+        self.p.terminate()
+        self.p.join()
+
+class ZMQClient:
     def __init__(self, addr):
         self.addr = addr
-        self.hostname = addr[0]
-        self.port = addr[1]
 
     def __enter__(self):
         self.exit_stack = ExitStack()
-
-        self.ctx = self.exit_stack.enter_context(zmq_context())
-        self.recv_socket = self.exit_stack.enter_context(closing(
-            self.ctx.socket(zmq.PULL)
+        comm = self.exit_stack.enter_context(ZMQComm(
+            self.addr,
+            # [self.meet_addr],
         ))
-        # self.recv_socket.setsockopt(zmq.SUBSCRIBE,b'')
-        self.recv_socket.bind(self.hostname + ':' + str(self.port))
-
+        #TODO: move ZMQClient/ZMQWorker to their own file
+        #TODO: addr[1] = port, this is insufficient eventually, use uuid?
+        messenger = JoinMeetMessenger(self.addr[1], comm, False)
+        self.ctx = self.exit_stack.enter_context(Context(
+            messenger,
+            dict()
+        ))
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.exit_stack.close()
 
-    def connect(self, addr):
-        send_socket = self.exit_stack.enter_context(closing(
-            self.ctx.socket(zmq.PUSH)
-        ))
-        send_socket.setsockopt(zmq.LINGER, 0)
-        send_socket.connect(addr[0] + ':' + str(addr[1]))
-        return send_socket
+    def update_cluster_view(self, addr = None):
+        if addr is None:
+            addr = next(iter(self.messenger.endpts.values()))[1]
 
-    def disconnect(self, socket):
-        pass
-        #TODO:???
-        # socket.close()
+        self.ctx.messenger.meet(addr)
+        asyncio.get_event_loop().run_until_complete(
+            self.ctx.messenger.recv()
+        )
 
-    def send(self, socket, data):
-        #TODO: allow multipart messages
-        socket.send_multipart([data])
-
-    def recv(self):
-        if self.recv_socket.poll(timeout = 0) == 0:
-            return None
-        msg = self.recv_socket.recv_multipart()[0]
-        if len(msg) == 0:
-            return None
-        return msg
+@contextmanager
+def zmq_cluster(n_workers, hostname, ports):
+    with ExitStack() as es:
+        workers = []
+        for i in range(n_workers):
+            port = ports[i]
+            meet_addr = None
+            if i > 0:
+                meet_addr = (hostname, ports[0])
+            workers.append(es.enter_context(ZMQWorker(
+                (hostname, port), [i], meet_addr = meet_addr
+            )))
+        yield workers

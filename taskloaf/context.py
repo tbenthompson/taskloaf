@@ -15,12 +15,13 @@ class Context:
         log_name = 'taskloaf.context' + str(self.name)
         self.log = structlog.wrap_logger(logging.getLogger(log_name))
 
-
         self.protocol = messenger.protocol
+
         #TODO: move elsewhere?
         def handle_new_work(args):
-            self.executor.work.append(args)
+            self.executor.add_work(args)
         self.protocol.add_msg_type('WORK', handler = handle_new_work)
+
         self.setup_object_protocol()
         self.setup_promise_protocol()
 
@@ -42,9 +43,6 @@ class Context:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.exit_stack.close()
-
-    def poll_fnc(self):
-        self.messenger.recv()
 
     def setup_object_protocol(self):
         from .object_ref import ObjectMsg, handle_remote_get, \
