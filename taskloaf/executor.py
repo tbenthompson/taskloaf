@@ -6,8 +6,10 @@ from contextlib import suppress, ExitStack
 
 import taskloaf.protocol
 
+
 def shutdown(e):
     e.stop = True
+
 
 class Executor:
     def __init__(self, recv_fnc, cfg, log):
@@ -21,8 +23,8 @@ class Executor:
     def add_work(self, w):
         self.work.put_nowait(w)
 
-    def start(self, coro = None):
-        #TODO: Instead can I redesign to interop nicely with other event loops?
+    def start(self, coro=None):
+        # TODO: Instead can I redesign to interop nicely with other event loops?
         # Is that a good idea? No. Only necessary in the Client!
         self.ioloop = asyncio.get_event_loop()
 
@@ -30,13 +32,12 @@ class Executor:
             main_task = asyncio.ensure_future(coro(self))
 
         start_task = asyncio.gather(
-            self.poll_loop(), self.work_loop(),
-            loop = self.ioloop
+            self.poll_loop(), self.work_loop(), loop=self.ioloop
         )
-        self.log.info('starting worker ioloop')
+        self.log.info("starting worker ioloop")
         self.ioloop.run_until_complete(start_task)
 
-        pending = asyncio.Task.all_tasks(loop = self.ioloop)
+        pending = asyncio.Task.all_tasks(loop=self.ioloop)
         for task in pending:
             task.cancel()
             # Now we should await task to execute it's cancellation.
@@ -52,13 +53,11 @@ class Executor:
             try:
                 await f(*args)
             except asyncio.CancelledError:
-                self.log.warning('async work cancelled', exc_info = True)
+                self.log.warning("async work cancelled", exc_info=True)
             except Exception as e:
-                self.log.exception('async work failed with unhandled exception')
-        return asyncio.ensure_future(
-            async_work_wrapper(),
-            loop = self.ioloop
-        )
+                self.log.exception("async work failed with unhandled exception")
+
+        return asyncio.ensure_future(async_work_wrapper(), loop=self.ioloop)
 
     def run_work(self, f, *args):
         if asyncio.iscoroutinefunction(f):
@@ -76,7 +75,7 @@ class Executor:
         return out
 
     async def run_in_thread(self, sync_f):
-        return (await self.ioloop.run_in_executor(None, sync_f))
+        return await self.ioloop.run_in_executor(None, sync_f)
 
     async def work_loop(self):
         while not self.stop:
@@ -84,7 +83,7 @@ class Executor:
             try:
                 self.run_work(w)
             except Exception as e:
-                self.log.warning('work failed with unhandled exception')
+                self.log.warning("work failed with unhandled exception")
                 traceback.print_exc()
 
     async def poll_loop(self):

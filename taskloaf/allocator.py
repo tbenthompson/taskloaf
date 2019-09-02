@@ -7,6 +7,7 @@ import attr
 
 import taskloaf.shmem
 
+
 @attr.s
 class Ptr:
     start = attr.ib()
@@ -14,7 +15,7 @@ class Ptr:
     block = attr.ib()
 
     def deref(self):
-        return self.block.shmem.mem[self.start:self.end]
+        return self.block.shmem.mem[self.start : self.end]
 
     def encode_capnp(self, msg):
         msg.start = self.start
@@ -24,10 +25,11 @@ class Ptr:
     @classmethod
     def decode_capnp(self, worker, owner, msg):
         return Ptr(
-            start = msg.start,
-            end = msg.end,
-            block = deserialize_block(worker, owner, msg.blockIdx)
+            start=msg.start,
+            end=msg.end,
+            block=deserialize_block(worker, owner, msg.blockIdx),
         )
+
 
 class MemoryBlock:
     def __init__(self, filepath, idx, shmem, _close):
@@ -41,18 +43,19 @@ class MemoryBlock:
         out = self._close(*args, **kwargs)
         del self.shmem
 
+
 def alloc_memory_block(filepath, idx, size):
     with ExitStack() as es:
-        es.enter_context(taskloaf.shmem.alloc_shmem(
-            size, filepath
-        ))
+        es.enter_context(taskloaf.shmem.alloc_shmem(size, filepath))
         shmem = es.enter_context(taskloaf.shmem.Shmem(filepath))
         return MemoryBlock(filepath, idx, shmem, es.pop_all().close)
+
 
 def load_memory_block(filepath, idx):
     with ExitStack() as es:
         shmem = es.enter_context(taskloaf.shmem.Shmem(filepath))
         return MemoryBlock(filepath, idx, shmem, es.pop_all().close)
+
 
 class RemoteShmemRepo:
     def __init__(self, block_root_path):
@@ -62,7 +65,7 @@ class RemoteShmemRepo:
     def get_block(self, owner, block_idx):
         key = (owner, block_idx)
         if key not in self.blocks:
-            filepath = self.block_root_path + str(owner) + '_' + str(block_idx)
+            filepath = self.block_root_path + str(owner) + "_" + str(block_idx)
             self.blocks[key] = load_memory_block(filepath, block_idx)
         return self.blocks[key]
 
@@ -71,18 +74,20 @@ class RemoteShmemRepo:
             v.close()
         self.blocks.clear()
 
+
 def deserialize_block(worker, owner, block_idx):
     return worker.remote_shmem.get_block(owner, block_idx)
 
+
 class BlockManager:
-    def __init__(self, root_path, page_size = taskloaf.shmem.page4kb):
+    def __init__(self, root_path, page_size=taskloaf.shmem.page4kb):
         self.root_path = root_path
         self.page_size = page_size
         self.idx = 0
         self.blocks = dict()
 
     def get_path(self, idx):
-        return self.root_path + '_' + str(idx)
+        return self.root_path + "_" + str(idx)
 
     def new_block(self, size):
         idx = self.idx
@@ -102,9 +107,9 @@ class BlockManager:
 
     def check_location_exists(self, ptr):
         return (
-            ptr.block.idx in self.blocks and
-            ptr.end < self.blocks[ptr.block.idx].size and
-            ptr.start <= ptr.end
+            ptr.block.idx in self.blocks
+            and ptr.end < self.blocks[ptr.block.idx].size
+            and ptr.start <= ptr.end
         )
 
 
@@ -115,8 +120,8 @@ class PoolBlock:
         self.mem_block = block_manager.new_block(total_size)
         self.idx = self.mem_block.idx
 
-        assert(total_size % chunk_size == 0)
-        assert(chunk_size < total_size)
+        assert total_size % chunk_size == 0
+        assert chunk_size < total_size
         self.n_chunks = total_size // chunk_size
         self.free_list = deque(range(self.n_chunks))
 
@@ -145,7 +150,7 @@ class PoolBlock:
 
 
 class Pool:
-    def __init__(self, block_manager, chunk_size, block_size = None):
+    def __init__(self, block_manager, chunk_size, block_size=None):
         if block_size is None:
             block_size = block_manager.page_size
         self.block_manager = block_manager
@@ -153,7 +158,7 @@ class Pool:
         self.block_size = taskloaf.shmem.roundup_to_multiple(
             block_size, block_manager.page_size
         )
-        assert(self.chunk_size <= self.block_size)
+        assert self.chunk_size <= self.block_size
 
         self.blocks = dict()
         self.free_list = []
@@ -181,7 +186,7 @@ class Pool:
             del self.blocks[block.idx]
             self.free_list.pop(bisect.bisect_left(self.free_list, block.idx))
         elif block_was_full:
-            assert(block.idx not in self.free_list)
+            assert block.idx not in self.free_list
             bisect.insort(self.free_list, block.idx)
 
     def close(self):
@@ -204,14 +209,15 @@ memory regions in interprocess shared memory.
 Using interprocess shared memory means that the memory regions can be passed
 between processes on the same machine.
 """
+
+
 class ShmemAllocator:
-    def __init__(self, block_manager, block_size_exponent = 17):
+    def __init__(self, block_manager, block_size_exponent=17):
         self.block_manager = block_manager
         self.block_size = 2 ** block_size_exponent
         self.chunk_sizes = [2 ** i for i in range(3, block_size_exponent)]
         self.pools = [
-            Pool(block_manager, s, self.block_size)
-            for s in self.chunk_sizes
+            Pool(block_manager, s, self.block_size) for s in self.chunk_sizes
         ]
         self.mmap_cutoff = self.chunk_sizes[-1]
 
@@ -262,4 +268,3 @@ class ShmemAllocator:
             if not idx in pool_idxs:
                 return False
         return True
-

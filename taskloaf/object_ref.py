@@ -3,29 +3,39 @@ import taskloaf.serialize
 import taskloaf.allocator
 import taskloaf.refcounting
 
+
 def put(worker, obj):
     return FreshObjectRef(worker, obj)
 
+
 def alloc(worker, nbytes):
     ptr = worker.allocator.malloc(nbytes)
-    def on_delete(_id, worker = worker, ptr = ptr):
+
+    def on_delete(_id, worker=worker, ptr=ptr):
         worker.allocator.free(ptr)
+
     ref = taskloaf.refcounting.Ref(worker, on_delete)
     return ObjectRef(ref, ptr, False)
 
+
 def submit_ref_work(worker, to, f):
     ref = put(worker, f).convert()
-    worker.send(to, worker.protocol.REFWORK, [ref, b''])
+    worker.send(to, worker.protocol.REFWORK, [ref, b""])
+
 
 def handle_ref_work(worker, args):
     f_ref = args[0]
+
     async def run_me(worker):
         f = await f_ref.get()
         await worker.wait_for_work(f)
+
     worker.start_async_work(run_me)
+
 
 def is_ref(x):
     return isinstance(x, FreshObjectRef) or isinstance(x, ObjectRef)
+
 
 """
 This class barely needs to do anything because python already uses reference
@@ -36,6 +46,8 @@ memory from another worker, the reference first has to arrive at that other
 worker and thus serialization of the reference can be used as a trigger for
 serialization of the underlying object.
 """
+
+
 class FreshObjectRef:
     def __init__(self, worker, obj):
         self.worker = worker
@@ -71,12 +83,14 @@ class FreshObjectRef:
         ptr = self.worker.allocator.malloc(nbytes)
         ptr.deref()[:] = serialized_obj
         self.worker.object_cache[(self.worker.addr, self._id)] = self.obj
-        def on_delete(_id, worker = self.worker, ptr = ptr):
+
+        def on_delete(_id, worker=self.worker, ptr=ptr):
             key = (worker.addr, _id)
             del worker.object_cache[key]
             worker.allocator.free(ptr)
+
         ref = taskloaf.refcounting.Ref(
-            self.worker, on_delete, _id = self._id, child_refs = child_refs
+            self.worker, on_delete, _id=self._id, child_refs=child_refs
         )
         self.objref = ObjectRef(ref, ptr, deserialize)
         return self.objref
@@ -84,8 +98,10 @@ class FreshObjectRef:
     def encode_capnp(self, msg):
         self.convert().encode_capnp(msg)
 
+
 def is_bytes(v):
     return isinstance(v, bytes) or isinstance(v, memoryview)
+
 
 def serialize_if_needed(worker, obj):
     if is_bytes(obj):
@@ -94,12 +110,15 @@ def serialize_if_needed(worker, obj):
         child_refs, blob = taskloaf.serialize.dumps(worker, obj)
         return True, child_refs, blob
 
+
 """
 It seems like we're recording two indexes to the data:
     -- the ptr itself
     -- the (owner, _id) pair
 This isn't strictly necessary, but has some advantages.
 """
+
+
 class ObjectRef:
     def __init__(self, ref, ptr, deserialize):
         self.ref = ref
@@ -141,12 +160,12 @@ class ObjectRef:
             self._deserialize_and_store(self.ptr.deref())
 
     async def _remote_get(self):
-        future = asyncio.Future(loop = self.worker.ioloop)
+        future = asyncio.Future(loop=self.worker.ioloop)
         self.worker.object_cache[self.key()] = future
         self.worker.send(
-            self.ref.owner, self.worker.protocol.REMOTEGET, [self, b'']
+            self.ref.owner, self.worker.protocol.REMOTEGET, [self, b""]
         )
-        return (await future)
+        return await future
 
     def _remote_put(self, buf):
         future = self.worker.object_cache[self.key()]
@@ -155,7 +174,7 @@ class ObjectRef:
 
     def _deserialize_and_store(self, buf):
         if self.deserialize:
-            assert(isinstance(self.ref.child_refs, list))
+            assert isinstance(self.ref.child_refs, list)
             out = taskloaf.serialize.loads(
                 self.ref.worker, self.ref.child_refs, buf
             )
@@ -165,11 +184,7 @@ class ObjectRef:
         return out
 
     def __getstate__(self):
-        return dict(
-            ref = self.ref,
-            deserialize = self.deserialize,
-            ptr = self.ptr,
-        )
+        return dict(ref=self.ref, deserialize=self.deserialize, ptr=self.ptr)
 
     def encode_capnp(self, msg):
         self.ref.encode_capnp(msg.ref)
@@ -187,12 +202,13 @@ class ObjectRef:
 
         return objref
 
+
 class ObjectMsg:
     @staticmethod
     def serialize(args):
         ref, v = args
         m = taskloaf.message_capnp.Message.new_message()
-        m.init('object')
+        m.init("object")
         ref.encode_capnp(m.object.objref)
         m.object.val = bytes(v)
         return m
@@ -201,19 +217,23 @@ class ObjectMsg:
     def deserialize(worker, msg):
         return (
             ObjectRef.decode_capnp(worker, msg.object.objref),
-            msg.object.val
+            msg.object.val,
         )
 
+
 def handle_remote_get(worker, args):
-    #TODO: add sourceName to args
+    # TODO: add sourceName to args
     msg = worker.cur_msg
+
     async def reply(w):
         worker.send(
             msg.sourceName,
             worker.protocol.REMOTEPUT,
-            [args[0], await args[0].get_buffer()]
+            [args[0], await args[0].get_buffer()],
         )
+
     worker.run_work(reply)
+
 
 def handle_remote_put(worker, args):
     args[0]._remote_put(args[1])

@@ -8,9 +8,11 @@ from taskloaf.zmq import zmq_cluster, zmq_client, run
 #
 _ctx = None
 
+
 def set_ctx(ctx):
     global _ctx
     _ctx = ctx
+
 
 def ctx():
     return _ctx

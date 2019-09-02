@@ -1,5 +1,6 @@
 from .protocol import Protocol
 
+
 class JoinMeetMessenger:
     """
     A cluster view is a pairing of a communicator, ownership of the protocol,
@@ -22,6 +23,7 @@ class JoinMeetMessenger:
         this a good idea? Then how to send info out to the client? By
         hostname/port?
     """
+
     def __init__(self, name, comm, should_join):
         self.name = name
         self.comm = comm
@@ -30,8 +32,10 @@ class JoinMeetMessenger:
         self.endpts = dict()
 
         self.protocol = Protocol()
+
         def pp(*args, **kwargs):
-            print(f'worker.{self.name}: ', *args, **kwargs)
+            print(f"worker.{self.name}: ", *args, **kwargs)
+
         self.protocol.printer = pp
         self.setup_protocol()
 
@@ -42,8 +46,8 @@ class JoinMeetMessenger:
             self.connect(name, addr)
             self.join(name, addr)
 
-        #TODO optimize with capnp
-        self.protocol.add_msg_type('MEET', handler = handle_meet)
+        # TODO optimize with capnp
+        self.protocol.add_msg_type("MEET", handler=handle_meet)
 
         def handle_join(new_endpts):
             is_new = [self.connect(name, addr) for (name, addr) in new_endpts]
@@ -60,10 +64,10 @@ class JoinMeetMessenger:
                     self.join(name, addr, skip)
             # print(self.name, self.endpts)
 
-        #TODO optimize with capnp
-        self.protocol.add_msg_type('JOIN', handler = handle_join)
+        # TODO optimize with capnp
+        self.protocol.add_msg_type("JOIN", handler=handle_join)
 
-    def join(self, name, addr, known_endpts = None):
+    def join(self, name, addr, known_endpts=None):
         if known_endpts is None:
             known_endpts = []
 
@@ -87,22 +91,22 @@ class JoinMeetMessenger:
         return True
 
     def send(self, to_name, msg_type_code, *msg_args):
-        self.protocol.printer(f'send {self.protocol.get_name(msg_type_code)} to {to_name} with data: {str(msg_args)}')
+        self.protocol.printer(
+            f"send {self.protocol.get_name(msg_type_code)} to {to_name} with data: {str(msg_args)}"
+        )
         data = self.protocol.encode(self.name, msg_type_code, *msg_args)
         self.comm.send(self.endpts[to_name][0], data)
 
     async def recv(self):
         msg_buf = await self.comm.recv()
         if msg_buf is not None:
-            #TODO: should memoryview call be here? or inside protocol?
+            # TODO: should memoryview call be here? or inside protocol?
             self.protocol.handle(memoryview(msg_buf))
 
     def meet(self, addr):
-        self.protocol.printer(f'meet {addr}')
+        self.protocol.printer(f"meet {addr}")
         data = self.protocol.encode(
-            self.name,
-            self.protocol.MEET,
-            (self.name, self.comm.addr)
+            self.name, self.protocol.MEET, (self.name, self.comm.addr)
         )
         endpt = self.comm.connect(addr)
         self.comm.send(endpt, data)
