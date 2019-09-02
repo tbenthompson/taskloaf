@@ -53,6 +53,9 @@ class ZMQComm:
         # TODO: allow multipart messages
         socket.send_multipart([data])
 
+    async def poll(self):
+        return await self.recv_socket.poll(timeout=0)
+
     async def recv(self):
         full_msg = await self.recv_socket.recv_multipart()
         msg = full_msg[0]

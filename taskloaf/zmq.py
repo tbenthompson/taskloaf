@@ -52,7 +52,7 @@ class ZMQClient:
 
     def __enter__(self):
         self.exit_stack = ExitStack()
-        comm = self.exit_stack.enter_context(
+        self.comm = self.exit_stack.enter_context(
             ZMQComm(
                 self.addr,
                 # [self.meet_addr],
@@ -60,7 +60,7 @@ class ZMQClient:
         )
         # TODO: move ZMQClient/ZMQWorker to their own file
         # TODO: addr[1] = port, this is insufficient eventually, use uuid?
-        self.messenger = JoinMeetMessenger(self.addr[1], comm, False)
+        self.messenger = JoinMeetMessenger(self.addr[1], self.comm, False)
         self.setup_complete_protocol()
 
         self.ctx = self.exit_stack.enter_context(
@@ -76,14 +76,25 @@ class ZMQClient:
             "COMPLETE", handler=self.handle_complete
         )
 
-    def update_cluster_view(self, addr=None):
+    def update_cluster(self, addr=None):
         if addr is None:
             addr = next(iter(self.messenger.endpts.values()))[1]
 
         self.ctx.messenger.meet(addr)
-        asyncio.get_event_loop().run_until_complete(self.ctx.messenger.recv())
-        self.cluster_names = list(self.ctx.messenger.endpts.keys())
-        print("have endpts!", self.cluster_names)
+
+        async def f():
+            await self.ctx.messenger.recv()
+            while True:
+                if await self.comm.poll():
+                    await self.ctx.messenger.recv()
+                else:
+                    break
+
+        asyncio.get_event_loop().run_until_complete(f())
+
+        # asyncio.get_event_loop().run_until_complete(self.ctx.messenger.recv())
+        self.worker_names = list(self.ctx.messenger.endpts.keys())
+        print("have endpts!", self.worker_names)
 
     def submit(self, f, to=None):
         out_submission = Submission()
@@ -91,16 +102,20 @@ class ZMQClient:
         self.submissions[submission_id] = out_submission
 
         client_name = self.ctx.name
+        client_addr = self.addr
 
         async def submission_wrapper():
             result = await f()
             ctx = taskloaf.ctx()
             ctx.messenger.send(
-                client_name, ctx.protocol.COMPLETE, (submission_id, result)
+                client_name,
+                ctx.protocol.COMPLETE,
+                (submission_id, result),
+                connect_addr=client_addr,
             )
 
         if to is None:
-            to = self.cluster_names[0]
+            to = self.worker_names[0]
         self.ctx.messenger.send(
             to, self.ctx.messenger.protocol.WORK, submission_wrapper
         )
@@ -109,16 +124,19 @@ class ZMQClient:
     def handle_complete(self, args):
         submission_id, result = args
         self.submissions[submission_id].complete(result)
+        del self.submissions[submission_id]
 
     def wait(self, submission):
-        async def f():
-            while True:
-                await self.ctx.messenger.recv()
-                if self.submissions[submission.id].is_complete:
-                    break
+        if not submission.is_complete:
 
-        asyncio.get_event_loop().run_until_complete(f())
-        del self.submissions[submission.id]
+            async def f():
+                while True:
+                    await self.ctx.messenger.recv()
+                    if submission.is_complete:
+                        break
+
+            asyncio.get_event_loop().run_until_complete(f())
+
         return submission.result
 
 
@@ -149,7 +167,7 @@ def zmq_client(connect_to, hostname="tcp://127.0.0.1", port=None):
         connect_to = connect_to.addr()
 
     with ZMQClient((hostname, port)) as client:
-        client.update_cluster_view(connect_to)
+        client.update_cluster(connect_to)
         yield client
 
 
@@ -163,8 +181,9 @@ class ZMQCluster:
 
 @contextmanager
 def zmq_cluster(n_workers=None, hostname="tcp://127.0.0.1", ports=None):
+    n_cores = psutil.cpu_count(logical=False)
     if n_workers is None:
-        n_workers = psutil.cpu_count(logical=False)
+        n_workers = n_cores
     if ports is None:
         ports = range(default_base_port + 1, default_base_port + n_workers + 1)
     with ExitStack() as es:
@@ -176,19 +195,23 @@ def zmq_cluster(n_workers=None, hostname="tcp://127.0.0.1", ports=None):
                 meet_addr = (hostname, ports[0])
             workers.append(
                 es.enter_context(
-                    ZMQWorker((hostname, port), [i], meet_addr=meet_addr)
+                    ZMQWorker(
+                        (hostname, port), [i % n_cores], meet_addr=meet_addr
+                    )
                 )
             )
         yield ZMQCluster(workers)
 
 
 def run(f, n_workers=None, hostname="tcp://127.0.0.1", ports=None):
+
     if ports is None:
         client_port = None
         cluster_ports = None
     else:
         client_port = ports[0]
         cluster_ports = ports[1:]
+
     with zmq_cluster(
         n_workers=n_workers, hostname=hostname, ports=cluster_ports
     ) as cluster:

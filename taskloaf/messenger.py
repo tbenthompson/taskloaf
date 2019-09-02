@@ -90,11 +90,13 @@ class JoinMeetMessenger:
         self.endpts[name] = (endpt, addr)
         return True
 
-    def send(self, to_name, msg_type_code, *msg_args):
+    def send(self, to_name, msg_type_code, msg_args, connect_addr=None):
         self.protocol.printer(
             f"send {self.protocol.get_name(msg_type_code)} to {to_name} with data: {str(msg_args)}"
         )
-        data = self.protocol.encode(self.name, msg_type_code, *msg_args)
+        data = self.protocol.encode(self.name, msg_type_code, msg_args)
+        if to_name not in self.endpts and connect_addr is not None:
+            self.connect(to_name, connect_addr)
         self.comm.send(self.endpts[to_name][0], data)
 
     async def recv(self):
@@ -102,6 +104,9 @@ class JoinMeetMessenger:
         if msg_buf is not None:
             # TODO: should memoryview call be here? or inside protocol?
             self.protocol.handle(memoryview(msg_buf))
+            return True
+        else:
+            return False
 
     def meet(self, addr):
         self.protocol.printer(f"meet {addr}")
