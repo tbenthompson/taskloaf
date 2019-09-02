@@ -4,9 +4,7 @@ def ignore_args(*args, **kwargs):
     pass
 
 class Timer(object):
-    def __init__(self, prefix = '', tabs = 0, output_fnc = print):
-        self.prefix = prefix
-        self.tabs = tabs
+    def __init__(self, output_fnc = print):
         if output_fnc is None:
             output_fnc = ignore_args
         self.output_fnc = output_fnc
@@ -16,7 +14,6 @@ class Timer(object):
         self.start = get_time()
 
     def report(self, name, should_restart = True):
-        text = '    ' * self.tabs + self.prefix + ' '
         text += name + " took " + str(get_time() - self.start)
         self.output_fnc(text)
         if should_restart:
