@@ -11,7 +11,7 @@ def main():
 
         client_name = client.ctx.name
         def f():
-            print("SENDING")
+            print("SENDING"())
             taskloaf.ctx().messenger.send(
                 client_name,
                 taskloaf.ctx().messenger.protocol.WORK,
@@ -42,3 +42,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -54,7 +54,7 @@ class Executor:
             except asyncio.CancelledError:
                 self.log.warning('async work cancelled', exc_info = True)
             except Exception as e:
-                self.log.warning('async work failed with unhandled exception')
+                self.log.exception('async work failed with unhandled exception')
         return asyncio.ensure_future(
             async_work_wrapper(),
             loop = self.ioloop

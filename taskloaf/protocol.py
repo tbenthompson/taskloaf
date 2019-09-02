@@ -35,12 +35,12 @@ class Protocol:
         m.sourceName = source_name
         return memoryview(m.to_bytes())
 
-    def handle(self, msg_buf):
+    def handle(self, msg_buf, *args, **kwargs):
         msg = taskloaf.message_capnp.Message.from_bytes(msg_buf)
         serializer, handler, _ = self.msg_types[msg.typeCode]
         data = serializer.deserialize(msg)
         self.printer(f'received from {msg.sourceName} a {self.get_name(msg.typeCode)} with data: {str(data)}')
-        handler(data)
+        handler(data, *args, **kwargs)
 
     def get_name(self, type_code):
         return self.msg_types[type_code][2]

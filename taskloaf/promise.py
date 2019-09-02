@@ -108,7 +108,7 @@ def set_result_handler(worker, args):
 # -- a python object (f should be callable or awaitable)
 # -- a dref to a serialized object in the memory manager
 # if f is a function and the task is being run locally, f is never serialized, but when the task is being run remotely, f is entered into the
-def task(worker, f, *args, to = None):
+def task(f, *args, to = None):
     if to is None:
         to = worker.addr
     out_pr = Promise(worker, to)

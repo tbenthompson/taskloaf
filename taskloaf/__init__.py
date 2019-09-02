@@ -1,4 +1,5 @@
-from taskloaf.zmq import zmq_cluster
+from taskloaf.zmq import zmq_cluster, zmq_client, run
+
 # from taskloaf.promise import task, when_all, Promise
 # from taskloaf.object_ref import alloc, put#, get
 # from taskloaf.local import localrun
