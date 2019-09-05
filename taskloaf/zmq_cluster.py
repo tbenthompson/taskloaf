@@ -9,14 +9,32 @@ from taskloaf.messenger import JoinMeetMessenger
 from taskloaf.context import Context
 from taskloaf.executor import Executor
 
+import logging
+
+
+def setup_logging(name):
+    level = logging.INFO
+    tsk_log = logging.getLogger("taskloaf")
+    tsk_log.setLevel(level)
+    ch = logging.StreamHandler()
+    ch.setLevel(level)
+    formatter = logging.Formatter(
+        f"{name} %(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+    ch.setFormatter(formatter)
+    tsk_log.addHandler(ch)
+
 
 def zmq_launcher(addr, cpu_affinity, meet_addr):
+    name = addr[1]
+    setup_logging(name)
+
     psutil.Process().cpu_affinity(cpu_affinity)
     with ZMQComm(addr) as comm:
         cfg = dict()
         # TODO: addr[1] = port, this is insufficient eventually, use uuid?
         # TODO: move ZMQClient/ZMQWorker to their own file
-        messenger = JoinMeetMessenger(addr[1], comm, True)
+        messenger = JoinMeetMessenger(name, comm, True)
         messenger.protocol.add_msg_type("COMPLETE", handler=lambda args: None)
         if meet_addr is not None:
             messenger.meet(meet_addr)

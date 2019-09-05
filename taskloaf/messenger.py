@@ -1,5 +1,9 @@
 from .protocol import Protocol
 
+import logging
+
+log = logging.getLogger(__name__)
+
 
 class JoinMeetMessenger:
     """
@@ -33,10 +37,6 @@ class JoinMeetMessenger:
 
         self.protocol = Protocol()
 
-        def pp(*args, **kwargs):
-            print(f"worker.{self.name}: ", *args, **kwargs)
-
-        self.protocol.printer = pp
         self.setup_protocol()
 
     def setup_protocol(self):
@@ -62,7 +62,6 @@ class JoinMeetMessenger:
                     skip = []
                 if is_new[i]:
                     self.join(name, addr, skip)
-            # print(self.name, self.endpts)
 
         # TODO optimize with capnp
         self.protocol.add_msg_type("JOIN", handler=handle_join)
@@ -91,8 +90,9 @@ class JoinMeetMessenger:
         return True
 
     def send(self, to_name, msg_type_code, msg_args, connect_addr=None):
-        self.protocol.printer(
-            f"send {self.protocol.get_name(msg_type_code)} to {to_name} with data: {str(msg_args)}"
+        log.info(
+            f"send {self.protocol.get_name(msg_type_code)}"
+            f" to {to_name} with data: {str(msg_args)}"
         )
         data = self.protocol.encode(self.name, msg_type_code, msg_args)
         if to_name not in self.endpts and connect_addr is not None:
@@ -109,7 +109,7 @@ class JoinMeetMessenger:
             return False
 
     def meet(self, addr):
-        self.protocol.printer(f"meet {addr}")
+        log.info(f"meet {addr}")
         data = self.protocol.encode(
             self.name, self.protocol.MEET, (self.name, self.comm.addr)
         )

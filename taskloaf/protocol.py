@@ -1,6 +1,9 @@
-import capnp
 import cloudpickle
 import taskloaf.message_capnp
+
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class CloudPickleMsg:
@@ -28,7 +31,6 @@ class Protocol:
         return type_code
 
     def encode(self, source_name, type_code, *args):
-
         serializer = self.msg_types[type_code][0]
         m = serializer.serialize(*args)
         m.typeCode = type_code
@@ -39,8 +41,9 @@ class Protocol:
         msg = taskloaf.message_capnp.Message.from_bytes(msg_buf)
         serializer, handler, _ = self.msg_types[msg.typeCode]
         data = serializer.deserialize(msg)
-        self.printer(
-            f"received from {msg.sourceName} a {self.get_name(msg.typeCode)} with data: {str(data)}"
+        log.info(
+            f"handling from {msg.sourceName}"
+            f"a {self.get_name(msg.typeCode)} with data: {str(data)}"
         )
         handler(data, *args, **kwargs)
 
