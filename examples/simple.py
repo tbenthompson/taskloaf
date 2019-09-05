@@ -3,7 +3,7 @@ import taskloaf as tsk
 
 async def f():
     print("FFFF")
-    await tsk.task(lambda w: print("hI"))
+    # await tsk.task(lambda w: print("hI"))
     # raise Exception("HI")
     return 123
 

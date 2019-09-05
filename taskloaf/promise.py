@@ -1,6 +1,6 @@
 import asyncio
-import capnp
 
+import taskloaf
 from .refcounting import Ref
 from .object_ref import put, is_ref, ObjectRef
 
@@ -18,11 +18,11 @@ def await_handler(worker, args):
 
 
 class Promise:
-    def __init__(self, worker, running_on):
+    def __init__(self, running_on):
         def on_delete(_id):
-            del worker.promises[_id]
+            del taskloaf.ctx().promises[_id]
 
-        self.ref = Ref(worker, on_delete)
+        self.ref = Ref(on_delete)
         self.running_on = running_on
         self.ensure_future_exists()
 
@@ -52,7 +52,9 @@ class Promise:
     def __await__(self):
         if self.worker.addr != self.ref.owner:
             self.ensure_future_exists()
-            self.worker.send(self.ref.owner, self.worker.protocol.AWAIT, [self])
+            self.worker.send(
+                self.ref.owner, self.worker.protocol.AWAIT, [self]
+            )
         result_ref = yield from self._get_future().__await__()
         out = yield from result_ref.get().__await__()
         if isinstance(out, TaskExceptionCapture):
@@ -124,18 +126,21 @@ def set_result_handler(worker, args):
 # f and args can be provided in two forms:
 # -- a python object (f should be callable or awaitable)
 # -- a dref to a serialized object in the memory manager
-# if f is a function and the task is being run locally, f is never serialized, but when the task is being run remotely, f is entered into the
+# if f is a function and the task is being run locally, f is never serialized,
+# but when the task is being run remotely, f is entered into the
 def task(f, *args, to=None):
+    ctx = taskloaf.ctx()
     if to is None:
-        to = worker.addr
-    out_pr = Promise(worker, to)
-    if to == worker.addr:
-        task_runner(worker, out_pr, f, *args)
+        to = ctx.name
+    out_pr = Promise(to)
+    if to == ctx.name:
+        task_runner(out_pr, f, *args)
     else:
-        msg_objs = [out_pr, ensure_ref(worker, f)] + [
-            ensure_ref(worker, a) for a in args
-        ]
-        worker.send(to, worker.protocol.TASK, msg_objs)
+        pass
+        # msg_objs = [out_pr, ensure_ref(worker, f)] + [
+        #     ensure_ref(worker, a) for a in args
+        # ]
+        # worker.send(to, worker.protocol.TASK, msg_objs)
     return out_pr
 
 

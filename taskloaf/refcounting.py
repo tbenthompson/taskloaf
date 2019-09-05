@@ -20,11 +20,7 @@ This particular example isn't too bad since everyone is already done using
 the object, but worse examples are possible, just harder to write down.
 """
 
-import copy
-import pickle
-
 import attr
-import asyncio
 
 import taskloaf.serialize
 
@@ -53,12 +49,11 @@ class RefManager:
         refcount = attr.ib()
         on_delete = attr.ib()
 
-    def __init__(self, worker):
-        self.worker = worker
+    def __init__(self, protocol):
         self.entries = dict()
-        self.worker.protocol.add_msg_type(
+        protocol.add_msg_type(
             "DECREF",
-            type=DecRefMsg,
+            serializer=DecRefMsg,
             handler=lambda worker, x: worker.ref_manager.dec_ref_owned(*x),
         )
 
@@ -114,13 +109,12 @@ class RefCopyException(Exception):
 
 
 class Ref:
-    def __init__(self, worker, on_delete, child_refs=None, _id=None):
-        self.worker = worker
+    def __init__(self, on_delete, child_refs=None, _id=None):
         if child_refs is None:
             child_refs = []
         self.child_refs = child_refs
-        self.owner = worker.addr
-        if _id == None:
+        self.owner = taskloaf.ctx().name
+        if _id is None:
             _id = self.worker.get_new_id()
         self._id = _id
         self.gen = 0

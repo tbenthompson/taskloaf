@@ -24,6 +24,7 @@ class Context:
 
         self.protocol.add_msg_type("WORK", handler=handle_new_work)
 
+        self.ref_manager = RefManager(self.protocol)
         self.setup_object_protocol()
         self.setup_promise_protocol()
 
