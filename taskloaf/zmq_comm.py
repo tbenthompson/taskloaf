@@ -53,6 +53,7 @@ class ZMQComm:
         # TODO: allow multipart messages
         socket.send_multipart([data])
 
+    # TODO: remove once client has its own thread
     async def poll(self):
         return await self.recv_socket.poll(timeout=0)
 
