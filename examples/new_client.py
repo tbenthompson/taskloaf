@@ -1,10 +1,8 @@
 import taskloaf as tsk
 
-localhost = "tcp://127.0.0.1"
-
 
 def main():
-    with tsk.zmq_client((localhost, 5755)) as c:
+    with tsk.zmq_client((tsk.localhost, 5755)) as c:
 
         async def f():
             print("SENDING")

@@ -53,25 +53,31 @@ class ZMQCluster:
 
 
 @contextmanager
-def zmq_cluster(n_workers=None, hostname="tcp://127.0.0.1", ports=None):
+def zmq_cluster(
+    n_workers=None, hostname="tcp://127.0.0.1", ports=None, connect_to=None
+):
     n_cores = psutil.cpu_count(logical=False)
+
     if n_workers is None:
         n_workers = n_cores
+
     if ports is None:
         base_port = taskloaf.default_base_port
         ports = range(base_port + 1, base_port + n_workers + 1)
+
+    if connect_to is None:
+        connect_to = (hostname, ports[0])
     with ExitStack() as es:
         workers = []
         for i in range(n_workers):
             port = ports[i]
-            meet_addr = None
-            if i > 0:
-                meet_addr = (hostname, ports[0])
+            addr = (hostname, port)
+            meet_addr = connect_to
+            if meet_addr == addr:
+                meet_addr = None
             workers.append(
                 es.enter_context(
-                    ZMQWorker(
-                        (hostname, port), [i % n_cores], meet_addr=meet_addr
-                    )
+                    ZMQWorker(addr, [i % n_cores], meet_addr=meet_addr)
                 )
             )
         yield ZMQCluster(workers)
