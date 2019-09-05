@@ -1,3 +1,4 @@
+import traceback
 from contextlib import ExitStack, contextmanager
 import asyncio
 
@@ -69,7 +70,11 @@ class ZMQClient:
         client_addr = self.addr
 
         async def submission_wrapper():
-            result = await f()
+            try:
+                result = (True, await f())
+            except Exception as e:
+                result = (False, (e, traceback.format_exc()))
+
             ctx = taskloaf.ctx()
             ctx.messenger.send(
                 client_name,
@@ -91,17 +96,17 @@ class ZMQClient:
         del self.submissions[submission_id]
 
     def wait(self, submission):
-        if not submission.is_complete:
+        if not submission._is_complete:
 
             async def f():
                 while True:
                     await self.ctx.messenger.recv()
-                    if submission.is_complete:
+                    if submission._is_complete:
                         break
 
             asyncio.get_event_loop().run_until_complete(f())
 
-        return submission.result
+        return submission.get_result()
 
 
 class Submission:
@@ -109,13 +114,29 @@ class Submission:
 
     def __init__(self):
         self.id = Submission.next_id
-        self.is_complete = False
-        self.result = None
+        self._is_complete = False
+        self._result = None
         Submission.next_id += 1
 
     def complete(self, result):
-        self.is_complete = True
-        self.result = result
+        self._is_complete = True
+        self._result = result
+
+    def get_result(self):
+        assert self._is_complete
+        if self._result[0]:
+            return self._result[1]
+        else:
+            exc = self._result[1][0]
+            exc_type = type(exc).__name__
+            tb = self._result[1][1]
+            msg = (
+                "Work failed with exception: \n"
+                f"{exc_type}: {exc}\n\n"
+                "and traceback:\n"
+                f"{tb}"
+            )
+            raise Exception(msg)
 
 
 @contextmanager

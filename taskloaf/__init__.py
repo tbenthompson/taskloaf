@@ -1,8 +1,9 @@
 from taskloaf.zmq_run import run
 from taskloaf.zmq_cluster import zmq_cluster
 from taskloaf.zmq_client import zmq_client
+from taskloaf.promise import task
 
-__all__ = ["zmq_cluster", "zmq_client", "run"]
+__all__ = ["zmq_cluster", "zmq_client", "run", "task"]
 
 # from taskloaf.promise import task, when_all, Promise
 # from taskloaf.object_ref import alloc, put#, get
