@@ -1,10 +1,10 @@
 import time
 import asyncio
-import logging
-import traceback
-from contextlib import suppress, ExitStack
+from contextlib import suppress
 
-import taskloaf.protocol
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def shutdown(e):
@@ -12,10 +12,9 @@ def shutdown(e):
 
 
 class Executor:
-    def __init__(self, recv_fnc, cfg, log):
+    def __init__(self, recv_fnc, cfg):
         self.recv_fnc = recv_fnc
         self.cfg = cfg
-        self.log = log
         self.init_time = time.time()
         self.stop = False
         self.work = asyncio.LifoQueue()
@@ -23,39 +22,33 @@ class Executor:
     def add_work(self, w):
         self.work.put_nowait(w)
 
-    def start(self, coro=None):
-        # TODO: Instead can I redesign to interop nicely with other event loops?
-        # Is that a good idea? No. Only necessary in the Client!
+    def start(self):
+        # TODO: Instead can I redesign to interop nicely with other event
+        # loops?  Is that a good idea? No. Only necessary in the Client!
         self.ioloop = asyncio.get_event_loop()
-
-        if coro is not None:
-            main_task = asyncio.ensure_future(coro(self))
 
         start_task = asyncio.gather(
             self.poll_loop(), self.work_loop(), loop=self.ioloop
         )
-        self.log.info("starting worker ioloop")
+        logger.info("starting worker ioloop")
         self.ioloop.run_until_complete(start_task)
 
         pending = asyncio.Task.all_tasks(loop=self.ioloop)
         for task in pending:
             task.cancel()
-            # Now we should await task to execute it's cancellation.
-            # Cancelled task raises asyncio.CancelledError that we can suppress:
+            # Now we should await task to execute it's cancellation.  Cancelled
+            # task raises asyncio.CancelledError that we can suppress:
             with suppress(asyncio.CancelledError):
                 self.ioloop.run_until_complete(task)
-
-        # if not main_task.cancelled() and main_task.exception():
-        #     raise main_task.exception()
 
     def start_async_work(self, f, *args):
         async def async_work_wrapper():
             try:
                 await f(*args)
             except asyncio.CancelledError:
-                self.log.warning("async work cancelled", exc_info=True)
-            except Exception as e:
-                self.log.exception("async work failed with unhandled exception")
+                logger.warning("async work cancelled", exc_info=True)
+            except Exception:
+                logger.exception("async work failed with unhandled exception")
 
         return asyncio.ensure_future(async_work_wrapper(), loop=self.ioloop)
 
@@ -69,7 +62,7 @@ class Executor:
             f(*args)
 
     async def wait_for_work(self, f, *args):
-        out = f(self, *args)
+        out = f(*args)
         if asyncio.iscoroutinefunction(f):
             out = await out
         return out
@@ -82,9 +75,8 @@ class Executor:
             w = await self.work.get()
             try:
                 self.run_work(w)
-            except Exception as e:
-                self.log.warning("work failed with unhandled exception")
-                traceback.print_exc()
+            except Exception:
+                logger.exception("work failed with unhandled exception")
 
     async def poll_loop(self):
         while not self.stop:

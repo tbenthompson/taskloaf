@@ -41,7 +41,7 @@ def zmq_launcher(addr, cpu_affinity, meet_addr):
         with Context(messenger, cfg) as ctx:
             taskloaf.set_ctx(ctx)
             # TODO: Make Executor into a context manager
-            ctx.executor = Executor(ctx.messenger.recv, cfg, ctx.log)
+            ctx.executor = Executor(ctx.messenger.recv, cfg)
             ctx.executor.start()
 
 
