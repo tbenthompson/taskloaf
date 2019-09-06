@@ -1,4 +1,5 @@
 import cloudpickle
+import capnp  # noqa
 import taskloaf.message_capnp
 
 import logging

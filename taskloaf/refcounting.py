@@ -24,6 +24,10 @@ import attr
 
 import taskloaf.serialize
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class RefCount:
     def __init__(self):
@@ -54,13 +58,13 @@ class RefManager:
         protocol.add_msg_type(
             "DECREF",
             serializer=DecRefMsg,
-            handler=lambda worker, x: worker.ref_manager.dec_ref_owned(*x),
+            handler=lambda x: taskloaf.ctx().ref_manager.dec_ref_owned(*x),
         )
 
     def dec_ref_owned(self, _id, gen, n_children):
         refcount = self.entries[_id].refcount
         refcount.dec_ref(gen, n_children)
-        self.worker.log.debug(
+        logger.debug(
             "decref",
             _id=_id,
             gen=gen,
@@ -71,14 +75,14 @@ class RefManager:
             self.delete(_id)
 
     def delete(self, _id):
-        self.worker.log.debug("delete", _id=_id)
+        logger.debug("delete", _id=_id)
         self.entries[_id].on_delete(_id)
         del self.entries[_id]
 
     def dec_ref(self, _id, gen, n_children, owner):
-        if owner != self.worker.addr:
-            self.worker.send(
-                owner, self.worker.protocol.DECREF, (_id, gen, n_children)
+        if owner != taskloaf.ctx().name:
+            taskloaf.ctx().messenger.send(
+                owner, taskloaf.ctx().protocol.DECREF, (_id, gen, n_children)
             )
         else:
             self.dec_ref_owned(_id, gen, n_children)
@@ -100,7 +104,7 @@ class DecRefMsg:
         return m
 
     @staticmethod
-    def deserialize(w, m):
+    def deserialize(m):
         return m.decRef.id, m.decRef.gen, m.decRef.nchildren
 
 
@@ -113,14 +117,15 @@ class Ref:
         if child_refs is None:
             child_refs = []
         self.child_refs = child_refs
-        self.owner = taskloaf.ctx().name
+        ctx = taskloaf.ctx()
+        self.owner = ctx.name
         if _id is None:
-            _id = self.worker.get_new_id()
+            _id = ctx.get_new_id()
         self._id = _id
         self.gen = 0
         self.n_children = 0
         self.log("new ref")
-        self.worker.ref_manager.new_ref(_id, on_delete)
+        ctx.ref_manager.new_ref(_id, on_delete)
 
     def __getstate__(self):
         raise RefCopyException()
@@ -129,7 +134,7 @@ class Ref:
         return (self.owner, self._id)
 
     def log(self, text):
-        self.worker.log.debug(
+        taskloaf.ctx().log.debug(
             text,
             _id=self._id,
             n_children=self.n_children,
@@ -139,7 +144,7 @@ class Ref:
 
     def __del__(self):
         self.log("del ref")
-        self.worker.ref_manager.dec_ref(
+        taskloaf.ctx().ref_manager.dec_ref(
             self._id, self.gen, self.n_children, owner=self.owner
         )
 
@@ -156,7 +161,7 @@ class Ref:
         if isinstance(self.child_refs, list):
             return
         self.child_refs = [
-            Ref.decode_capnp(self.worker, child_ref, child=True)
+            Ref.decode_capnp(child_ref, child=True)
             for child_ref in self.child_refs
         ]
 
@@ -174,9 +179,8 @@ class Ref:
         self.encode_reflist(msg)
 
     @classmethod
-    def decode_capnp(cls, worker, msg, child=False):
+    def decode_capnp(cls, msg, child=False):
         ref = Ref.__new__(Ref)
-        ref.worker = worker
         ref.owner = msg.owner
         ref._id = msg.id
         ref.gen = msg.gen

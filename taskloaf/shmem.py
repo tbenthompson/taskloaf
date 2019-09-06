@@ -1,6 +1,5 @@
 import os
 import mmap
-import uuid
 import contextlib
 import ctypes
 import numpy as np
@@ -84,6 +83,7 @@ def alloc_shmem(size, filepath):
     assert not os.path.exists(filepath)
     try:
         init_shmem_file(filepath, size)
+        print("creating shm", filepath)
         yield filepath
     finally:
         try:

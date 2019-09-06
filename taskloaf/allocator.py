@@ -23,11 +23,11 @@ class Ptr:
         msg.blockIdx = self.block.idx
 
     @classmethod
-    def decode_capnp(self, worker, owner, msg):
+    def decode_capnp(self, owner, msg):
         return Ptr(
             start=msg.start,
             end=msg.end,
-            block=deserialize_block(worker, owner, msg.blockIdx),
+            block=deserialize_block(owner, msg.blockIdx),
         )
 
 
@@ -40,7 +40,7 @@ class MemoryBlock:
         self._close = _close
 
     def close(self, *args, **kwargs):
-        out = self._close(*args, **kwargs)
+        self._close(*args, **kwargs)
         del self.shmem
 
 
@@ -75,8 +75,8 @@ class RemoteShmemRepo:
         self.blocks.clear()
 
 
-def deserialize_block(worker, owner, block_idx):
-    return worker.remote_shmem.get_block(owner, block_idx)
+def deserialize_block(owner, block_idx):
+    return taskloaf.ctx().remote_shmem.get_block(owner, block_idx)
 
 
 class BlockManager:
@@ -94,13 +94,16 @@ class BlockManager:
         self.idx += 1
         block = alloc_memory_block(self.get_path(idx), idx, size)
         self.blocks[idx] = block
+        print(self.blocks[0])
         return block
 
     def free_block(self, block):
+        print("free", self.blocks)
         block.close()
         del self.blocks[block.idx]
 
     def close(self):
+        print("close blocks", self.blocks)
         for k, v in self.blocks.items():
             v.close()
         self.blocks.clear()
@@ -265,6 +268,6 @@ class ShmemAllocator:
             for k in p.blocks:
                 pool_idxs.append(k)
         for idx in self.block_manager.blocks:
-            if not idx in pool_idxs:
+            if idx not in pool_idxs:
                 return False
         return True

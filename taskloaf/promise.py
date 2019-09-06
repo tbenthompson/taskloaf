@@ -4,17 +4,22 @@ import taskloaf
 from .refcounting import Ref
 from .object_ref import put, is_ref, ObjectRef
 
+import logging
 
-def await_handler(worker, args):
-    pr = args[0]
-    # TODO: add sourceName to args
-    req_addr = worker.cur_msg.sourceAddr
+logger = logging.getLogger(__name__)
 
-    async def await_wrapper(worker):
+
+def await_handler(args):
+    req_addr = args[0]
+    pr = args[1]
+
+    async def await_wrapper():
         result_ref = await pr._get_future()
-        worker.send(req_addr, worker.protocol.SETRESULT, [pr, result_ref])
+        taskloaf.ctx().messenger.send(
+            req_addr, taskloaf.ctx().protocol.SETRESULT, [pr, result_ref]
+        )
 
-    worker.run_work(await_wrapper)
+    taskloaf.ctx().executor.run_work(await_wrapper)
 
 
 class Promise:
@@ -26,34 +31,30 @@ class Promise:
         self.running_on = running_on
         self.ensure_future_exists()
 
-    @property
-    def worker(self):
-        return self.ref.worker
-
     def encode_capnp(self, msg):
         self.ref.encode_capnp(msg.ref)
         msg.runningOn = self.running_on
 
     @classmethod
-    def decode_capnp(cls, worker, msg):
+    def decode_capnp(cls, msg):
         out = Promise.__new__(Promise)
-        out.ref = Ref.decode_capnp(worker, msg.ref)
+        out.ref = Ref.decode_capnp(msg.ref)
         out.running_on = msg.runningOn
         return out
 
     def ensure_future_exists(self):
-        self.worker.promises[self.ref._id] = asyncio.Future(
-            loop=self.worker.ioloop
+        taskloaf.ctx().promises[self.ref._id] = asyncio.Future(
+            loop=taskloaf.ctx().executor.ioloop
         )
 
     def _get_future(self):
-        return self.worker.promises[self.ref._id]
+        return taskloaf.ctx().promises[self.ref._id]
 
     def __await__(self):
-        if self.worker.addr != self.ref.owner:
+        if taskloaf.ctx().name != self.ref.owner:
             self.ensure_future_exists()
-            self.worker.send(
-                self.ref.owner, self.worker.protocol.AWAIT, [self]
+            taskloaf.ctx().messenger.send(
+                self.ref.owner, taskloaf.ctx().protocol.AWAIT, [self]
             )
         result_ref = yield from self._get_future().__await__()
         out = yield from result_ref.get().__await__()
@@ -65,11 +66,11 @@ class Promise:
         self._get_future().set_result(result)
 
     def then(self, f, to=None):
-        async def wait_to_start(worker):
+        async def wait_to_start():
             v = await self
-            return f(worker, v)
+            return f(v)
 
-        return task(self.worker, wait_to_start, to=to)
+        return task(wait_to_start, to=to)
 
     def next(self, f, to=None):
         return self.then(lambda x: f(), to)
@@ -80,47 +81,49 @@ class TaskExceptionCapture:
         self.e = e
 
 
-def task_runner(worker, pr, in_f, *in_args):
-    async def task_wrapper(worker):
+def task_runner(pr, in_f, *in_args):
+    async def task_wrapper():
         f = await ensure_obj(in_f)
         args = []
         for a in in_args:
             args.append(await ensure_obj(a))
         try:
-            result = await worker.wait_for_work(f, *args)
+            result = await taskloaf.ctx().executor.wait_for_work(f, *args)
         # catches all exceptions except system-exiting exceptions that inherit
         # from BaseException
         except Exception as e:
-            worker.log.warning("exception during task", exc_info=True)
+            logger.warning("exception during task", exc_info=True)
             result = TaskExceptionCapture(e)
-        _unwrap_promise(worker, pr, result)
+        _unwrap_promise(pr, result)
 
-    worker.run_work(task_wrapper)
+    taskloaf.ctx().executor.run_work(task_wrapper)
 
 
-def _unwrap_promise(worker, pr, result):
+def _unwrap_promise(pr, result):
     if isinstance(result, Promise):
 
-        def unwrap_then(worker, x):
-            _unwrap_promise(worker, pr, x)
+        def unwrap_then(x):
+            _unwrap_promise(pr, x)
 
         result.then(unwrap_then)
     else:
-        result_ref = put(worker, result)
-        if pr.ref.owner == worker.addr:
+        result_ref = put(result)
+        if pr.ref.owner == taskloaf.ctx().name:
             pr.set_result(result_ref)
         else:
-            worker.send(
-                pr.ref.owner, worker.protocol.SETRESULT, [pr, result_ref]
+            taskloaf.ctx().messenger.send(
+                pr.ref.owner,
+                taskloaf.ctx().protocol.SETRESULT,
+                [pr, result_ref],
             )
 
 
-def task_handler(worker, args):
-    task_runner(worker, args[0], args[1], *args[2:])
+def task_handler(args):
+    task_runner(args[1], args[2], *args[3:])
 
 
-def set_result_handler(worker, args):
-    args[0].set_result(args[1])
+def set_result_handler(args):
+    args[1].set_result(args[2])
 
 
 # f and args can be provided in two forms:
@@ -136,11 +139,8 @@ def task(f, *args, to=None):
     if to == ctx.name:
         task_runner(out_pr, f, *args)
     else:
-        pass
-        # msg_objs = [out_pr, ensure_ref(worker, f)] + [
-        #     ensure_ref(worker, a) for a in args
-        # ]
-        # worker.send(to, worker.protocol.TASK, msg_objs)
+        msg_objs = [out_pr, ensure_ref(f)] + [ensure_ref(a) for a in args]
+        ctx.messenger.send(to, ctx.protocol.TASK, msg_objs)
     return out_pr
 
 
@@ -151,10 +151,10 @@ async def ensure_obj(maybe_ref):
         return maybe_ref
 
 
-def ensure_ref(worker, v):
+def ensure_ref(v):
     if is_ref(v):
         return v
-    return put(worker, v)
+    return put(v)
 
 
 class TaskMsg:
@@ -174,22 +174,21 @@ class TaskMsg:
         return m
 
     @staticmethod
-    def deserialize(worker, msg):
-        out = [Promise.decode_capnp(worker, msg.task.promise)]
+    def deserialize(msg):
+        out = [msg.sourceName, Promise.decode_capnp(msg.task.promise)]
         for i in range(len(msg.task.objrefs)):
-            out.append(ObjectRef.decode_capnp(worker, msg.task.objrefs[i]))
+            out.append(ObjectRef.decode_capnp(msg.task.objrefs[i]))
         return out
 
 
 def when_all(ps, to=None):
-    worker = ps[0].worker
     if to is None:
         to = ps[0].running_on
 
-    async def wait_for_all(worker):
+    async def wait_for_all():
         results = []
         for i, p in enumerate(ps):
             results.append(await p)
         return results
 
-    return task(worker, wait_for_all, to=to)
+    return task(wait_for_all, to=to)

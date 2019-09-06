@@ -5,7 +5,6 @@ def main():
     with tsk.zmq_client((tsk.localhost, 5755)) as c:
 
         async def f():
-            print("SENDING")
             return 123
 
         print(c.wait(c.submit(f)))

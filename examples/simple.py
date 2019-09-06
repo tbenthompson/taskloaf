@@ -2,8 +2,10 @@ import taskloaf as tsk
 
 
 async def f():
-    print("FFFF")
-    # await tsk.task(lambda w: print("hI"))
+    # print("FFFF")
+    print("LAUNCH")
+    await tsk.task(lambda w: print("hI"), to=tsk.ctx().name + 1)
+    print("DONE")
     # raise Exception("HI")
     return 123
 
