@@ -18,7 +18,7 @@ struct ShmemPtr {
 }
 
 struct Ref {
-    owner @0 :UInt32;
+    owner @0 :UInt64;
     id @1 :Int64;
     gen @2 :UInt32;
     refList @3 :List(Ref);
@@ -37,7 +37,7 @@ struct Object {
 
 struct Promise {
     ref @0 :Ref; 
-    runningOn @1 :UInt32;
+    runningOn @1 :UInt64;
 }
 
 struct Task {
@@ -61,7 +61,7 @@ struct Task {
 # TODO: is there any kind of capnp <--> zmq interface? A buffer interface?
 struct Message {
     typeCode @0 :Int64;
-    sourceName @1 :Int64;
+    sourceName @1 :UInt64;
     union {
         decRef @2 :DecRef;
         object @3 :Object;

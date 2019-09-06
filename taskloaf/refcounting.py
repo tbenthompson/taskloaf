@@ -134,7 +134,7 @@ class Ref:
         return (self.owner, self._id)
 
     def log(self, text):
-        taskloaf.ctx().log.debug(
+        logger.debug(
             text,
             _id=self._id,
             n_children=self.n_children,

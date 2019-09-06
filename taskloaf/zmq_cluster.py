@@ -1,3 +1,4 @@
+import random
 from contextlib import ExitStack, contextmanager
 import multiprocessing
 
@@ -10,6 +11,10 @@ from taskloaf.context import Context
 from taskloaf.executor import Executor
 
 import logging
+
+
+def random_name():
+    return random.getrandbits(64)
 
 
 def setup_logging(name):
@@ -26,14 +31,12 @@ def setup_logging(name):
 
 
 def zmq_launcher(addr, cpu_affinity, meet_addr):
-    name = addr[1]
+    name = random_name()
     setup_logging(name)
 
     psutil.Process().cpu_affinity(cpu_affinity)
     with ZMQComm(addr) as comm:
         cfg = dict()
-        # TODO: addr[1] = port, this is insufficient eventually, use uuid?
-        # TODO: move ZMQClient/ZMQWorker to their own file
         messenger = JoinMeetMessenger(name, comm, True)
         messenger.protocol.add_msg_type("COMPLETE", handler=lambda args: None)
         if meet_addr is not None:

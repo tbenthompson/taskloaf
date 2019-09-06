@@ -7,7 +7,7 @@ from taskloaf.zmq_comm import ZMQComm
 from taskloaf.messenger import JoinMeetMessenger
 from taskloaf.context import Context
 
-from taskloaf.zmq_cluster import ZMQCluster
+from taskloaf.zmq_cluster import ZMQCluster, random_name
 
 
 class ZMQClient:
@@ -23,9 +23,9 @@ class ZMQClient:
                 # [self.meet_addr],
             )
         )
-        # TODO: move ZMQClient/ZMQWorker to their own file
-        # TODO: addr[1] = port, this is insufficient eventually, use uuid?
-        self.messenger = JoinMeetMessenger(self.addr[1], self.comm, False)
+
+        name = random_name()
+        self.messenger = JoinMeetMessenger(name, self.comm, False)
         self.setup_complete_protocol()
 
         self.ctx = self.exit_stack.enter_context(
