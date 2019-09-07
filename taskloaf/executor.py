@@ -22,14 +22,19 @@ class Executor:
     def add_work(self, w):
         self.work.put_nowait(w)
 
-    def start(self):
+    def start(self, main_coro=None):
         # TODO: Instead can I redesign to interop nicely with other event
         # loops?  Is that a good idea? No. Only necessary in the Client!
         self.ioloop = asyncio.get_event_loop()
 
-        start_task = asyncio.gather(
-            self.poll_loop(), self.work_loop(), loop=self.ioloop
-        )
+        if main_coro is not None:
+            coros = [main_coro()]
+        else:
+            coros = []
+        coros.extend([self.poll_loop(), self.work_loop()])
+
+        start_task = asyncio.gather(*coros, loop=self.ioloop)
+
         logger.info("starting worker ioloop")
         self.ioloop.run_until_complete(start_task)
 

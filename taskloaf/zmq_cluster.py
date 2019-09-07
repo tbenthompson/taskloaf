@@ -4,13 +4,16 @@ import multiprocessing
 
 import psutil
 
-import taskloaf
+import taskloaf as tsk
+import taskloaf.defaults as defaults
 from taskloaf.zmq_comm import ZMQComm
 from taskloaf.messenger import JoinMeetMessenger
 from taskloaf.context import Context
 from taskloaf.executor import Executor
 
 import logging
+
+logger = logging.getLogger(__name__)
 
 
 def random_name():
@@ -30,22 +33,33 @@ def setup_logging(name):
     tsk_log.addHandler(ch)
 
 
-def zmq_launcher(addr, cpu_affinity, meet_addr):
+def zmq_launcher(addr, cpu_affinity, meet_addr, f=None):
     name = random_name()
     setup_logging(name)
 
-    psutil.Process().cpu_affinity(cpu_affinity)
+    logger.info(
+        f"Setting up ZeroMQ-based worker with name={name}"
+        f", addr={addr}, and cpu_affinity={cpu_affinity}"
+    )
+
+    if cpu_affinity is not None:
+        psutil.Process().cpu_affinity(cpu_affinity)
+
     with ZMQComm(addr) as comm:
         cfg = dict()
         messenger = JoinMeetMessenger(name, comm, True)
         messenger.protocol.add_msg_type("COMPLETE", handler=lambda args: None)
         if meet_addr is not None:
+            logger.info(f"Meeting cluster at {meet_addr}")
             messenger.meet(meet_addr)
         with Context(messenger, cfg) as ctx:
-            taskloaf.set_ctx(ctx)
+            tsk.set_ctx(ctx)
             # TODO: Make Executor into a context manager
+            logger.info("launching executor")
             ctx.executor = Executor(ctx.messenger.recv, cfg)
-            ctx.executor.start()
+            if f is not None:
+                logger.info(f"with task {f}")
+            ctx.executor.start(f)
 
 
 class ZMQWorker:
@@ -74,16 +88,17 @@ class ZMQCluster:
 
 
 @contextmanager
-def zmq_cluster(
-    n_workers=None, hostname="tcp://127.0.0.1", ports=None, connect_to=None
-):
+def zmq_cluster(n_workers=None, hostname=None, ports=None, connect_to=None):
     n_cores = psutil.cpu_count(logical=False)
+
+    if hostname is None:
+        hostname = defaults.localhost
 
     if n_workers is None:
         n_workers = n_cores
 
     if ports is None:
-        base_port = taskloaf.default_base_port
+        base_port = defaults.base_port
         ports = range(base_port + 1, base_port + n_workers + 1)
 
     if connect_to is None:

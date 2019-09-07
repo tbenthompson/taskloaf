@@ -1,8 +1,16 @@
-from .zmq_cluster import zmq_cluster
-from .zmq_client import zmq_client
+import taskloaf.defaults as defaults
+from .zmq_cluster import zmq_cluster, zmq_launcher
 
 
-def run(f, n_workers=None, hostname="tcp://127.0.0.1", ports=None):
+def new_client(f, meet_addr, hostname=None, port=None):
+    if hostname is None:
+        hostname = defaults.localhost
+    if port is None:
+        port = defaults.base_port
+    zmq_launcher((hostname, port), None, meet_addr, f=f)
+
+
+def run(f, n_workers=None, hostname=None, ports=None):
 
     if ports is None:
         client_port = None
@@ -14,8 +22,9 @@ def run(f, n_workers=None, hostname="tcp://127.0.0.1", ports=None):
     with zmq_cluster(
         n_workers=n_workers, hostname=hostname, ports=cluster_ports
     ) as cluster:
-        with zmq_client(
-            cluster, hostname=hostname, port=client_port
-        ) as client:
-            submission = client.submit(f)
-            return client.wait(submission)
+        new_client(f, cluster.addr(), hostname=hostname, port=client_port)
+        # with zmq_client(
+        #     cluster, hostname=hostname, port=client_port
+        # ) as client:
+        #     submission = client.submit(f)
+        #     return client.wait(submission)
