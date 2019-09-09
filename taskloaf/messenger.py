@@ -110,6 +110,8 @@ class JoinMeetMessenger:
 
     def meet(self, addr):
         log.info(f"meet {addr}")
+        if addr == self.comm.addr:
+            return
         data = self.protocol.encode(
             self.name, self.protocol.MEET, (self.name, self.comm.addr)
         )

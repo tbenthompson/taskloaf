@@ -18,8 +18,6 @@ class ZMQComm:
 
     def __init__(self, addr):
         self.addr = addr
-        self.hostname = addr[0]
-        self.port = addr[1]
 
     def __enter__(self):
         self.exit_stack = ExitStack()
@@ -29,7 +27,7 @@ class ZMQComm:
             closing(self.ctx.socket(zmq.PULL))
         )
         # self.recv_socket.setsockopt(zmq.SUBSCRIBE,b'')
-        self.recv_socket.bind(self.hostname + ":" + str(self.port))
+        self.recv_socket.bind(self.addr)
 
         return self
 
@@ -41,7 +39,7 @@ class ZMQComm:
             closing(self.ctx.socket(zmq.PUSH))
         )
         send_socket.setsockopt(zmq.LINGER, 0)
-        send_socket.connect(addr[0] + ":" + str(addr[1]))
+        send_socket.connect(addr)
         return send_socket
 
     def disconnect(self, socket):

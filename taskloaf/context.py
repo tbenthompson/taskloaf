@@ -7,9 +7,8 @@ from .allocator import RemoteShmemRepo, BlockManager, ShmemAllocator
 
 
 class Context:
-    def __init__(self, messenger, cfg):
+    def __init__(self, messenger):
         self.messenger = messenger
-        self.cfg = cfg
         self.name = self.messenger.name
         self.next_id = 0
 
@@ -31,7 +30,8 @@ class Context:
     def __enter__(self):
         self.exit_stack = ExitStack()
 
-        block_root_path = self.cfg.get("block_root_path", "/dev/shm/taskloaf_")
+        # TODO: configurable!
+        block_root_path = "/dev/shm/taskloaf_"
         local_root_path = block_root_path + str(self.name)
         self.remote_shmem = self.exit_stack.enter_context(
             closing(RemoteShmemRepo(block_root_path))
