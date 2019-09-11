@@ -74,16 +74,24 @@ class BlockingWorker:
 
 
 def zmq_run(*, cfg=None, f=None):
+    async def f_wrapper():
+        result = await tsk.ctx().executor.wait_for_work(f)
+        tsk.ctx().executor.stop = True
+        f_wrapper.result = result
+
+    f_wrapper.result = None
+
     if cfg is None:
         cfg = Cfg()
     cfg._build()
     with ExitStack() as es:
         workers = []
         main_cfg = cfg.get_worker_cfg(0)
-        main_cfg.run = f
+        main_cfg.run = f_wrapper
         workers.append(BlockingWorker(main_cfg))
         for i in range(1, cfg.n_workers):
             workers.append(
                 es.enter_context(SubprocessWorker(cfg.get_worker_cfg(i)))
             )
         workers[0].start()
+    return f_wrapper.result

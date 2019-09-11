@@ -56,6 +56,9 @@ class ZMQComm:
         return await self.recv_socket.poll(timeout=0)
 
     async def recv(self):
+        # TODO: make 2 milliseconds a config parameter
+        if (await self.recv_socket.poll(timeout=2)) == 0:
+            return None
         full_msg = await self.recv_socket.recv_multipart()
         msg = full_msg[0]
         if len(msg) == 0:

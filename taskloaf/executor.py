@@ -37,6 +37,7 @@ class Executor:
 
         logger.info("starting worker ioloop")
         self.ioloop.run_until_complete(start_task)
+        logger.info("worker ioloop done")
 
         pending = asyncio.Task.all_tasks(loop=self.ioloop)
         for task in pending:
@@ -77,6 +78,10 @@ class Executor:
 
     async def work_loop(self):
         while not self.stop:
+            if self.work.empty():
+                # TODO: make 2 milliseconds a config parameter
+                await asyncio.sleep(0.002)
+                continue
             w = await self.work.get()
             try:
                 self.run_work(w)
