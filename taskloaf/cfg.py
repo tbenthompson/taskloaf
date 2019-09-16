@@ -10,7 +10,7 @@ class Cfg:
         self.affinity = None
         self.base_port = 5754
         self.ports = None
-        self.initializer = initializer
+        self.initializer = default_setup_worker
         self.connect_to = f"{self.hostname}:{self.base_port}"
         self.built = False
         self.run = None
@@ -53,13 +53,13 @@ class Cfg:
         return cfg
 
 
-def initializer(name):
+def default_setup_worker(name):
     stdout_logging(name)
 
 
-def stdout_logging(name):
+def stdout_logging(name, logger_name="taskloaf"):
     level = logging.INFO
-    tsk_log = logging.getLogger("taskloaf")
+    tsk_log = logging.getLogger(logger_name)
     tsk_log.setLevel(level)
     ch = logging.StreamHandler()
     ch.setLevel(level)
@@ -68,18 +68,3 @@ def stdout_logging(name):
     )
     ch.setFormatter(formatter)
     tsk_log.addHandler(ch)
-
-    # n_cores = psutil.cpu_count(logical=False)
-
-    # if hostname is None:
-    #     hostname = defaults.localhost
-
-    # if n_workers is None:
-    #     n_workers = n_cores
-
-    # if ports is None:
-    #     base_port = defaults.base_port
-    #     ports = range(base_port + 1, base_port + n_workers + 1)
-
-    # if connect_to is None:
-    #     connect_to = (hostname, ports[0])

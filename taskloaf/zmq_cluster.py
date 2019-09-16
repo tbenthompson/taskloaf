@@ -34,6 +34,15 @@ def zmq_launcher(cfg):
     if cfg.affinity is not None:
         psutil.Process().cpu_affinity(cfg.affinity[0])
 
+    import signal
+    import sys
+
+    def sigterm_handler(_signo, _stack_frame):
+        # Raises SystemExit(0):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, sigterm_handler)
+
     with ZMQComm(cfg.addr()) as comm:
         messenger = JoinMeetMessenger(name, comm, True)
         messenger.protocol.add_msg_type("COMPLETE", handler=lambda args: None)
