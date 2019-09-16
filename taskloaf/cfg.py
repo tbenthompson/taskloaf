@@ -4,7 +4,7 @@ import psutil
 
 
 class Cfg:
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.hostname = "tcp://127.0.0.1"
         self.n_workers = psutil.cpu_count(logical=False)
         self.affinity = None
@@ -14,6 +14,9 @@ class Cfg:
         self.connect_to = f"{self.hostname}:{self.base_port}"
         self.built = False
         self.run = None
+        for k, v in kwargs.items():
+            if hasattr(self, k):
+                setattr(self, k, v)
 
     def addr(self, i=0):
         return f"{self.hostname}:{self.ports[i]}"

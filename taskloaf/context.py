@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import structlog
 from contextlib import ExitStack, closing
 
@@ -95,3 +96,9 @@ class Context:
 
         process = psutil.Process(os.getpid())
         return process.memory_info().rss
+
+    async def wait_for_workers(self, n_workers):
+        # TODO: what if there will never be n_workers available?
+        while len(self.messenger.endpts.keys()) < n_workers - 1:
+            await asyncio.sleep(0)
+        return list(self.messenger.endpts.keys())

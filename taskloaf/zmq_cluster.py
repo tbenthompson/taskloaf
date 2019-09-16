@@ -75,9 +75,10 @@ class BlockingWorker:
 
 def zmq_run(*, cfg=None, f=None):
     async def f_wrapper():
-        result = await tsk.ctx().executor.wait_for_work(f)
-        tsk.ctx().executor.stop = True
-        f_wrapper.result = result
+        if f is not None:
+            result = await tsk.ctx().executor.wait_for_work(f)
+            tsk.ctx().executor.stop = True
+            f_wrapper.result = result
 
     f_wrapper.result = None
 
