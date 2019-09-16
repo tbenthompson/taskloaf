@@ -7,6 +7,10 @@ import attr
 
 import taskloaf.shmem
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 @attr.s
 class Ptr:
@@ -94,16 +98,15 @@ class BlockManager:
         self.idx += 1
         block = alloc_memory_block(self.get_path(idx), idx, size)
         self.blocks[idx] = block
-        print(self.blocks[0])
         return block
 
     def free_block(self, block):
-        print("free", self.blocks)
+        logger.debug(f"free {self.blocks}")
         block.close()
         del self.blocks[block.idx]
 
     def close(self):
-        print("close blocks", self.blocks)
+        logger.debug(f"close blocks {self.blocks}")
         for k, v in self.blocks.items():
             v.close()
         self.blocks.clear()

@@ -1,5 +1,9 @@
 import taskloaf as tsk
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # An example of a taskloaf "daemon"? Could be cool!
 
 
@@ -14,8 +18,8 @@ def start_profiler(w):
 def stop_profiler(w, profiler):
     profiler.stop()
     if w is not None:
-        print("profile for addr: " + str(w.addr))
-    print(profiler.output_text(unicode=True, color=True))
+        logger.info(f"profile for addr: {w.addr}")
+    logger.info(profiler.output_text(unicode=True, color=True))
 
 
 class Profiler:

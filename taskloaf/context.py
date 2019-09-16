@@ -1,6 +1,4 @@
-import logging
 import asyncio
-import structlog
 from contextlib import ExitStack, closing
 
 from .refcounting import RefManager
@@ -12,9 +10,6 @@ class Context:
         self.messenger = messenger
         self.name = self.messenger.name
         self.next_id = 0
-
-        log_name = "taskloaf.context" + str(self.name)
-        self.log = structlog.wrap_logger(logging.getLogger(log_name))
 
         self.protocol = messenger.protocol
 

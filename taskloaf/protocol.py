@@ -22,7 +22,6 @@ class CloudPickleMsg:
 class Protocol:
     def __init__(self):
         self.msg_types = []
-        self.printer = print
 
     def add_msg_type(self, name, *, serializer=CloudPickleMsg, handler=None):
 

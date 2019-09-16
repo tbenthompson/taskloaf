@@ -4,6 +4,10 @@ import contextlib
 import ctypes
 import numpy as np
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def get_size_from_fd(fd):
     return os.fstat(fd).st_size
@@ -83,10 +87,14 @@ def alloc_shmem(size, filepath):
     assert not os.path.exists(filepath)
     try:
         init_shmem_file(filepath, size)
-        print("creating shm", filepath)
+        logger.info(f"creating shm {filepath}")
         yield filepath
     finally:
         try:
+            logger.info(f"deleting shm {filepath}")
             os.remove(filepath)
         except FileNotFoundError:
+            logger.info(
+                f"failed to delete shm {filepath} because it no longer exists"
+            )
             pass
