@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 # An example of a taskloaf "daemon"? Could be cool!
 
 
-def start_profiler(w):
+def start_profiler():
     import pyinstrument
 
     profiler = pyinstrument.Profiler()
@@ -15,28 +15,26 @@ def start_profiler(w):
     return profiler
 
 
-def stop_profiler(w, profiler):
+def stop_profiler(profiler):
     profiler.stop()
-    if w is not None:
-        logger.info(f"profile for addr: {w.addr}")
+    logger.info(f"profile for name: {tsk.ctx().name}")
     logger.info(profiler.output_text(unicode=True, color=True))
 
 
 class Profiler:
-    def __init__(self, w, addrs):
-        self.w = w
-        self.addrs = addrs
+    def __init__(self, names=None):
+        if names is None:
+            names = tsk.ctx().get_all_names()
+        self.names = names
 
     async def start(self):
-        self.prof_tasks = [
-            tsk.task(self.w, start_profiler, to=addr) for addr in self.addrs
-        ]
+        self.prof_tasks = [tsk.task(start_profiler, to=n) for n in self.names]
         for pt in self.prof_tasks:
             await pt
 
     async def stop(self):
         for i in range(len(self.prof_tasks)):
-            await self.prof_tasks[i].then(stop_profiler, to=self.addrs[i])
+            await self.prof_tasks[i].then(stop_profiler, to=self.names[i])
 
     async def __aenter__(self):
         await self.start()

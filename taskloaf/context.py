@@ -92,8 +92,11 @@ class Context:
         process = psutil.Process(os.getpid())
         return process.memory_info().rss
 
+    def get_all_names(self):
+        return [self.name] + list(self.messenger.endpts.keys())
+
     async def wait_for_workers(self, n_workers):
         # TODO: what if there will never be n_workers available?
         while len(self.messenger.endpts.keys()) < n_workers - 1:
             await asyncio.sleep(0)
-        return list(self.messenger.endpts.keys())
+        return self.get_all_names()
