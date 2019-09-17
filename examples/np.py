@@ -3,21 +3,20 @@ import taskloaf as tsk
 
 
 async def submit():
-    await tsk.ctx().wait_for_workers(2)
+    gang = await tsk.ctx().wait_for_workers(2)
     n = int(4e8)
     ref = tsk.alloc(n * 8)
     A = np.frombuffer(await ref.get(), dtype=np.float64)
     A[:] = np.random.rand(n)
     rhs = np.sum(A)
-    names = tsk.ctx().get_all_names()
     for i in range(2):
-        async with tsk.Profiler(names):
+        async with tsk.Profiler(gang):
             # ref = tsk.put(w, A.data.cast('B'))
             async def remote():
                 A = np.frombuffer(await ref.get(), dtype=np.float64)
                 return np.sum(A)
 
-            lhs = await tsk.task(remote, to=names[1])
+            lhs = await tsk.task(remote, to=gang[1])
             assert lhs == rhs
 
 
