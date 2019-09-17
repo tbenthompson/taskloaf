@@ -2,9 +2,7 @@ import taskloaf as tsk
 
 
 async def submit():
-    gang = list(tsk.ctx().messenger.endpts.keys())
-    print(gang)
-
+    gang = await tsk.ctx().wait_for_workers(2)
     X = 3.1
     n = 10
     pr = tsk.task(lambda: tsk.task(lambda: X))
@@ -17,4 +15,4 @@ async def submit():
 
 
 if __name__ == "__main__":
-    tsk.run(submit)
+    tsk.zmq_run(f=submit)
