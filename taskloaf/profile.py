@@ -17,7 +17,6 @@ def start_profiler():
 
 def stop_profiler(profiler):
     profiler.stop()
-    logger.info(f"profile for name: {tsk.ctx().name}")
     logger.info(profiler.output_text(unicode=True, color=True))
 
 
