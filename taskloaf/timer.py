@@ -16,7 +16,7 @@ class Timer(object):
         self.start = get_time()
 
     def report(self, name, should_restart=True):
-        text += name + " took " + str(get_time() - self.start)
+        text = name + " took " + str(get_time() - self.start)
         self.output_fnc(text)
         if should_restart:
             self.restart()

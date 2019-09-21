@@ -10,11 +10,13 @@ def put(obj):
 
 def alloc(nbytes):
     ptr = taskloaf.ctx().allocator.malloc(nbytes)
+    _id = taskloaf.ctx().get_new_id()
+    taskloaf.ctx().object_cache[(taskloaf.ctx().name, _id)] = ptr.deref()
 
     def on_delete(_id, ptr=ptr):
         taskloaf.ctx().allocator.free(ptr)
 
-    ref = taskloaf.refcounting.Ref(on_delete)
+    ref = taskloaf.refcounting.Ref(on_delete, _id=_id)
     return ObjectRef(ref, ptr, False)
 
 
