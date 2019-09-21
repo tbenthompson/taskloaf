@@ -18,10 +18,11 @@ struct ShmemPtr {
 }
 
 struct Ref {
-    owner @0 :UInt64;
-    id @1 :Int64;
-    gen @2 :UInt32;
-    refList @3 :List(Ref);
+    counted @0 :Bool;
+    owner @1 :UInt64;
+    id @2 :Int64;
+    gen @3 :UInt32;
+    refList @4 :List(Ref);
 }
 
 struct ObjectRef {

@@ -55,6 +55,7 @@ class RefManager:
 
     def __init__(self, protocol):
         self.entries = dict()
+        self.n_dec_refs = 0
         protocol.add_msg_type(
             "DECREF",
             serializer=DecRefMsg,
@@ -80,6 +81,9 @@ class RefManager:
         del self.entries[_id]
 
     def dec_ref(self, _id, gen, n_children, owner):
+        self.n_dec_refs += 1
+        if self.n_dec_refs % 1000 == 0:
+            print(self.n_dec_refs)
         if owner != taskloaf.ctx().name:
             taskloaf.ctx().messenger.send(
                 owner, taskloaf.ctx().protocol.DECREF, (_id, gen, n_children)
@@ -112,8 +116,51 @@ class RefCopyException(Exception):
     pass
 
 
-class Ref:
+class UncountedRef:
+    def __init__(self, child_refs=None, _id=None):
+        if child_refs is None:
+            child_refs = []
+        self.child_refs = child_refs
+        ctx = taskloaf.ctx()
+        self.owner = ctx.name
+        if _id is None:
+            _id = ctx.get_new_id()
+        self._id = _id
+
+    def log(self, text):
+        logger.debug(text + f" _id={self._id} owner={self.owner}")
+
+    def key(self):
+        return (self.owner, self._id)
+
+    def encode_reflist(self, msg):
+        msg.init("refList", len(self.child_refs))
+        if isinstance(self.child_refs, list):
+            for i in range(len(self.child_refs)):
+                self.child_refs[i].encode_capnp(msg.refList[i])
+        else:
+            for i, r in enumerate(self.child_refs):
+                msg.refList[i] = r
+
+    def _ensure_child_refs_deserialized(self):
+        if isinstance(self.child_refs, list):
+            return
+        self.child_refs = [
+            ref_decode_capnp(child_ref, child=True)
+            for child_ref in self.child_refs
+        ]
+
+    def encode_capnp(self, msg):
+        self.log("encode ref")
+        msg.counted = False
+        msg.owner = self.owner
+        msg.id = self._id
+        self.encode_reflist(msg)
+
+
+class Ref(UncountedRef):
     def __init__(self, on_delete, child_refs=None, _id=None):
+        raise Exception("WHOA")
         if child_refs is None:
             child_refs = []
         self.child_refs = child_refs
@@ -135,11 +182,9 @@ class Ref:
 
     def log(self, text):
         logger.debug(
-            text,
-            _id=self._id,
-            n_children=self.n_children,
-            gen=self.gen,
-            owner=self.owner,
+            text
+            + f" _id={self._id} n_children={self.n_children}"
+            + f" gen={self.gen} owner={self.owner}"
         )
 
     def __del__(self):
@@ -147,23 +192,6 @@ class Ref:
         taskloaf.ctx().ref_manager.dec_ref(
             self._id, self.gen, self.n_children, owner=self.owner
         )
-
-    def encode_reflist(self, msg):
-        msg.init("refList", len(self.child_refs))
-        if isinstance(self.child_refs, list):
-            for i in range(len(self.child_refs)):
-                self.child_refs[i].encode_capnp(msg.refList[i])
-        else:
-            for i, r in enumerate(self.child_refs):
-                msg.refList[i] = r
-
-    def _ensure_child_refs_deserialized(self):
-        if isinstance(self.child_refs, list):
-            return
-        self.child_refs = [
-            Ref.decode_capnp(child_ref, child=True)
-            for child_ref in self.child_refs
-        ]
 
     # After encoding or pickling, the __del__ call will only happen if
     # the object is decoded properly and nothing bad happens. This is scary,
@@ -173,22 +201,26 @@ class Ref:
     def encode_capnp(self, msg):
         self.log("encode ref")
         self.n_children += 1
+        msg.counted = True
         msg.owner = self.owner
         msg.id = self._id
         msg.gen = self.gen + 1
         self.encode_reflist(msg)
 
-    @classmethod
-    def decode_capnp(cls, msg, child=False):
+
+def ref_decode_capnp(msg, child=False):
+    if msg.counted:
         ref = Ref.__new__(Ref)
-        ref.owner = msg.owner
-        ref._id = msg.id
         ref.gen = msg.gen
         ref.n_children = 0
-        ref.log("decode ref")
+    else:
+        ref = UncountedRef.__new__(UncountedRef)
+    ref.owner = msg.owner
+    ref._id = msg.id
 
-        ref.child_refs = msg.refList
-        if not child:
-            ref._ensure_child_refs_deserialized()
+    ref.child_refs = msg.refList
+    if not child:
+        ref._ensure_child_refs_deserialized()
 
-        return ref
+    ref.log("decode ref")
+    return ref

@@ -1,8 +1,8 @@
 import asyncio
 
 import taskloaf
-from .refcounting import Ref
-from .object_ref import put, is_ref, ObjectRef
+from .refcounting import UncountedRef, ref_decode_capnp
+from .object_ref import put_raw, is_ref, ObjectRef
 
 import logging
 
@@ -27,7 +27,7 @@ class Promise:
         def on_delete(_id):
             del taskloaf.ctx().promises[_id]
 
-        self.ref = Ref(on_delete)
+        self.ref = UncountedRef()
         self.running_on = running_on
         self.ensure_future_exists()
 
@@ -38,7 +38,7 @@ class Promise:
     @classmethod
     def decode_capnp(cls, msg):
         out = Promise.__new__(Promise)
-        out.ref = Ref.decode_capnp(msg.ref)
+        out.ref = ref_decode_capnp(msg.ref)
         out.running_on = msg.runningOn
         return out
 
@@ -107,7 +107,7 @@ def _unwrap_promise(pr, result):
 
         result.then(unwrap_then)
     else:
-        result_ref = put(result)
+        result_ref = put_raw(result)
         if pr.ref.owner == taskloaf.ctx().name:
             pr.set_result(result_ref)
         else:
@@ -154,7 +154,7 @@ async def ensure_obj(maybe_ref):
 def ensure_ref(v):
     if is_ref(v):
         return v
-    return put(v)
+    return put_raw(v)
 
 
 class TaskMsg:

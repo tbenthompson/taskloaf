@@ -4,6 +4,91 @@ import taskloaf.allocator
 import taskloaf.refcounting
 
 
+class RawRef:
+    def __init__(self, obj):
+        self._id = taskloaf.ctx().get_new_id()
+        self.obj = obj
+        self.objref = None
+
+    def convert(self):
+        if self.objref is not None:
+            return self.objref
+        else:
+            return self._new_ref()
+
+    def _new_ref(self):
+        deserialize, child_refs, serialized_obj = serialize_if_needed(self.obj)
+        nbytes = len(serialized_obj)
+        ptr = taskloaf.ctx().allocator.malloc(nbytes)
+        ptr.deref()[:] = serialized_obj
+        taskloaf.ctx().object_cache[(taskloaf.ctx().name, self._id)] = self.obj
+
+        ref = taskloaf.refcounting.UncountedRef(
+            _id=self._id, child_refs=child_refs
+        )
+        self.objref = ObjectRef(ref, ptr, deserialize)
+        return self.objref
+
+    async def get(self):
+        return self.obj
+
+    def encode_capnp(self, msg):
+        self.convert().encode_capnp(msg)
+
+
+# class UniqueRef:
+#     def __init__(self, obj):
+#         self._id = taskloaf.ctx().get_new_id()
+#         self.obj = obj
+#         self.objref = None
+#
+#         serialize_if_needed(self.obj)
+#
+#         deserialize, child_refs, serialized_obj = serialize_if_needed(self.obj)
+#         nbytes = len(serialized_obj)
+#         ptr = taskloaf.ctx().allocator.malloc(nbytes)
+#         ptr.deref()[:] = serialized_obj
+#         taskloaf.ctx().object_cache[(taskloaf.ctx().name, self._id)] = self.obj
+#
+#         # def on_delete(_id, ptr=ptr):
+#         #     key = (taskloaf.ctx().name, _id)
+#         #     del taskloaf.ctx().object_cache[key]
+#         #     taskloaf.ctx().allocator.free(ptr)
+#
+#         # ref = taskloaf.refcounting.Ref(
+#         #     on_delete, _id=self._id, child_refs=child_refs
+#         # )
+#         # self.objref = ObjectRef(ref, ptr, deserialize)
+#         # return self.objref
+#
+#     async def get(self):
+#         return self.get_local()
+#
+#     def get_local(self):
+#         return self.obj
+#
+#     def ptr(self):
+#
+#     def __reduce__(self):
+#         raise TypeError("Can't pickle a unique reference.")
+#
+#     def __copy__(self):
+#         raise TypeError("Can't copy a unique reference.")
+#
+#     def __deepcopy__(self):
+#         raise TypeError("Can't copy a unique reference.")
+#
+#     def encode_capnp(self, msg):
+#         self.convert().encode_capnp(msg)
+#
+# def put_unique(obj):
+#     return UniqueRef(obj)
+
+
+def put_raw(obj):
+    return RawRef(obj)
+
+
 def put(obj):
     return FreshObjectRef(obj)
 
@@ -36,7 +121,11 @@ def handle_ref_work(args):
 
 
 def is_ref(x):
-    return isinstance(x, FreshObjectRef) or isinstance(x, ObjectRef)
+    return (
+        isinstance(x, RawRef)
+        or isinstance(x, FreshObjectRef)
+        or isinstance(x, ObjectRef)
+    )
 
 
 """
@@ -52,6 +141,7 @@ serialization of the underlying object.
 
 class FreshObjectRef:
     def __init__(self, obj):
+        raise Exception("WHOA")
         self._id = taskloaf.ctx().get_new_id()
         self.obj = obj
         self.objref = None
@@ -187,7 +277,7 @@ class ObjectRef:
     @classmethod
     def decode_capnp(cls, msg):
         objref = ObjectRef.__new__(ObjectRef)
-        objref.ref = taskloaf.refcounting.Ref.decode_capnp(msg.ref)
+        objref.ref = taskloaf.refcounting.ref_decode_capnp(msg.ref)
         objref.deserialize = msg.deserialize
         objref.ptr = taskloaf.allocator.Ptr.decode_capnp(
             objref.ref.owner, msg.ptr
