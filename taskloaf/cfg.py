@@ -12,6 +12,7 @@ class Cfg:
         self.ports = None
         self.initializer = default_setup_worker
         self.connect_to = f"{self.hostname}:{self.base_port}"
+        self.log_level = logging.INFO
         self.built = False
         self.run = None
         for k, v in kwargs.items():
@@ -46,6 +47,7 @@ class Cfg:
             "base_port",
             "initializer",
             "connect_to",
+            "log_level",
             "built",
             "run",
         ]:
@@ -53,16 +55,15 @@ class Cfg:
         return cfg
 
 
-def default_setup_worker(name):
-    stdout_logging(name)
+def default_setup_worker(name, cfg):
+    stdout_logging(name, log_level=cfg.log_level)
 
 
-def stdout_logging(name, logger_name="taskloaf"):
-    level = logging.INFO
+def stdout_logging(name, logger_name="taskloaf", log_level=logging.INFO):
     tsk_log = logging.getLogger(logger_name)
-    tsk_log.setLevel(level)
+    tsk_log.setLevel(log_level)
     ch = logging.StreamHandler()
-    ch.setLevel(level)
+    ch.setLevel(log_level)
     formatter = logging.Formatter(
         f"{name} %(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )

@@ -24,7 +24,7 @@ def zmq_launcher(cfg):
     name = random_name()
 
     if cfg.initializer is not None:
-        cfg.initializer(name)
+        cfg.initializer(name, cfg)
 
     logger.info(
         f"Setting up ZeroMQ-based worker with name={name}"

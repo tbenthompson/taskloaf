@@ -68,7 +68,7 @@ class Promise:
     def then(self, f, to=None):
         async def wait_to_start():
             v = await self
-            return f(v)
+            return await taskloaf.ctx().executor.wait_for_work(f, v)
 
         return task(wait_to_start, to=to)
 
@@ -92,7 +92,7 @@ def task_runner(pr, in_f, *in_args):
         # catches all exceptions except system-exiting exceptions that inherit
         # from BaseException
         except Exception as e:
-            logger.warning("exception during task", exc_info=True)
+            logger.exception("exception during task")
             result = TaskExceptionCapture(e)
         _unwrap_promise(pr, result)
 

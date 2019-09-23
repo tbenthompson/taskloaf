@@ -10,6 +10,7 @@ async def f():
 
 
 if __name__ == "__main__":
-    r = tsk.zmq_run(cfg=tsk.Cfg(n_workers=N), f=f)
-    print(r)
-    assert r == 123
+    for i in range(2):
+        r = tsk.zmq_run(cfg=tsk.Cfg(n_workers=N), f=f)
+        print(r)
+        assert r == 123
