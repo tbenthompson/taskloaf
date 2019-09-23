@@ -9,11 +9,15 @@ import _sparse
 
 
 class TskArray:
-    def __init__(self, vals):
-        assert len(vals.shape) == 1
-        self.dtype = vals.dtype
-        self.ref = tsk.alloc(vals.shape[0] * self.dtype.itemsize)
-        self._array(self.ref.get_local())[:] = vals
+    def __init__(self, vals=None, size=None):
+        if vals is not None:
+            assert len(vals.shape) == 1
+            self.dtype = vals.dtype
+            self.ref = tsk.alloc(vals.shape[0] * self.dtype.itemsize)
+            self._array(self.ref.get_local())[:] = vals
+        else:
+            self.dtype = np.float64()
+            self.ref = tsk.alloc(size * self.dtype.itemsize)
 
     def _array(self, buf):
         return np.frombuffer(buf, dtype=self.dtype)
@@ -23,26 +27,32 @@ class TskArray:
 
 
 class TskCSRChunk:
-    def __init__(self, csr_mat):
+    def __init__(self, csr_mat, start_row):
         self.shape = csr_mat.shape
-        self.indptr = TskArray(csr_mat.indptr)
-        self.indices = TskArray(csr_mat.indices)
-        self.data = TskArray(csr_mat.data)
+        self.start_row = start_row
+        self.end_row = self.start_row + self.shape[0]
+        self.indptr = TskArray(vals=csr_mat.indptr)
+        self.indices = TskArray(vals=csr_mat.indices)
+        self.data = TskArray(vals=csr_mat.data)
 
-    async def dot(self, v):
+    async def dot(self, v, tsk_out):
         assert v.shape[0] == self.shape[1]
-        out = np.empty(self.shape[0])
-        indptr_array, indices_array, data_array = await asyncio.gather(
-            self.indptr.array(), self.indices.array(), self.data.array()
+        indptr_arr, indices_arr, data_arr, out_arr = await asyncio.gather(
+            self.indptr.array(),
+            self.indices.array(),
+            self.data.array(),
+            tsk_out.array(),
         )
+        out_chunk = out_arr[self.start_row : self.end_row]
         _sparse.csrmv_id(
-            indptr_array, indices_array, data_array, v, out, False
+            indptr_arr, indices_arr, data_arr, v, out_chunk, False
         )
-        return None
+        return tsk_out
 
 
 class TskCSR:
-    def __init__(self, chunks, gang):
+    def __init__(self, shape, chunks, gang):
+        self.shape = shape
         self.chunks = chunks
         self.gang = gang
         self._setup_dot()
@@ -51,24 +61,24 @@ class TskCSR:
         self.dot_fnc_refs = []
         for i in range(len(self.chunks)):
 
-            this_chunk = self.chunks[i]
-
-            async def dot_helper(v_ref):
-                v = await v_ref.get()
-                return await this_chunk.dot(v)
+            async def dot_helper(v, tsk_out, this_chunk=self.chunks[i]):
+                v = await v.array()
+                await this_chunk.dot(v, tsk_out)
 
             self.dot_fnc_refs.append(tsk.put(dot_helper))
 
-    async def dot(self, v_promise):
+    async def dot(self, v_ref):
+        out = TskArray(size=self.shape[0])
         jobs = []
         for i in range(len(self.chunks)):
-            jobs.append(v_promise.then(self.dot_fnc_refs[i], to=self.gang[i]))
+            jobs.append(
+                tsk.task(self.dot_fnc_refs[i], v_ref, out, to=self.gang[i])
+            )
 
-        out_chunks = []
         for i in range(len(jobs)):
-            out_chunks.append(await jobs[i])
-        return None
-        # return np.concatenate(out_chunks)
+            await jobs[i]
+        return await out.array()
+        # return np.concatenate([await c.array() for c in out_chunks])
 
 
 def distribute(mat, gang):
@@ -84,6 +94,6 @@ def distribute(mat, gang):
         start_row = row_chunk_bounds[i]
         end_row = row_chunk_bounds[i + 1]
         chunk_mat = mat[start_row:end_row]
-        dist_chunks.append(TskCSRChunk(chunk_mat))
+        dist_chunks.append(TskCSRChunk(chunk_mat, start_row))
 
-    return TskCSR(dist_chunks, gang)
+    return TskCSR(mat.shape, dist_chunks, gang)

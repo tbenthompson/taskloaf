@@ -11,7 +11,6 @@ async def submit():
         pr = pr.then(lambda x: x + 1)
 
     async def asum(x):
-        raise Exception("E")
         return sum(x)
 
     pr = tsk.when_all([pr, tsk.task(lambda: X, to=gang[1])]).then(asum)

@@ -20,7 +20,7 @@ async def submit():
             assert lhs == rhs
 
 
-def setup_worker(name):
+def setup_worker(name, cfg):
     tsk.cfg.stdout_logging(name, "taskloaf.profile")
 
 

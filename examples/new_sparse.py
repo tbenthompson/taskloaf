@@ -5,7 +5,7 @@ import scipy.sparse
 
 import taskloaf as tsk
 
-from taskloaf.csr import distribute
+from taskloaf.csr import distribute, TskArray
 
 
 def random_test_matrix(nrows, nnz):
@@ -28,9 +28,9 @@ def main():
     )
 
     async def f():
-        nrows = int(1e6)
+        nrows = int(1e7)
         nnz = nrows * 10
-        n_repeats = 10
+        n_repeats = 1
         mat = random_test_matrix(nrows, nnz)
         vec = np.random.rand(nrows) - 0.5
         t = tsk.Timer()
@@ -38,30 +38,28 @@ def main():
             correct = mat.dot(vec)
         t.report("simple dot")
 
-        print(np.sum(correct))
-
         gang = await tsk.ctx().wait_for_workers(cfg.n_workers)
-        vec_ref = tsk.put(vec)
-        vec_promise = tsk.task(lambda: vec_ref)
-        print("SUM1: ", np.sum(vec))
+        t.report("wait for workers")
 
-        async def await_sum(x):
-            print(x)
-            print(type(x))
-            return np.sum(await x.get())
+        t.report("launch profiler")
+        tsk_vec = TskArray(vals=vec)
+        t.report("shmem v")
 
-        print("SUM2: ", await (vec_promise.then(await_sum)))
-        return
+        tsk_mat = distribute(mat, gang)
+        t.report("distribute mat")
+
+        result = await tsk_mat.dot(tsk_vec)
+        t.report("first dot")
 
         async with tsk.Profiler(gang):
-            tsk_mat = distribute(mat, gang)
-
             t.restart()
             for i in range(n_repeats):
-                result = await tsk_mat.dot(vec_promise)
+                result = await tsk_mat.dot(tsk_vec)
             t.report("parallel dot")
 
+        print(np.sum(correct))
         print(np.sum(result))
+        assert np.sum(result) == np.sum(correct)
 
     tsk.zmq_run(cfg=cfg, f=f)
 

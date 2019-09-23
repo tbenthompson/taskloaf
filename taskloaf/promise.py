@@ -66,11 +66,7 @@ class Promise:
         self._get_future().set_result(result)
 
     def then(self, f, to=None):
-        async def wait_to_start():
-            v = await self
-            return await taskloaf.ctx().executor.wait_for_work(f, v)
-
-        return task(wait_to_start, to=to)
+        return task(f, self, to=to)
 
     def next(self, f, to=None):
         return self.then(lambda x: f(), to)
@@ -144,9 +140,18 @@ def task(f, *args, to=None):
     return out_pr
 
 
+async def _ensure_obj_helper(x):
+    if type(x) == Promise:
+        return await x
+    else:
+        return x
+
+
 async def ensure_obj(maybe_ref):
     if is_ref(maybe_ref):
-        return await maybe_ref.get()
+        return await _ensure_obj_helper(await maybe_ref.get())
+    if type(maybe_ref) == Promise:
+        return await maybe_ref
     else:
         return maybe_ref
 
